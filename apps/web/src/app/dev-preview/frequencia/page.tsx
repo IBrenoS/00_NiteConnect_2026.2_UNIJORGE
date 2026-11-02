@@ -63,6 +63,7 @@ export default async function SyntheticFrequencyPreview({ searchParams }: { sear
     openKey="83000000-0000-4000-8000-000000000901"
     from="2026-11-01"
     to="2026-11-30"
+    eventsIssue={null}
     historyPage={surface === "personal" ? personalHistory : history}
     historyIssue={null}
     personalSummary={surface === "personal" ? personalSummary : previewFrequencySummary}

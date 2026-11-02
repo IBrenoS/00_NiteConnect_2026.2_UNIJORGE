@@ -120,6 +120,6 @@ describe("apresentação semântica do histórico pessoal", () => {
       notCountedReason: "REUNIAO_CANCELADA",
       accountingStatus: "CANCELADA",
     }))).toEqual({ label: "Cancelada", context: null });
-    expect(historyPresentation(historyEntry({ notCountedReason: "REUNIAO_NAO_CONTABILIZAVEL" }))).toEqual({ label: "Não contabilizada", context: null });
+    expect(historyPresentation(historyEntry({ notCountedReason: "REUNIAO_NAO_CONTABILIZAVEL" }))).toEqual({ label: "Reunião não contabilizada", context: null });
   });
 });

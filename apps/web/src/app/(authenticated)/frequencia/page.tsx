@@ -108,6 +108,7 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
     openKey={openKey}
     from={range.from}
     to={range.to}
+    eventsIssue={issue(events?.issue)}
     historyPage={personalHistory.data}
     historyIssue={issue(personalHistory.issue)}
     personalSummary={personalSummary.data}

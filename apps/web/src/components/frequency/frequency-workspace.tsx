@@ -24,6 +24,7 @@ type WorkspaceProps = {
   openKey: string;
   from: string;
   to: string;
+  eventsIssue: ApiIssue;
   historyPage: FrequencyPage<HistoryEntry> | null;
   historyIssue: ApiIssue;
   personalSummary: FrequencySummary | null;
@@ -92,14 +93,24 @@ function pathWith(params: Record<string, string | undefined>, synthetic = false)
   return (synthetic ? "/dev-preview/frequencia" : "/frequencia") + (suffix ? "?" + suffix : "");
 }
 
-function StateLabel({ children, tone = "muted" }: { children: ReactNode; tone?: "success" | "warning" | "info" | "muted" }) {
+type StateTone = "success" | "warning" | "error" | "info" | "muted";
+
+function StateLabel({ children, tone = "muted", className }: { children: ReactNode; tone?: StateTone; className?: string }) {
   const color = {
     success: "text-status-done",
     warning: "text-status-warning",
+    error: "text-status-error",
     info: "text-nite-brand-accent",
     muted: "text-nite-text-secondary",
   }[tone];
-  return <span className={cx("inline-flex min-w-0 items-center text-type-body-compact font-semibold leading-snug", color)}>{children}</span>;
+  return <span className={cx("inline-flex min-w-0 items-center text-type-body-compact font-semibold leading-snug", color, className)}>{children}</span>;
+}
+
+function attendanceTone(label: string): StateTone {
+  if (label === "Presente") return "success";
+  if (label === "Justificado") return "warning";
+  if (label === "Ausente") return "error";
+  return "muted";
 }
 
 function Issue({ issue }: { issue: ApiIssue }) {
@@ -155,7 +166,7 @@ function RangeControl({ props }: { props: WorkspaceProps }) {
   </div>;
 }
 
-function historyStatus(item: HistoryEntry): { label: string; tone: "success" | "warning" | "info" | "muted" } {
+function historyStatus(item: HistoryEntry): { label: string; tone: StateTone } {
   if (item.legacy || item.listStatus === "LEGADO") return { label: "Histórico anterior à apuração", tone: "muted" };
   if (item.listStatus === "ABERTA") {
     if (item.presenceRecorded) return { label: "Presença registrada · aguardando conclusão", tone: "success" };
@@ -170,14 +181,14 @@ function historyStatus(item: HistoryEntry): { label: string; tone: "success" | "
   }
   if (item.outcome === "NAO_REALIZADA") return { label: item.presenceRecorded ? "Presença registrada · reunião não realizada" : "Reunião não realizada", tone: "muted" };
   if (item.accountingStatus === "NAO_CONTABILIZAVEL") {
-    if (item.presenceRecorded) return { label: "Presença registrada · fora da apuração", tone: "success" };
-    if (item.attendanceStatus === "JUSTIFICADO") return { label: "Justificado · fora da apuração", tone: "info" };
-    return { label: "Fora da apuração", tone: "muted" };
+    if (item.presenceRecorded) return { label: "Presença registrada · reunião não contabilizada", tone: "success" };
+    if (item.attendanceStatus === "JUSTIFICADO") return { label: "Justificado · reunião não contabilizada", tone: "warning" };
+    return { label: "Reunião não contabilizada", tone: "muted" };
   }
   if (item.status === "PRESENTE") return { label: "Presente", tone: "success" };
-  if (item.status === "JUSTIFICADO") return { label: "Justificado", tone: "info" };
-  if (item.status === "AUSENTE") return { label: "Ausente", tone: "warning" };
-  if (item.status === "FORA_DA_APURACAO") return { label: "Fora da apuração", tone: "muted" };
+  if (item.status === "JUSTIFICADO") return { label: "Justificado", tone: "warning" };
+  if (item.status === "AUSENTE") return { label: "Ausente", tone: "error" };
+  if (item.status === "FORA_DA_APURACAO") return { label: "Reunião não contabilizada", tone: "muted" };
   return { label: "Aguardando confirmação", tone: "muted" };
 }
 
@@ -191,7 +202,7 @@ function HistoryRows({ page, pageNumber, params, emptyLabel = "Nenhuma reunião 
         const presentation = personal ? historyPresentation(item) : null;
         const key = item.listId ?? item.calendarEventId ?? item.occurredAt + "-" + index;
         const moment = historyStatusMoment(item);
-        return <li key={key} className="grid min-w-0 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,.75fr)_auto] sm:items-center sm:gap-4">
+        return <li key={key} className="grid min-w-0 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,10rem)_minmax(12rem,13rem)] sm:items-center sm:gap-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <div className="flex min-w-0 items-start gap-3">
             <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-control bg-nite-surface-subtle text-nite-brand-accent"><Icon name="calendar" className="size-4" /></span>
             <div className="min-w-0">
@@ -199,8 +210,8 @@ function HistoryRows({ page, pageNumber, params, emptyLabel = "Nenhuma reunião 
               <p className="mt-0.5 text-type-metadata text-nite-text-muted">{formatFrequencyDate(item.occurredAt, { dateStyle: "medium", timeStyle: "short" })}</p>
             </div>
           </div>
-          <StateLabel tone={presentation ? presentation.label === "Presente" ? "success" : presentation.label === "Ausente" ? "warning" : "muted" : status.tone}>{presentation ? presentation.label + (presentation.context ? " · " + presentation.context : "") : status.label}</StateLabel>
-          {moment ? <p className="text-type-body-compact text-nite-text-secondary sm:text-right">{moment}</p> : null}
+          <StateLabel className="lg:justify-self-center" tone={presentation ? attendanceTone(presentation.label) : status.tone}>{presentation ? presentation.label + (presentation.context ? " · " + presentation.context : "") : status.label}</StateLabel>
+          {moment ? <p className="min-w-0 break-words text-type-body-compact text-nite-text-secondary sm:text-right">{moment}</p> : <span aria-hidden="true" className="hidden sm:block" />}
         </li>;
       })}
     </ol>
@@ -398,10 +409,6 @@ function listState(list: FrequencyList, now: number | null): { label: string; to
   return { label: "Aberta · confirmações disponíveis", tone: "info" };
 }
 
-function listClassLabel(list: FrequencyList): string {
-  return list.classification === "REGULAR" ? "Regular" : "Excepcional";
-}
-
 function ParticipantActions({ list, participant, synthetic = false }: { list: FrequencyList; participant: Participant; synthetic?: boolean }) {
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -489,20 +496,20 @@ function CancelListAction({ list, synthetic }: { list: FrequencyList; synthetic?
   </>;
 }
 
-function participantState(participant: Participant, list: FrequencyList, now: number | null): { label: string; tone: "success" | "warning" | "info" | "muted" } {
+function participantState(participant: Participant, list: FrequencyList, now: number | null): { label: string; tone: StateTone } {
   if (list.status === "ABERTA") {
     if (participant.status === "PRESENTE") return { label: "Presente", tone: "success" };
-    if (participant.status === "JUSTIFICADO") return { label: "Justificado", tone: "info" };
-    if (participant.status === "FORA_DA_APURACAO") return { label: "Fora da apuração", tone: "muted" };
+    if (participant.status === "JUSTIFICADO") return { label: "Justificado", tone: "warning" };
+    if (participant.status === "FORA_DA_APURACAO") return { label: "Reunião não contabilizada", tone: "muted" };
     return now !== null && Date.parse(list.confirmationDeadline) <= now
       ? { label: "Aguardando conclusão", tone: "warning" }
       : { label: "Aguardando confirmação", tone: "muted" };
   }
   if (participant.status === "PRESENTE") return { label: "Presente", tone: "success" };
-  if (participant.status === "JUSTIFICADO") return { label: "Justificado", tone: "info" };
-  if (participant.status === "AUSENTE") return { label: "Ausente", tone: "warning" };
-  if (participant.status === "FORA_DA_APURACAO") return { label: "Fora da apuração", tone: "muted" };
-  return { label: "Fora da apuração", tone: "muted" };
+  if (participant.status === "JUSTIFICADO") return { label: "Justificado", tone: "warning" };
+  if (participant.status === "AUSENTE") return { label: "Ausente", tone: "error" };
+  if (participant.status === "FORA_DA_APURACAO") return { label: "Reunião não contabilizada", tone: "muted" };
+  return { label: "Reunião não contabilizada", tone: "muted" };
 }
 
 function meetingListRoute(props: WorkspaceProps, listId: string | undefined, page: number, status = props.participantStatus, search = props.participantSearch): string {
@@ -576,7 +583,7 @@ function GlobalParticipantCounts({ page, open, confirmations }: { page: Particip
     { label: "Aguardando confirmação", count: counts.awaitingConfirmation },
     { label: "Total de integrantes", count: counts.rosterTotal },
   ];
-  if (counts.outsideApuration > 0) entries.push({ label: "Fora da apuração", count: counts.outsideApuration });
+  if (counts.outsideApuration > 0) entries.push({ label: "Integrantes não contabilizados", count: counts.outsideApuration });
   return <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-nite-border-soft py-4 sm:grid-cols-3 xl:grid-cols-5">
     {entries.map((item) => <div key={item.label} className="min-w-0"><dt className="break-words text-type-metadata text-nite-text-muted">{item.label}</dt><dd className="mt-1 font-display text-xl font-semibold tabular-nums text-nite-text-primary">{item.count}</dd></div>)}
   </dl>;
@@ -586,6 +593,9 @@ function CreateList({ props, openKey, setOpenKey }: { props: WorkspaceProps; ope
   const [selectedEventId, setSelectedEventId] = useState("");
   const events = props.events.filter((event) => event.status === "AGENDADO");
   const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const agendaIssue = props.eventsIssue === "access"
+    ? "Sua conta não pode consultar a Agenda."
+    : "Não foi possível carregar a Agenda.";
   const regular = selectedEvent
     ? isRegularFrequencyMeeting(selectedEvent.kind, selectedEvent.modality, selectedEvent.startsAt)
     : isRegularFrequencyMeeting("ENCONTRO", "PRESENCIAL", new Date());
@@ -595,15 +605,18 @@ function CreateList({ props, openKey, setOpenKey }: { props: WorkspaceProps; ope
       <span><span className="block text-type-body-compact font-semibold text-nite-text-primary">Abrir nova lista</span><span className="mt-0.5 block text-type-metadata text-nite-text-muted">Data, autoria e integrantes são definidos automaticamente.</span></span>
       <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-control bg-nite-surface text-type-body-compact text-nite-text-secondary transition-transform group-open:rotate-45 motion-reduce:transition-none">+</span>
     </summary>
-    <form action={action} onChange={() => { if (!props.synthetic) setOpenKey(globalThis.crypto.randomUUID()); }} className="grid gap-3 border-t border-nite-border-soft px-3 py-4 sm:grid-cols-2 sm:px-4 xl:grid-cols-[minmax(14rem,1.3fr)_minmax(12rem,1fr)_minmax(9rem,.7fr)_auto] xl:items-end">
+    <form action={action} onChange={() => { if (!props.synthetic) setOpenKey(globalThis.crypto.randomUUID()); }} className="grid gap-3 border-t border-nite-border-soft px-3 py-4 sm:grid-cols-2 sm:px-4 xl:grid-cols-[minmax(9rem,.6fr)_minmax(15rem,1.15fr)_minmax(13rem,.9fr)_minmax(12rem,.9fr)] xl:items-end">
       <input type="hidden" name="idempotencyKey" value={openKey} />
       <input type="hidden" name="agendaClassification" value={selectedEvent ? regular ? "REGULAR" : "EXCEPTIONAL" : ""} />
-      <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Vincular encontro da Agenda <span className="text-nite-text-muted">(opcional)</span>
-        <Select name="calendarEventId" value={selectedEventId} onChange={(event) => setSelectedEventId(event.currentTarget.value)}>
-          <option value="">Criar sem vínculo</option>
-          {events.map((event) => <option key={event.id} value={event.id}>{event.title} · {formatFrequencyDate(event.startsAt, { hour: "2-digit", minute: "2-digit" })}</option>)}
-        </Select>
-      </label>
+      <div className="grid min-w-0 gap-1.5">
+        <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary"><span>Vincular encontro da Agenda <span className="text-nite-text-muted">(opcional)</span></span>
+          <Select name="calendarEventId" value={selectedEventId} aria-describedby={props.eventsIssue ? "agenda-events-error" : undefined} onChange={(event) => setSelectedEventId(event.currentTarget.value)}>
+            <option value="">Criar sem vínculo</option>
+            {events.map((event) => <option key={event.id} value={event.id}>{event.title} · {formatFrequencyDate(event.startsAt, { hour: "2-digit", minute: "2-digit" })}</option>)}
+          </Select>
+        </label>
+      </div>
+      {props.eventsIssue ? <p id="agenda-events-error" role="alert" className="text-type-metadata text-status-warning sm:col-span-2 xl:col-span-4">{agendaIssue}</p> : null}
       <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Nome do encontro
         <TextField name="meetingName" maxLength={200} required={!selectedEventId} disabled={Boolean(selectedEventId)} placeholder={selectedEvent ? "Nome definido pela Agenda" : "Ex.: reunião extraordinária"} />
       </label>
@@ -675,7 +688,7 @@ function MeetingDetail({ props, now }: { props: WorkspaceProps; now: number | nu
     <Link href={pathWith({ view: "management", mode: "meeting", range: props.rangeKey, listStatus: props.listStatus, list: "" }, props.synthetic)} className="mb-3 inline-flex min-h-9 items-center gap-2 rounded-control pr-2 text-type-metadata font-medium text-nite-brand-primary hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus xl:hidden"><Icon name="arrow-left" className="size-4" />Voltar às listas</Link>
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><StateLabel tone={state.tone}>{state.label}</StateLabel><span className="text-type-metadata text-nite-text-muted">{listClassLabel(list)}</span></div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><StateLabel tone={state.tone}>{state.label}</StateLabel></div>
         <h2 className="mt-2 break-words font-display text-type-section-title text-nite-text-primary">{list.meetingName}</h2>
         <p className="mt-2 text-type-body-compact text-nite-text-secondary">Responsável: {list.openedBy.displayName}</p>
         <p className="mt-1 text-type-body-compact text-nite-text-secondary">Aberta em {formatFrequencyDate(list.openedAt, { dateStyle: "medium", timeStyle: "short" })}{list.closedAt ? (list.status === "CANCELADA" ? " · Cancelada em " : " · Concluída em ") + formatFrequencyDate(list.closedAt, { dateStyle: "medium", timeStyle: "short" }) : ""}</p>

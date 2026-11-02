@@ -5,7 +5,7 @@ const reasonLabels: Record<NonApurationReason, string> = {
   LISTA_AGUARDANDO_CONCLUSAO: "Aguardando conclusão",
   REUNIAO_CANCELADA: "Reunião cancelada",
   REUNIAO_NAO_REALIZADA: "Não realizada",
-  REUNIAO_NAO_CONTABILIZAVEL: "Não contabilizada",
+  REUNIAO_NAO_CONTABILIZAVEL: "Reunião não contabilizada",
   ANTERIOR_AO_CORTE_OFICIAL: "Registro anterior",
 };
 
