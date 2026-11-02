@@ -60,6 +60,22 @@ public class MemberDirectory {
     }
     public record Candidate(UUID id, String name) {}
 
+    /** Search contract for active members that can be selected as meeting invitees. */
+    public PageResult<Candidate> activeCandidates(String query, int page, int size) {
+        PageResult.validate(page, size);
+        String normalized = query == null ? "" : query.strip();
+        if (normalized.codePointCount(0, normalized.length()) < 2 || normalized.length() > 160) {
+            throw ApiException.invalid("Informe ao menos 2 caracteres para pesquisar integrantes");
+        }
+        String escaped = normalized.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        String pattern = "%" + escaped + "%";
+        String where = " from nite_connect.members where status='ATIVO' and name ilike ? escape '!'";
+        long total = jdbc.queryForObject("select count(*)" + where, Long.class, pattern);
+        return new PageResult<>(jdbc.query("select id,name" + where + " order by name,id limit ? offset ?",
+                (rs, row) -> new Candidate(rs.getObject("id", UUID.class), rs.getString("name")),
+                pattern, size, (long) page * size), page, size, total);
+    }
+
     /** Frequency snapshot contract: active identities and their display names only. */
     public java.util.List<RosterMember> activeRoster() {
         return jdbc.query("select id,name from nite_connect.members where status='ATIVO' order by id",

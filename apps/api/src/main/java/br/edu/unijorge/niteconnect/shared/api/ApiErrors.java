@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import br.edu.unijorge.niteconnect.meetings.application.MeetingProviderApiException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
@@ -20,6 +21,14 @@ public class ApiErrors {
     @ExceptionHandler(ApiException.class)
     ProblemDetail domain(ApiException ex) {
         return ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+    }
+    @ExceptionHandler(MeetingProviderApiException.class)
+    ProblemDetail meetingProvider(MeetingProviderApiException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                "A integração Microsoft Graph não concluiu a operação.");
+        problem.setProperty("code", ex.code());
+        if (ex.operationId() != null) problem.setProperty("operationId", ex.operationId());
+        return problem;
     }
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
             ConstraintViolationException.class, MethodArgumentTypeMismatchException.class,

@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import java.util.UUID;
+import java.util.Optional;
 
 @Service
 public class IdentityDirectory {
@@ -29,6 +30,10 @@ public class IdentityDirectory {
     }
     public boolean identityExists(UUID tenant, UUID object) {
         return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.identity_accounts where tenant_id=? and object_id=?)", Boolean.class, tenant, object));
+    }
+    public Optional<UUID> memberForIdentity(UUID tenant, UUID object) {
+        return jdbc.query("select member_id from nite_connect.identity_accounts where tenant_id=? and object_id=?",
+                (rs, row) -> rs.getObject(1, UUID.class), tenant, object).stream().findFirst();
     }
     public boolean isEmpty() { return jdbc.queryForObject("select count(*) from nite_connect.identity_accounts", Long.class) == 0; }
 }

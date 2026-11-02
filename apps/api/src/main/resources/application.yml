@@ -43,6 +43,16 @@ nite:
     tenant-id: ${ENTRA_TENANT_ID:}
     audience: ${ENTRA_AUDIENCE:}
     required-scope: ${ENTRA_REQUIRED_SCOPE:}
+  meetings:
+    graph:
+      enabled: ${MEETINGS_GRAPH_ENABLED:false}
+      attendance-enabled: ${MEETINGS_GRAPH_ATTENDANCE_ENABLED:false}
+      tenant-id: ${ENTRA_TENANT_ID:}
+      client-id: ${ENTRA_AUDIENCE:}
+      client-secret: ${ENTRA_API_CLIENT_SECRET:}
+      base-url: ${MEETINGS_GRAPH_BASE_URL:https://graph.microsoft.com/v1.0}
+      connect-timeout: ${MEETINGS_GRAPH_CONNECT_TIMEOUT:PT5S}
+      request-timeout: ${MEETINGS_GRAPH_REQUEST_TIMEOUT:PT20S}
   justification:
     local-root: ${JUSTIFICATION_ATTACHMENT_LOCAL_ROOT:}
     storage:

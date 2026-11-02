@@ -27,6 +27,8 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V21 | [`V21__remove_retired_participation_scope.sql`](V21__remove_retired_participation_scope.sql) | Remove tabelas e dados legados de horas, políticas, solicitações, justificativas, comprovantes e auditorias B04; migra segmentos e auditoria de Agenda/presença para tabelas próprias. Falha se eventos de período não puderem ser classificados. |
 | V22 | [`V22__frequency_attendance_lists.sql`](V22__frequency_attendance_lists.sql) | B04 Frequência: listas e snapshots imutáveis, QR temporário e handoff, trilha administrativa, corte oficial `activated_at` e suporte a eventos rápidos com término nulo. Preserva encontros e presenças legados, revogando QRs de sessão anteriores. |
 | V23 | [`V23__frequency_handoff_retention_index.sql`](V23__frequency_handoff_retention_index.sql) | B04 Frequência: índice por expiração para o expurgo global, limitado e concorrente de handoffs após o período de retenção. |
+| V25 | [`V25__meetings_mutation_versions.sql`](V25__meetings_mutation_versions.sql) | Reuniões: versão otimista por convite e índice de exclusão mútua para operações Graph em andamento/indeterminadas. |
+| V24 | [`V24__meetings_module.sql`](V24__meetings_module.sql) | Novo domínio de reuniões Teams: calendário Microsoft, convites internos, operações idempotentes, notificações, histórico e preparação para relatórios de participação; não altera Agenda/B04/B06. |
 
 ## Aplicação
 
