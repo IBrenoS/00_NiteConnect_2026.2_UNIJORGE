@@ -261,7 +261,7 @@ public class FrequencyRepository {
                             when lm.status='PRESENTE' then 'PRESENCA_REGISTRADA'
                             when lm.status='JUSTIFICADO' then 'JUSTIFICADO'
                             else 'AGUARDANDO_CONFIRMACAO' end as participant_status,
-                       lm.confirmed_at,
+                       lm.confirmed_at,lm.changed_at,
                        coalesce(lm.status='AGUARDANDO' and l.confirmation_deadline>? and l.qr_expires_at>?
                          and exists(select 1 from nite_connect.attendance_list_qr_tokens q
                                      where q.list_id=l.id and q.token_hash=l.qr_token_hash and q.qr_version=l.qr_version
@@ -276,7 +276,7 @@ public class FrequencyRepository {
                 instant(r, "scheduled_at"), instant(r, "opened_at"), instant(r, "confirmation_deadline"),
                 instant(r, "qr_expires_at"), ConfirmationWindowStatus.valueOf(r.getString("confirmation_window_status")),
                 r.getBoolean("eligible"), PersonalConfirmationStatus.valueOf(r.getString("participant_status")),
-                instant(r, "confirmed_at"), r.getBoolean("confirmation_available")),
+                instant(r, "confirmed_at"), instant(r, "changed_at"), r.getBoolean("confirmation_available")),
                 ts(now), ts(now), ts(now), ts(now), memberId);
     }
 
@@ -572,7 +572,7 @@ public class FrequencyRepository {
                            case when (l.status='CANCELADA' or (l.status='CONCLUIDA' and l.outcome<>'REALIZADA_CONTABILIZAVEL'))
                                      and lm.status in ('AGUARDANDO','AUSENTE') then 'FORA_DA_APURACAO'
                                 else lm.status end as status,
-                           lm.confirmed_at,false as legacy,
+                           lm.confirmed_at,lm.changed_at,false as legacy,
                            (l.status='CONCLUIDA' and l.outcome='REALIZADA_CONTABILIZAVEL'
                                  and l.counts_for_frequency=true) as in_apuration,
                            (lm.attendance_id is not null) as presence_recorded,lm.status as attendance_status,
@@ -581,7 +581,7 @@ public class FrequencyRepository {
                       join nite_connect.attendance_lists l on l.id=lm.list_id
                      where lm.member_id=? and l.opened_at>=?
                     union all
-                     select null::uuid,a.event_id,e.title,a.created_at,'LEGADO',a.created_at,true,false,
+                     select null::uuid,a.event_id,e.title,a.created_at,'LEGADO',a.created_at,null::timestamptz,true,false,
                             true,'LEGADO','LEGADO',null::varchar,null::timestamptz,false
                       from nite_connect.attendance_records a
                       join nite_connect.calendar_events e on e.id=a.event_id
@@ -592,7 +592,7 @@ public class FrequencyRepository {
         long total = jdbc.queryForObject(cte + "select count(*) from history where occurred_at>=? and occurred_at<?",
                 Long.class, memberId, ts(activatedAt), memberId, ts(activatedAt), ts(from), ts(to));
         String sql = cte + """
-                select list_id,calendar_event_id,meeting_name,occurred_at,status,confirmed_at,legacy,in_apuration,
+                select list_id,calendar_event_id,meeting_name,occurred_at,status,confirmed_at,changed_at,legacy,in_apuration,
                        presence_recorded,attendance_status,list_status,outcome,confirmation_deadline,counts_for_frequency
                   from history where occurred_at>=? and occurred_at<?
                  order by occurred_at desc,list_id desc nulls last,calendar_event_id desc limit ? offset ?
@@ -602,7 +602,7 @@ public class FrequencyRepository {
         args.add(ts(from)); args.add(ts(to)); args.add(size); args.add((long) page * size);
         return new PageResult<>(jdbc.query(sql, (r, i) -> new HistoryRecord(uuid(r, "list_id"),
                 uuid(r, "calendar_event_id"), r.getString("meeting_name"), instant(r, "occurred_at"),
-                r.getString("status"), instant(r, "confirmed_at"), r.getBoolean("legacy"),
+                r.getString("status"), instant(r, "confirmed_at"), instant(r, "changed_at"), r.getBoolean("legacy"),
                 r.getBoolean("in_apuration"), r.getBoolean("presence_recorded"), r.getString("attendance_status"),
                 r.getString("list_status"), r.getString("outcome"), instant(r, "confirmation_deadline"),
                 r.getBoolean("counts_for_frequency")), args.toArray()), page, size, total);
@@ -639,7 +639,7 @@ public class FrequencyRepository {
                                        int pageCount, ParticipantCounts counts) {}
     private record ParticipantQueryRow(Participant participant, ParticipantCounts counts, long total, int pageCount) {}
     public record HistoryRecord(UUID listId, UUID calendarEventId, String meetingName, Instant occurredAt,
-                                String status, Instant confirmedAt, boolean legacy, boolean inApuration,
+                                String status, Instant confirmedAt, Instant changedAt, boolean legacy, boolean inApuration,
                                 boolean presenceRecorded, String attendanceStatus, String listStatus,
                                 String outcome, Instant confirmationDeadline, boolean countsForFrequency) {}
 }

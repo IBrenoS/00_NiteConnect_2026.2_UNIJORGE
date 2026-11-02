@@ -597,7 +597,7 @@ public class FrequencyService {
         }
 
         return new HistoryEntry(record.listId(), record.calendarEventId(), record.meetingName(), record.occurredAt(),
-                record.status(), record.confirmedAt(), record.legacy(), record.inApuration(), record.presenceRecorded(),
+                record.status(), record.confirmedAt(), record.changedAt(), record.legacy(), record.inApuration(), record.presenceRecorded(),
                 HistoryParticipantStatus.valueOf(record.attendanceStatus()), listStatus, outcome,
                 record.confirmationDeadline(), windowStatus, accountingStatus, notCountedReason);
     }

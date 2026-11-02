@@ -56,7 +56,7 @@ describe("contratos reais da Frequência", () => {
     })?.status).toBe("ABERTA");
     expect(parseHistoryEntry({
       listId: "list-1", calendarEventId: "event-1", meetingName: "Reunião", occurredAt: "2026-11-05T21:00:00Z",
-      status: "PRESENTE", confirmedAt: "2026-11-05T21:02:00Z", legacy: false, inApuration: true,
+      status: "PRESENTE", confirmedAt: "2026-11-05T21:02:00Z", changedAt: "2026-11-05T21:02:00Z", legacy: false, inApuration: true,
       presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL",
       confirmationDeadline: "2026-11-05T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null,
     })?.confirmedAt).toBe("2026-11-05T21:02:00Z");
@@ -70,6 +70,7 @@ describe("contratos reais da Frequência", () => {
       occurredAt: "2026-11-05T21:00:00Z",
       status: "LEGADO",
       confirmedAt: "2026-11-05T21:02:00Z",
+      changedAt: null,
       legacy: true,
       inApuration: false,
       presenceRecorded: true,
@@ -120,7 +121,7 @@ describe("contratos reais da Frequência", () => {
       meetingName: "Encontro semanal", classification: "REGULAR", scheduledAt: "2026-11-05T21:00:00Z",
       openedAt: "2026-11-05T21:00:00Z", confirmationDeadline: "2026-11-05T21:05:00Z", qrExpiresAt: "2026-11-05T21:02:00Z",
       confirmationWindowStatus: "ABERTA", eligible: true, status: "AGUARDANDO_CONFIRMACAO", confirmedAt: null,
-      confirmationAvailable: true,
+      changedAt: null, confirmationAvailable: true,
     };
     const waitingForQr = { ...available, qrExpiresAt: null, confirmationAvailable: false };
     expect(parsePersonalOpenLists([available, waitingForQr])).toEqual([available, waitingForQr]);

@@ -15,7 +15,7 @@ vi.mock("../api/server", () => ({ resolveApiUrl: (path: string) => new URL(path,
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 
-import { cancelFrequencyList, changeFrequencyParticipant, confirmFrequencyHandoff, confirmFrequencyQr, finalizeFrequencyList, openFrequencyList, qrSvgFromProjectorCookie, renewFrequencyListQr } from "./actions";
+import { cancelFrequencyList, changeFrequencyParticipant, confirmFrequencyHandoff, confirmFrequencyQr, finalizeFrequencyList, openFrequencyList, pollFrequencyProjector, qrSvgFromProjectorCookie, renewFrequencyListQr } from "./actions";
 
 const listId = "93000000-0000-4000-8000-000000000001";
 const eventId = "93000000-0000-4000-8000-000000000002";
@@ -193,6 +193,30 @@ describe("ações server-side da Frequência", () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
+  it("aceita o snapshot da API sem ação quando não há atualizações novas", async () => {
+    const qrExpiresAt = "2026-11-05T21:02:00Z";
+    const currentList = { ...list, version: 1, qr: { version: 1, expiresAt: qrExpiresAt, windowState: "ATIVA" } };
+    const currentState = [{ version: 1, status: "ABERTA", qrVersion: 1, qrExpiresAt, action: null, occurredAt: null }];
+    mocks.fetch.mockResolvedValueOnce(jsonResponse(currentList)).mockResolvedValueOnce(jsonResponse(currentState));
+
+    await expect(pollFrequencyProjector(listId, 1)).resolves.toEqual({
+      ok: true,
+      list: currentList,
+      updates: currentState,
+    });
+  });
+
+  it("rejeita uma atualização com ação e instante parcialmente ausentes", async () => {
+    const currentList = { ...list, version: 1 };
+    const malformedUpdate = [{ version: 1, status: "ABERTA", qrVersion: 1, qrExpiresAt: null, action: null, occurredAt: "2026-11-05T21:02:00Z" }];
+    mocks.fetch.mockResolvedValueOnce(jsonResponse(currentList)).mockResolvedValueOnce(jsonResponse(malformedUpdate));
+
+    await expect(pollFrequencyProjector(listId, 1)).resolves.toEqual({
+      ok: false,
+      message: "A API retornou atualizações inválidas.",
+    });
+  });
+
   it("exige papel de gestão antes de qualquer escrita coletiva", async () => {
     mocks.getSession.mockResolvedValue({ bearer: "member-bearer", roles: ["INTEGRANTE"] });
     await expect(finalizeFrequencyList(form({ listId, expectedVersion: "0", outcome: "REALIZADA_CONTABILIZAVEL" }))).rejects.toThrow("redirect:/frequencia?error=access");
@@ -211,7 +235,11 @@ describe("ações server-side da Frequência", () => {
     expect(JSON.parse(String((mocks.fetch.mock.calls[1]?.[1] as RequestInit).body))).toMatchObject({ expectedVersion: 1, confirmed: true });
 
     mocks.fetch.mockResolvedValueOnce(jsonResponse({ memberId, displayName: "Ana Costa", status: "JUSTIFICADO", confirmedAt: null, changedAt: "2026-11-05T21:03:00Z", changedBy: memberId, reason: "Comunicação externa recebida por e-mail" }));
-    await expect(changeFrequencyParticipant(form({ listId, memberId, expectedVersion: "2", targetStatus: "JUSTIFICADO" }))).rejects.toThrow(`redirect:/frequencia?view=management&mode=meeting&list=${listId}&notice=updated`);
+    await expect(changeFrequencyParticipant(form({ listId, memberId, expectedVersion: "2", targetStatus: "JUSTIFICADO" }))).rejects.toThrow(`redirect:/frequencia?view=management&mode=meeting&list=${listId}&notice=justified`);
     expect(JSON.parse(String((mocks.fetch.mock.calls[2]?.[1] as RequestInit).body))).toEqual({ expectedVersion: 2, targetStatus: "JUSTIFICADO", reason: "EMAIL_EXTERNO_RECEBIDO" });
+
+    mocks.fetch.mockResolvedValueOnce(jsonResponse({ memberId, displayName: "Ana Costa", status: "AUSENTE", confirmedAt: null, changedAt: "2026-11-05T21:04:00Z", changedBy: memberId, reason: "Correção administrativa" }));
+    await expect(changeFrequencyParticipant(form({ listId, memberId, expectedVersion: "3", targetStatus: "AUSENTE" }))).rejects.toThrow(`redirect:/frequencia?view=management&mode=meeting&list=${listId}&notice=absence-corrected`);
+    expect(JSON.parse(String((mocks.fetch.mock.calls[3]?.[1] as RequestInit).body))).toEqual({ expectedVersion: 3, targetStatus: "AUSENTE", reason: "CORRECAO_ADMINISTRATIVA" });
   });
 });

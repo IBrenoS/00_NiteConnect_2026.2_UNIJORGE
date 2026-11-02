@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, type ReactNode } from "react";
-import { Button } from "./button";
+import { Button, type ButtonVariant } from "./button";
 import { DialogFrame } from "./dialog-frame";
 
 type AlertDialogProps = {
@@ -12,6 +12,7 @@ type AlertDialogProps = {
   children?: ReactNode;
   cancelLabel?: string;
   confirmLabel?: string;
+  confirmVariant?: ButtonVariant;
   pending?: boolean;
   onConfirm: () => void;
   className?: string;
@@ -25,6 +26,7 @@ function AlertDialog({
   children,
   cancelLabel = "Cancelar",
   confirmLabel = "Confirmar",
+  confirmVariant = "destructive",
   pending = false,
   onConfirm,
   className,
@@ -59,7 +61,7 @@ function AlertDialog({
           </Button>
           <Button
             type="button"
-            variant="destructive"
+            variant={confirmVariant}
             loading={pending}
             disabled={pending}
             onClick={confirm}

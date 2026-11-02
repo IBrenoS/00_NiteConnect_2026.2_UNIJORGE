@@ -294,4 +294,20 @@ describe("componentes fundamentais da interface", () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('disabled=""');
   });
+
+  it("permite uma confirmação administrativa com ênfase primária", () => {
+    const html = renderToStaticMarkup(
+      <AlertDialog
+        open
+        onOpenChange={() => {}}
+        title="Marcar como justificado"
+        description="Confirme a justificativa administrativa."
+        confirmLabel="Marcar como justificado"
+        confirmVariant="primary"
+        onConfirm={() => {}}
+      />,
+    );
+
+    expect(html).toContain('data-variant="primary"');
+  });
 });

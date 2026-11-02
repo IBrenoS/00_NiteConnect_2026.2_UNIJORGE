@@ -23,7 +23,6 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
   const renewalInFlight = useRef(false);
   const globalRemaining = clock ? Math.max(0, Date.parse(list.confirmationDeadline) - clock) : null;
   const qrRemaining = clock && qrExpiresAt ? Math.max(0, Date.parse(qrExpiresAt) - clock) : null;
-  const windowDuration = Math.max(1, Date.parse(list.confirmationDeadline) - Date.parse(list.openedAt));
 
   useEffect(() => {
     const initial = window.setTimeout(() => setClock(Date.now()), 0);
@@ -106,7 +105,7 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
         : qrUsable && rotationNotice
           ? "QR renovado"
           : qrUsable
-            ? "Apresentação ativa"
+            ? "QR pronto para leitura"
             : message
               ? "Falha temporária · tentando recuperar o QR"
               : qrRemaining === 0
@@ -123,8 +122,8 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
   }
 
   return <main className="min-h-svh bg-[#06111f] text-white">
-    <div className="mx-auto grid min-h-svh w-full max-w-[1600px] grid-rows-[auto_1fr] px-5 py-5 sm:px-8 sm:py-7 lg:px-12 lg:py-8">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+    <div className="mx-auto flex min-h-svh w-full max-w-[1600px] flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-12 lg:py-8">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div aria-label="NITE Connect" className="flex items-center gap-3">
           <span aria-hidden="true" className="grid size-10 place-items-center rounded-xl bg-sky-300 text-sm font-black tracking-tight text-[#06111f]">N</span>
           <span className="text-type-body-compact font-semibold tracking-wide text-white">NITE Connect</span>
@@ -135,29 +134,20 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
         </div>
       </header>
 
-      <section aria-labelledby="projector-meeting-title" className="grid min-h-0 items-center gap-7 py-6 sm:gap-10 sm:py-8 lg:grid-cols-[minmax(20rem,.8fr)_minmax(0,1.2fr)] lg:gap-14">
-        <div className="order-2 grid content-center gap-6 text-center lg:order-1 lg:text-left">
-          <div>
-            <p className="text-type-metadata font-semibold uppercase tracking-[0.18em] text-sky-300">Confirmação de presença</p>
-            <h1 id="projector-meeting-title" className="mt-3 break-words font-display text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">{list.meetingName}</h1>
-            <p className="mt-4 text-lg leading-relaxed text-slate-300 sm:text-xl">Escaneie o QR Code e confirme sua presença no seu dispositivo.</p>
-          </div>
-
-          <div className="mx-auto grid w-full max-w-md gap-3 border-y border-white/15 py-4 text-left lg:mx-0">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <span className="text-type-body-compact text-slate-300">Janela total · {windowDuration / 60_000} minutos</span>
-              <span aria-label={globalRemaining === null ? "Tempo restante indisponível" : `Tempo restante ${remainingLabel(globalRemaining)}`} className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-white sm:text-5xl">{globalRemaining === null ? "--:--" : remainingLabel(globalRemaining)}</span>
-            </div>
-            <p role="status" aria-live="polite" className="text-type-body-compact font-medium text-sky-200">{presentationState}</p>
-            {message ? <p className="text-type-metadata text-amber-200">{message}</p> : null}
-          </div>
-        </div>
-
-        <div className="order-1 grid justify-items-center gap-4 lg:order-2">
-          <div className="grid aspect-square w-[min(82vw,42rem)] place-items-center bg-white p-[clamp(1.25rem,4vw,2.25rem)] shadow-[0_32px_100px_rgba(0,0,0,.5)]">
+      <section aria-labelledby="projector-meeting-title" className="flex flex-1 flex-col items-center justify-center gap-3 py-7 text-center sm:gap-4 sm:py-9">
+        <h1 id="projector-meeting-title" className="max-w-5xl break-words font-display text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">{list.meetingName}</h1>
+        <p className="max-w-xl text-lg leading-relaxed text-slate-200 sm:text-xl">Escaneie o QR Code para confirmar sua presença.</p>
+        <div className="mt-1 grid justify-items-center">
+          <div className="grid aspect-square w-[min(82vw,34rem)] place-items-center bg-white p-[clamp(1rem,3vw,1.75rem)] shadow-[0_32px_100px_rgba(0,0,0,.5)]">
             {qrUsable && svg ? <Image unoptimized width={768} height={768} src={`data:image/svg+xml,${encodeURIComponent(svg)}`} alt="QR Code temporário para confirmação de presença" className="h-full w-full" /> : <div className="grid h-full w-full place-items-center border-2 border-dashed border-slate-300 px-6 text-center text-lg font-medium text-slate-600">{canceled ? "Lista cancelada" : completed ? "Lista concluída" : expired ? "Janela encerrada" : message ? "QR temporariamente indisponível" : "QR sendo preparado"}</div>}
           </div>
         </div>
+        <div aria-label={globalRemaining === null ? "Tempo restante indisponível" : `Tempo restante ${remainingLabel(globalRemaining)}`} className="grid justify-items-center gap-0.5 pt-1">
+          <span className="text-type-body-compact font-medium text-slate-200">Tempo restante</span>
+          <span className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-white sm:text-5xl lg:text-6xl">{globalRemaining === null ? "--:--" : remainingLabel(globalRemaining)}</span>
+        </div>
+        <p role="status" aria-live="polite" className="pt-1 text-type-body-compact font-semibold text-sky-200">{presentationState}</p>
+        {message ? <p role="alert" className="max-w-xl text-type-metadata text-amber-200">{message}</p> : null}
       </section>
     </div>
   </main>;

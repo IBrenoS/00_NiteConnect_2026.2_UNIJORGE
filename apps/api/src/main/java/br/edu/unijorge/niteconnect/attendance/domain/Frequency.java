@@ -95,7 +95,7 @@ public final class Frequency {
                                    Classification classification, Instant scheduledAt, Instant openedAt,
                                    Instant confirmationDeadline, Instant qrExpiresAt,
                                    ConfirmationWindowStatus confirmationWindowStatus, boolean eligible,
-                                   PersonalConfirmationStatus status, Instant confirmedAt,
+                                   PersonalConfirmationStatus status, Instant confirmedAt, Instant changedAt,
                                    boolean confirmationAvailable) {}
 
     public record Confirmation(
@@ -124,7 +124,7 @@ public final class Frequency {
     public record CollectiveSummaryRow(UUID memberId, String displayName, Counts counts, AbsenceSignal absenceSignal) {}
 
     public record HistoryEntry(UUID listId, UUID calendarEventId, String meetingName, Instant occurredAt,
-                               String status, Instant confirmedAt, boolean legacy, boolean inApuration,
+                               String status, Instant confirmedAt, Instant changedAt, boolean legacy, boolean inApuration,
                                boolean presenceRecorded, HistoryParticipantStatus attendanceStatus,
                                HistoryListStatus listStatus, Outcome outcome, Instant confirmationDeadline,
                                ConfirmationWindowStatus confirmationWindowStatus, AccountingStatus accountingStatus,

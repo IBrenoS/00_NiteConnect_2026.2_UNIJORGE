@@ -14,7 +14,7 @@ type MutationIssue = "access" | "not-found" | "conflict" | "invalid" | "unavaila
 type MutationResult<T> = { data: T; issue: null } | { data: null; issue: MutationIssue };
 export type FrequencyActionResult = { kind: "success"; confirmation: Confirmation } | { kind: "error"; message: string };
 export type ProjectorQrResult = { ok: true; svg: string; expiresAt: string; version: number } | { ok: false; message: string };
-export type ProjectorUpdate = { version: number; status: string; qrVersion: number; qrExpiresAt: string | null; action: string; occurredAt: string };
+export type ProjectorUpdate = { version: number; status: string; qrVersion: number; qrExpiresAt: string | null; action: string | null; occurredAt: string | null };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const qrPattern = /^[A-Za-z0-9_-]{43}$/;
@@ -180,8 +180,15 @@ async function fetchFrequencyListActionData(bearer: string, listId: string): Pro
 function parseProjectorUpdate(value: unknown): ProjectorUpdate | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
-  if (typeof item.version !== "number" || typeof item.status !== "string" || typeof item.qrVersion !== "number" || !(item.qrExpiresAt === null || typeof item.qrExpiresAt === "string") || typeof item.action !== "string" || typeof item.occurredAt !== "string") return null;
-  return { version: item.version, status: item.status, qrVersion: item.qrVersion, qrExpiresAt: item.qrExpiresAt, action: item.action, occurredAt: item.occurredAt };
+  if (typeof item.version !== "number" || typeof item.status !== "string" || typeof item.qrVersion !== "number" || !(item.qrExpiresAt === null || typeof item.qrExpiresAt === "string")) return null;
+  const currentState = { version: item.version, status: item.status, qrVersion: item.qrVersion, qrExpiresAt: item.qrExpiresAt };
+  if (typeof item.action === "string" && typeof item.occurredAt === "string") {
+    return { ...currentState, action: item.action, occurredAt: item.occurredAt };
+  }
+  if (item.action === null && item.occurredAt === null) {
+    return { ...currentState, action: null, occurredAt: null };
+  }
+  return null;
 }
 
 export async function finalizeFrequencyList(form: FormData): Promise<never> {
@@ -213,7 +220,8 @@ export async function changeFrequencyParticipant(form: FormData): Promise<never>
   if (!uuid.test(listId) || !uuid.test(memberId) || expectedVersion === null || (targetStatus !== "JUSTIFICADO" && targetStatus !== "AUSENTE")) redirect("/frequencia?view=management&mode=meeting&error=invalid");
   const reason = targetStatus === "JUSTIFICADO" ? "EMAIL_EXTERNO_RECEBIDO" : "CORRECAO_ADMINISTRATIVA";
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/participants/${encodeURIComponent(memberId)}`, session.bearer, "PATCH", { expectedVersion, targetStatus, reason }, (value) => typeof value === "object" && value !== null ? value : null);
-  redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=updated"}`);
+  const notice = targetStatus === "JUSTIFICADO" ? "justified" : "absence-corrected";
+  redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : `&notice=${notice}`}`);
 }
 
 export async function renewFrequencyListQr(form: FormData): Promise<never> {

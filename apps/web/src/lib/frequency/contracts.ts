@@ -67,6 +67,7 @@ export type PersonalOpenList = {
   eligible: boolean;
   status: PersonalConfirmationStatus;
   confirmedAt: string | null;
+  changedAt: string | null;
   confirmationAvailable: boolean;
 };
 export type HistoryEntry = {
@@ -76,6 +77,7 @@ export type HistoryEntry = {
   occurredAt: string;
   status: HistoryStatus;
   confirmedAt: string | null;
+  changedAt: string | null;
   legacy: boolean;
   inApuration: boolean;
   presenceRecorded: boolean;
@@ -192,19 +194,19 @@ export function parseHistoryEntry(value: unknown): HistoryEntry | null {
   const windowStatuses = ["ABERTA", "EXPIRADA", "ENCERRADA", "NAO_APLICAVEL"] as const;
   const accountingStatuses = ["AGUARDANDO_CONCLUSAO", "CONTABILIZADA", "NAO_CONTABILIZAVEL", "CANCELADA", "ANTERIOR_AO_CORTE"] as const;
   const nonApurationReasons = ["LISTA_AGUARDANDO_CONCLUSAO", "REUNIAO_CANCELADA", "REUNIAO_NAO_REALIZADA", "REUNIAO_NAO_CONTABILIZAVEL", "ANTERIOR_AO_CORTE_OFICIAL"] as const;
-  if (!record(value) || !nullableString(value.listId) || !nullableString(value.calendarEventId) || !string(value.meetingName) || !instant(value.occurredAt) || !(value.status === "AGUARDANDO" || value.status === "PRESENTE" || value.status === "JUSTIFICADO" || value.status === "AUSENTE" || value.status === "FORA_DA_APURACAO" || value.status === "LEGADO") || !nullableInstant(value.confirmedAt) || typeof value.legacy !== "boolean" || typeof value.inApuration !== "boolean" || typeof value.presenceRecorded !== "boolean" || !isOneOf(value.attendanceStatus, attendanceStatuses) || !isOneOf(value.listStatus, listStatuses) || !(value.outcome === null || value.outcome === "REALIZADA_CONTABILIZAVEL" || value.outcome === "REALIZADA_NAO_CONTABILIZAVEL" || value.outcome === "NAO_REALIZADA") || !nullableInstant(value.confirmationDeadline) || !isOneOf(value.confirmationWindowStatus, windowStatuses) || !isOneOf(value.accountingStatus, accountingStatuses) || !(value.notCountedReason === null || isOneOf(value.notCountedReason, nonApurationReasons))) return null;
+  if (!record(value) || !nullableString(value.listId) || !nullableString(value.calendarEventId) || !string(value.meetingName) || !instant(value.occurredAt) || !(value.status === "AGUARDANDO" || value.status === "PRESENTE" || value.status === "JUSTIFICADO" || value.status === "AUSENTE" || value.status === "FORA_DA_APURACAO" || value.status === "LEGADO") || !nullableInstant(value.confirmedAt) || !nullableInstant(value.changedAt) || typeof value.legacy !== "boolean" || typeof value.inApuration !== "boolean" || typeof value.presenceRecorded !== "boolean" || !isOneOf(value.attendanceStatus, attendanceStatuses) || !isOneOf(value.listStatus, listStatuses) || !(value.outcome === null || value.outcome === "REALIZADA_CONTABILIZAVEL" || value.outcome === "REALIZADA_NAO_CONTABILIZAVEL" || value.outcome === "NAO_REALIZADA") || !nullableInstant(value.confirmationDeadline) || !isOneOf(value.confirmationWindowStatus, windowStatuses) || !isOneOf(value.accountingStatus, accountingStatuses) || !(value.notCountedReason === null || isOneOf(value.notCountedReason, nonApurationReasons))) return null;
   if (value.legacy ? value.listId !== null || value.status !== "LEGADO" || value.inApuration : value.listId === null || value.status === "LEGADO") return null;
   if (value.legacy && (value.listStatus !== "LEGADO" || value.attendanceStatus !== "LEGADO" || value.confirmationDeadline !== null) || !value.legacy && (value.listStatus === "LEGADO" || value.confirmationDeadline === null)) return null;
   if (value.presenceRecorded !== (value.attendanceStatus === "PRESENTE" || value.attendanceStatus === "LEGADO")) return null;
-  return { listId: value.listId, calendarEventId: value.calendarEventId, meetingName: value.meetingName, occurredAt: value.occurredAt, status: value.status, confirmedAt: value.confirmedAt, legacy: value.legacy, inApuration: value.inApuration, presenceRecorded: value.presenceRecorded, attendanceStatus: value.attendanceStatus, listStatus: value.listStatus, outcome: value.outcome, confirmationDeadline: value.confirmationDeadline, confirmationWindowStatus: value.confirmationWindowStatus, accountingStatus: value.accountingStatus, notCountedReason: value.notCountedReason };
+  return { listId: value.listId, calendarEventId: value.calendarEventId, meetingName: value.meetingName, occurredAt: value.occurredAt, status: value.status, confirmedAt: value.confirmedAt, changedAt: value.changedAt, legacy: value.legacy, inApuration: value.inApuration, presenceRecorded: value.presenceRecorded, attendanceStatus: value.attendanceStatus, listStatus: value.listStatus, outcome: value.outcome, confirmationDeadline: value.confirmationDeadline, confirmationWindowStatus: value.confirmationWindowStatus, accountingStatus: value.accountingStatus, notCountedReason: value.notCountedReason };
 }
 
 export function parsePersonalOpenLists(value: unknown): PersonalOpenList[] | null {
   if (!Array.isArray(value)) return null;
   const items = value.map((item): PersonalOpenList | null => {
-    if (!record(item) || !string(item.listId) || !nullableString(item.calendarEventId) || !string(item.meetingName) || (item.classification !== "REGULAR" && item.classification !== "EXCEPTIONAL") || !instant(item.scheduledAt) || !instant(item.openedAt) || !instant(item.confirmationDeadline) || !nullableInstant(item.qrExpiresAt) || !isOneOf(item.confirmationWindowStatus, ["ABERTA", "EXPIRADA", "ENCERRADA", "NAO_APLICAVEL"] as const) || typeof item.eligible !== "boolean" || !isOneOf(item.status, ["AGUARDANDO_CONFIRMACAO", "PRESENCA_REGISTRADA", "JUSTIFICADO", "NAO_ELEGIVEL"] as const) || !nullableInstant(item.confirmedAt) || typeof item.confirmationAvailable !== "boolean") return null;
+    if (!record(item) || !string(item.listId) || !nullableString(item.calendarEventId) || !string(item.meetingName) || (item.classification !== "REGULAR" && item.classification !== "EXCEPTIONAL") || !instant(item.scheduledAt) || !instant(item.openedAt) || !instant(item.confirmationDeadline) || !nullableInstant(item.qrExpiresAt) || !isOneOf(item.confirmationWindowStatus, ["ABERTA", "EXPIRADA", "ENCERRADA", "NAO_APLICAVEL"] as const) || typeof item.eligible !== "boolean" || !isOneOf(item.status, ["AGUARDANDO_CONFIRMACAO", "PRESENCA_REGISTRADA", "JUSTIFICADO", "NAO_ELEGIVEL"] as const) || !nullableInstant(item.confirmedAt) || !nullableInstant(item.changedAt) || typeof item.confirmationAvailable !== "boolean") return null;
     if ((item.status === "NAO_ELEGIVEL") !== !item.eligible || (item.status === "PRESENCA_REGISTRADA" && item.confirmedAt === null) || (item.confirmationAvailable && (!item.eligible || item.status !== "AGUARDANDO_CONFIRMACAO" || item.confirmationWindowStatus !== "ABERTA" || item.qrExpiresAt === null))) return null;
-    return { listId: item.listId, calendarEventId: item.calendarEventId, meetingName: item.meetingName, classification: item.classification, scheduledAt: item.scheduledAt, openedAt: item.openedAt, confirmationDeadline: item.confirmationDeadline, qrExpiresAt: item.qrExpiresAt, confirmationWindowStatus: item.confirmationWindowStatus, eligible: item.eligible, status: item.status, confirmedAt: item.confirmedAt, confirmationAvailable: item.confirmationAvailable };
+    return { listId: item.listId, calendarEventId: item.calendarEventId, meetingName: item.meetingName, classification: item.classification, scheduledAt: item.scheduledAt, openedAt: item.openedAt, confirmationDeadline: item.confirmationDeadline, qrExpiresAt: item.qrExpiresAt, confirmationWindowStatus: item.confirmationWindowStatus, eligible: item.eligible, status: item.status, confirmedAt: item.confirmedAt, changedAt: item.changedAt, confirmationAvailable: item.confirmationAvailable };
   });
   return items.some((item) => item === null) ? null : items.filter((item): item is PersonalOpenList => item !== null);
 }

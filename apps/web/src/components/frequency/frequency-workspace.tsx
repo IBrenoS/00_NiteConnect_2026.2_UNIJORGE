@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Button, Select, TextField } from "../ui";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertDialog, Button, Dialog, Select, TextField } from "../ui";
 import { QrScanner } from "./qr-scanner";
 import { cancelFrequencyList, changeFrequencyParticipant, finalizeFrequencyList, openFrequencyList, renewFrequencyListQr } from "../../lib/frequency/actions";
 import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant, ParticipantPage, PersonalOpenList } from "../../lib/frequency/contracts";
 import { frequencySelectionLabel, isRegularFrequencyMeeting, stepFrequencySelection, switchFrequencyGroup, type FrequencyGroupBy } from "../../lib/frequency/query";
 import type { AgendaEvent } from "../../lib/frequency/data";
 import { formatFrequencyDate } from "../../lib/frequency/query";
-import { historyPresentation } from "../../lib/frequency/presentation";
+import { frequencyStatusMoment, historyPresentation, historyStatusMoment } from "../../lib/frequency/presentation";
 
 type ApiIssue = "access" | "not-found" | "unavailable" | "invalid" | null;
 const EMPTY_COLLECTIVE_ROWS: CollectiveSummaryRow[] = [];
@@ -99,7 +99,7 @@ function StateLabel({ children, tone = "muted" }: { children: ReactNode; tone?: 
     info: "text-nite-brand-accent",
     muted: "text-nite-text-secondary",
   }[tone];
-  return <span className={cx("inline-flex min-w-0 items-center gap-2 text-type-metadata font-medium", color)}><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />{children}</span>;
+  return <span className={cx("inline-flex min-w-0 items-center text-type-body-compact font-semibold leading-snug", color)}>{children}</span>;
 }
 
 function Issue({ issue }: { issue: ApiIssue }) {
@@ -110,6 +110,13 @@ function PageLink({ href, children, disabled = false, label }: { href: string; c
   return disabled
     ? <span aria-disabled="true" className="inline-flex min-h-10 items-center rounded-control px-3 text-type-metadata text-nite-text-muted">{children}</span>
     : <Link href={href} aria-label={label} className="inline-flex min-h-10 items-center rounded-control px-3 text-type-metadata font-medium text-nite-text-secondary transition-colors hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">{children}</Link>;
+}
+
+function FilterLink({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
+  return <Link href={href} aria-current={active ? "page" : undefined} className={cx(
+    "inline-flex min-h-9 items-center rounded-control px-3 text-type-metadata font-medium transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus",
+    active ? "bg-nite-surface text-nite-text-primary shadow-sm" : "text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary",
+  )}>{children}</Link>;
 }
 
 function periodRoute(props: WorkspaceProps, groupBy: FrequencyGroupBy, selection: string): string {
@@ -183,6 +190,7 @@ function HistoryRows({ page, pageNumber, params, emptyLabel = "Nenhuma reunião 
         const status = historyStatus(item);
         const presentation = personal ? historyPresentation(item) : null;
         const key = item.listId ?? item.calendarEventId ?? item.occurredAt + "-" + index;
+        const moment = historyStatusMoment(item);
         return <li key={key} className="grid min-w-0 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,.75fr)_auto] sm:items-center sm:gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-control bg-nite-surface-subtle text-nite-brand-accent"><Icon name="calendar" className="size-4" /></span>
@@ -192,7 +200,7 @@ function HistoryRows({ page, pageNumber, params, emptyLabel = "Nenhuma reunião 
             </div>
           </div>
           <StateLabel tone={presentation ? presentation.label === "Presente" ? "success" : presentation.label === "Ausente" ? "warning" : "muted" : status.tone}>{presentation ? presentation.label + (presentation.context ? " · " + presentation.context : "") : status.label}</StateLabel>
-          <p className="text-type-metadata text-nite-text-secondary sm:text-right">{item.confirmedAt ? "Confirmada às " + formatFrequencyDate(item.confirmedAt, { hour: "2-digit", minute: "2-digit" }) : item.presenceRecorded ? "Presença registrada" : "Sem confirmação"}</p>
+          {moment ? <p className="text-type-body-compact text-nite-text-secondary sm:text-right">{moment}</p> : null}
         </li>;
       })}
     </ol>
@@ -216,8 +224,8 @@ function RetryButton() {
 }
 
 function personalOpenListDescription(list: PersonalOpenList): string {
-  if (list.status === "PRESENCA_REGISTRADA" && list.confirmedAt) return `Presença confirmada às ${formatFrequencyDate(list.confirmedAt, { hour: "2-digit", minute: "2-digit" })}.`;
-  if (list.status === "JUSTIFICADO") return "Presença justificada.";
+  if (list.status === "PRESENCA_REGISTRADA") return frequencyStatusMoment("PRESENTE", list.confirmedAt, list.changedAt, list.scheduledAt) ?? "Horário da presença indisponível";
+  if (list.status === "JUSTIFICADO") return frequencyStatusMoment("JUSTIFICADO", list.confirmedAt, list.changedAt, list.scheduledAt) ?? "Horário da justificativa indisponível";
   if (list.confirmationAvailable) return "Sua presença ainda não foi confirmada.";
   if (list.confirmationWindowStatus === "EXPIRADA" || list.confirmationWindowStatus === "ENCERRADA") return "O prazo para confirmar foi encerrado.";
   return "A confirmação não está disponível neste momento.";
@@ -248,7 +256,7 @@ function PersonalView({ props, onScan }: { props: WorkspaceProps; onScan: (list:
     <PersonalOpenLists props={props} onScan={onScan} />
     <section aria-labelledby="personal-summary-title" className="grid gap-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-type-metadata text-nite-text-muted">Acompanhamento pessoal</p><h2 id="personal-summary-title" className="mt-1 font-display text-type-section-title text-nite-text-primary">Sua frequência</h2></div>
+        <div><h2 id="personal-summary-title" className="font-display text-type-section-title text-nite-text-primary">Sua frequência</h2></div>
         <div className="w-full sm:w-auto"><RangeControl props={props} /></div>
       </div>
       <Issue issue={props.summaryIssue} />
@@ -259,13 +267,13 @@ function PersonalView({ props, onScan }: { props: WorkspaceProps; onScan: (list:
           <div><dt className="inline text-nite-text-muted">Presenças </dt><dd className="inline font-semibold text-nite-text-primary">{counts.present}</dd></div>
           <div><dt className="inline text-nite-text-muted">Justificadas </dt><dd className="inline font-semibold text-nite-text-primary">{counts.justified}</dd></div>
           <div><dt className="inline text-nite-text-muted">Ausências </dt><dd className="inline font-semibold text-nite-text-primary">{counts.unjustifiedAbsences}</dd></div>
-          <div><dt className="inline text-nite-text-muted">Reuniões elegíveis </dt><dd className="inline font-semibold text-nite-text-primary">{counts.eligibleMeetings}</dd></div>
+          <div><dt className="inline text-nite-text-muted">Reuniões contabilizáveis </dt><dd className="inline font-semibold text-nite-text-primary">{counts.eligibleMeetings}</dd></div>
         </dl>
         {counts.noEligibleMeetings ? <p className="text-type-metadata text-nite-text-muted">Sem reuniões elegíveis neste período; o percentual não é calculado.</p> : null}
       </div> : <p className="py-3 text-type-body-compact text-nite-text-muted">O resumo ainda não está disponível.</p>}
     </section>
     <section aria-labelledby="personal-history-title" className="grid gap-3">
-      <div><p className="text-type-metadata text-nite-text-muted">Linha do tempo</p><h2 id="personal-history-title" className="mt-1 font-display text-type-section-title text-nite-text-primary">Histórico de reuniões</h2></div>
+      <div><h2 id="personal-history-title" className="font-display text-type-section-title text-nite-text-primary">Histórico de reuniões</h2></div>
       <Issue issue={props.historyIssue} />
       {props.historyIssue ? <RetryButton /> : props.historyPage ? props.historyPage.total === 0
         ? <p className="text-type-body-compact text-nite-text-muted">Nenhuma reunião registrada neste período.</p>
@@ -276,7 +284,7 @@ function PersonalView({ props, onScan }: { props: WorkspaceProps; onScan: (list:
 }
 
 function memberSummary(row: CollectiveSummaryRow): string {
-  if (row.counts.noEligibleMeetings || row.counts.attendancePercentage === null) return "Sem reuniões elegíveis";
+  if (row.counts.noEligibleMeetings || row.counts.attendancePercentage === null) return "Sem reuniões contabilizáveis";
   return percentage(row.counts.attendancePercentage, row.counts.noEligibleMeetings) + " · " + row.counts.present + " presenças";
 }
 
@@ -296,10 +304,7 @@ function MemberMode({ props }: { props: WorkspaceProps }) {
   const pageCount = props.collective ? Math.ceil(props.collective.total / props.collective.size) : 0;
   const paginationParams = { view: "management", mode: "member", range: props.rangeKey, memberSearch: props.memberSearch, memberId: props.selectedMemberId };
   return <div className="grid gap-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-type-body-compact text-nite-text-secondary">Frequência por integrante</p>
-      <RangeControl props={props} />
-    </div>
+    <div className="flex justify-end"><RangeControl props={props} /></div>
     <Issue issue={props.collectiveIssue} />
     <div className="grid min-w-0 gap-7 lg:grid-cols-[minmax(17rem,.85fr)_minmax(0,1.5fr)]">
       <section aria-label="Lista de integrantes" className={cx("min-w-0", listVisible ? "block" : "hidden lg:block")}>
@@ -353,11 +358,11 @@ function MemberMode({ props }: { props: WorkspaceProps }) {
             <div><p className="text-type-metadata text-nite-text-muted">Presenças</p><p className="mt-1 text-type-body-compact font-semibold text-nite-text-primary">{member.counts.present}</p></div>
             <div><p className="text-type-metadata text-nite-text-muted">Justificadas</p><p className="mt-1 text-type-body-compact font-semibold text-nite-text-primary">{member.counts.justified}</p></div>
             <div><p className="text-type-metadata text-nite-text-muted">Ausências</p><p className="mt-1 text-type-body-compact font-semibold text-nite-text-primary">{member.counts.unjustifiedAbsences}</p></div>
-            <div><p className="text-type-metadata text-nite-text-muted">Reuniões elegíveis</p><p className="mt-1 text-type-body-compact font-semibold text-nite-text-primary">{member.counts.eligibleMeetings}</p></div>
+            <div><p className="text-type-metadata text-nite-text-muted">Reuniões contabilizáveis</p><p className="mt-1 text-type-body-compact font-semibold text-nite-text-primary">{member.counts.eligibleMeetings}</p></div>
           </div>
           {member.absenceSignal.hasThreeConsecutiveUnjustifiedAbsences ? <p className="mt-3 text-type-metadata text-status-warning">Três ausências injustificadas consecutivas nas reuniões indicadas pelo histórico.</p> : null}
           <div className="mt-5 grid gap-3">
-            <div><h3 className="font-display text-type-component-title text-nite-text-primary">Reuniões</h3><p className="mt-1 text-type-metadata text-nite-text-muted">Situação e contabilização conforme o encerramento oficial de cada lista.</p></div>
+            <div><h3 className="font-display text-type-component-title text-nite-text-primary">Reuniões</h3></div>
             <Issue issue={props.memberHistoryIssue} />
             <HistoryRows page={props.memberHistory} pageNumber={props.memberHistoryPage} params={{ view: "management", mode: "member", range: props.rangeKey, memberId: member.memberId, memberSearch: props.memberSearch, collectivePage: String(props.collectivePage) }} synthetic={props.synthetic} />
           </div>
@@ -398,25 +403,90 @@ function listClassLabel(list: FrequencyList): string {
 }
 
 function ParticipantActions({ list, participant, synthetic = false }: { list: FrequencyList; participant: Participant; synthetic?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const canJustify = list.status === "ABERTA" && participant.status === "AGUARDANDO";
   const canCorrect = list.status === "CONCLUIDA" && list.outcome === "REALIZADA_CONTABILIZAVEL" && (participant.status === "AUSENTE" || participant.status === "JUSTIFICADO");
   if (!canJustify && !canCorrect) return null;
   const targetStatus = participant.status === "JUSTIFICADO" ? "AUSENTE" : "JUSTIFICADO";
-  const confirmation = targetStatus === "JUSTIFICADO"
-    ? "Marcar " + participant.displayName + " como justificado?"
-    : "Corrigir a situação de " + participant.displayName + " para ausente?";
-  return <details className="group relative">
-    <summary aria-label={"Ações para " + participant.displayName} className="flex min-h-10 cursor-pointer list-none items-center rounded-control px-2 text-type-metadata font-medium text-nite-brand-primary hover:bg-nite-brand-soft focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden">Ações</summary>
-    <div className="absolute right-0 top-full z-10 mt-1 min-w-52 rounded-panel border border-nite-border-soft bg-nite-background p-2 shadow-nite-floating">
-      <form action={synthetic ? undefined : changeFrequencyParticipant} onSubmit={(event) => { if (!synthetic && !window.confirm(confirmation)) event.preventDefault(); }}>
+  const actionLabel = targetStatus === "JUSTIFICADO" ? "Marcar como justificado" : "Corrigir para ausente";
+  return <>
+    <Button type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="px-2 text-type-metadata">Ações</Button>
+    <AlertDialog
+      open={open}
+      onOpenChange={setOpen}
+      title={actionLabel}
+      description={targetStatus === "JUSTIFICADO"
+        ? `Confirme a justificativa administrativa para ${participant.displayName}.`
+        : `Confirme a correção da situação de ${participant.displayName} para ausência.`}
+      cancelLabel="Voltar"
+      confirmLabel={actionLabel}
+      confirmVariant={targetStatus === "JUSTIFICADO" ? "primary" : "destructive"}
+      onConfirm={() => {
+        setOpen(false);
+        if (!synthetic) formRef.current?.requestSubmit();
+      }}
+    >
+      <p className="text-type-body-compact text-nite-text-secondary"><strong className="text-nite-text-primary">{participant.displayName}</strong> · {targetStatus === "JUSTIFICADO" ? "Justificado" : "Ausente"}</p>
+    </AlertDialog>
+    <form ref={formRef} action={synthetic ? undefined : changeFrequencyParticipant} hidden onSubmit={(event) => { if (synthetic) event.preventDefault(); }}>
+      <input type="hidden" name="listId" value={list.listId} />
+      <input type="hidden" name="memberId" value={participant.memberId} />
+      <input type="hidden" name="expectedVersion" value={String(list.version)} />
+      <input type="hidden" name="targetStatus" value={targetStatus} />
+    </form>
+  </>;
+}
+
+function FinalizeListAction({ list, defaultOutcome, synthetic }: { list: FrequencyList; defaultOutcome: string; synthetic?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const formId = `frequency-finalize-${list.listId}`;
+  return <>
+    <Button type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Concluir</Button>
+    <Dialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Concluir lista"
+      description={`Confirme o resultado de “${list.meetingName}”. A ausência só será registrada para uma reunião contabilizável.`}
+      footer={<div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Voltar</Button><Button type="submit" form={formId}>Concluir lista</Button></div>}
+    >
+      <form id={formId} action={synthetic ? undefined : finalizeFrequencyList} onSubmit={(event) => { if (synthetic) event.preventDefault(); }} className="grid gap-3">
         <input type="hidden" name="listId" value={list.listId} />
-        <input type="hidden" name="memberId" value={participant.memberId} />
         <input type="hidden" name="expectedVersion" value={String(list.version)} />
-        <input type="hidden" name="targetStatus" value={targetStatus} />
-        <button type="submit" disabled={synthetic} className="min-h-10 w-full rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:text-nite-text-muted">{targetStatus === "JUSTIFICADO" ? "Marcar como justificado" : "Corrigir para ausente"}</button>
+        <label className="grid gap-1.5 text-type-metadata text-nite-text-secondary">Resultado
+          <Select name="outcome" defaultValue={defaultOutcome}>
+            <option value="REALIZADA_CONTABILIZAVEL">Realizada e contabilizável</option>
+            {list.classification === "EXCEPTIONAL" ? <option value="REALIZADA_NAO_CONTABILIZAVEL">Realizada, não contabilizável</option> : null}
+            <option value="NAO_REALIZADA">Não realizada</option>
+          </Select>
+        </label>
       </form>
-    </div>
-  </details>;
+    </Dialog>
+  </>;
+}
+
+function CancelListAction({ list, synthetic }: { list: FrequencyList; synthetic?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  return <>
+    <Button type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Cancelar</Button>
+    <AlertDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Cancelar lista?"
+      description={`“${list.meetingName}” será cancelada. A reunião ficará fora da frequência e nenhum integrante será marcado como ausente.`}
+      confirmLabel="Cancelar lista"
+      onConfirm={() => {
+        setOpen(false);
+        if (!synthetic) formRef.current?.requestSubmit();
+      }}
+    />
+    <form ref={formRef} action={synthetic ? undefined : cancelFrequencyList} hidden onSubmit={(event) => { if (synthetic) event.preventDefault(); }}>
+      <input type="hidden" name="listId" value={list.listId} />
+      <input type="hidden" name="expectedVersion" value={String(list.version)} />
+      <input type="hidden" name="confirmed" value="true" />
+    </form>
+  </>;
 }
 
 function participantState(participant: Participant, list: FrequencyList, now: number | null): { label: string; tone: "success" | "warning" | "info" | "muted" } {
@@ -452,7 +522,7 @@ function ParticipantRoster({ props, list, now }: { props: WorkspaceProps; list: 
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div><h3 id="participant-list-title" className="font-display text-type-component-title text-nite-text-primary">Integrantes</h3><p className="mt-1 text-type-metadata text-nite-text-muted">{page ? "Mostrando " + visibleItems.length + " de " + page.total + " resultados · lista com " + page.counts.rosterTotal + " integrantes" : "Lista nominal"}</p></div>
     </div>
-    <form action={props.synthetic ? pathWith({ view: "management", mode: "meeting" }, true) : "/frequencia"} method="get" aria-busy={searchPending} onSubmit={() => setSearchPending(true)} className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,.8fr)_auto]">
+    <form action={props.synthetic ? pathWith({ view: "management", mode: "meeting" }, true) : "/frequencia"} method="get" aria-busy={searchPending} onSubmit={() => setSearchPending(true)} className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
       <input type="hidden" name="view" value="management" />
       <input type="hidden" name="mode" value="meeting" />
       <input type="hidden" name="range" value={props.rangeKey} />
@@ -463,27 +533,23 @@ function ParticipantRoster({ props, list, now }: { props: WorkspaceProps; list: 
         <span className="sr-only">Buscar integrante</span>
         <TextField type="search" name="participantSearch" value={search} maxLength={120} autoComplete="off" onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Buscar integrante" />
       </label>
-      <label className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:row-start-auto">
-        <span className="sr-only">Filtrar situação do integrante</span>
-        <Select name="participantStatus" value={props.participantStatus} onChange={(event) => { if (!props.synthetic) event.currentTarget.form?.requestSubmit(); }}>
-          <option value="">Todas as situações</option>
-          <option value="PRESENTE">Presentes</option>
-          <option value="JUSTIFICADO">Justificados</option>
-          <option value="AUSENTE">Ausentes</option>
-          <option value="AGUARDANDO">Aguardando confirmação</option>
-        </Select>
-      </label>
-      <Button type="submit" variant="secondary" aria-label="Buscar integrante" className="col-start-2 row-start-1 justify-self-end px-3 sm:col-start-3 sm:row-start-auto" disabled={searchPending}><Icon name="search" /></Button>
+      <Button type="submit" variant="secondary" aria-label="Buscar integrante" className="px-3" disabled={searchPending}><Icon name="search" /></Button>
     </form>
-    <p aria-live="polite" className="min-h-7 pt-1 text-type-metadata text-nite-text-muted">{searchPending ? "Buscando integrantes…" : props.synthetic ? "Prévia sintética · resultados de demonstração." : search === props.participantSearch && search ? "Busca atualizada para “" + search + "”." : "Digite um nome e selecione Buscar para consultar a lista completa."}</p>
+    <nav aria-label="Filtrar integrantes por situação" className="mt-2 flex flex-wrap gap-1 rounded-panel bg-nite-surface-subtle p-1">
+      {[
+        ["", "Todos"], ["PRESENTE", "Presentes"], ["JUSTIFICADO", "Justificados"], ["AUSENTE", "Ausentes"], ["AGUARDANDO", "Aguardando"],
+      ].map(([status, label]) => <FilterLink key={status} href={meetingListRoute(props, list.listId, 0, status, search.trim())} active={props.participantStatus === status}>{label}</FilterLink>)}
+    </nav>
+    <p aria-live="polite" className="min-h-6 pt-1 text-type-metadata text-nite-text-muted">{searchPending ? "Buscando integrantes…" : props.synthetic ? "Prévia sintética · resultados de demonstração." : search === props.participantSearch && search ? `${page?.total ?? 0} resultados para “${search}”.` : null}</p>
     <Issue issue={props.participantsIssue} />
     {visibleItems.length ? <ul className="divide-y divide-nite-border-soft border-y border-nite-border-soft">
       {visibleItems.map((participant) => {
         const state = participantState(participant, list, now);
+        const moment = frequencyStatusMoment(participant.status, participant.confirmedAt, participant.changedAt, list.openedAt);
         return <li key={participant.memberId} className="grid min-w-0 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,.55fr)_auto] sm:items-center sm:gap-4">
           <div className="min-w-0">
             <p className="break-words text-type-body-compact font-medium text-nite-text-primary">{participant.displayName}</p>
-            <p className="mt-0.5 text-type-metadata text-nite-text-muted">{participant.confirmedAt ? "Confirmada às " + formatFrequencyDate(participant.confirmedAt, { hour: "2-digit", minute: "2-digit" }) : participant.status === "PRESENTE" ? "Presença registrada" : "Sem confirmação registrada"}</p>
+            {moment ? <p className="mt-0.5 text-type-body-compact text-nite-text-secondary">{moment}</p> : null}
           </div>
           <StateLabel tone={state.tone}>{state.label}</StateLabel>
           <ParticipantActions list={list} participant={participant} synthetic={props.synthetic} />
@@ -526,26 +592,32 @@ function CreateList({ props, openKey, setOpenKey }: { props: WorkspaceProps; ope
   const action = props.synthetic ? undefined : openFrequencyList;
   return <details open={props.syntheticOpenCreate} className="group rounded-panel bg-nite-surface-subtle">
     <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-3 py-3 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden sm:px-4">
-      <span><span className="block text-type-body-compact font-semibold text-nite-text-primary">Abrir nova lista</span><span className="mt-0.5 block text-type-metadata text-nite-text-muted">A data, o responsável e os integrantes são definidos automaticamente.</span></span>
+      <span><span className="block text-type-body-compact font-semibold text-nite-text-primary">Abrir nova lista</span><span className="mt-0.5 block text-type-metadata text-nite-text-muted">Data, autoria e integrantes são definidos automaticamente.</span></span>
       <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-control bg-nite-surface text-type-body-compact text-nite-text-secondary transition-transform group-open:rotate-45 motion-reduce:transition-none">+</span>
     </summary>
     <form action={action} onChange={() => { if (!props.synthetic) setOpenKey(globalThis.crypto.randomUUID()); }} className="grid gap-3 border-t border-nite-border-soft px-3 py-4 sm:grid-cols-2 sm:px-4 xl:grid-cols-[minmax(14rem,1.3fr)_minmax(12rem,1fr)_minmax(9rem,.7fr)_auto] xl:items-end">
       <input type="hidden" name="idempotencyKey" value={openKey} />
       <input type="hidden" name="agendaClassification" value={selectedEvent ? regular ? "REGULAR" : "EXCEPTIONAL" : ""} />
-      <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Encontro da Agenda
+      <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Vincular encontro da Agenda <span className="text-nite-text-muted">(opcional)</span>
         <Select name="calendarEventId" value={selectedEventId} onChange={(event) => setSelectedEventId(event.currentTarget.value)}>
-          <option value="">Reunião sem evento existente</option>
+          <option value="">Criar sem vínculo</option>
           {events.map((event) => <option key={event.id} value={event.id}>{event.title} · {formatFrequencyDate(event.startsAt, { hour: "2-digit", minute: "2-digit" })}</option>)}
         </Select>
       </label>
       <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Nome do encontro
         <TextField name="meetingName" maxLength={200} required={!selectedEventId} disabled={Boolean(selectedEventId)} placeholder={selectedEvent ? "Nome definido pela Agenda" : "Ex.: reunião extraordinária"} />
       </label>
-      <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Duração do QR
-        <Select name="confirmationWindowMinutes" defaultValue="5"><option value="3">3 minutos</option><option value="5">5 minutos</option><option value="10">10 minutos</option></Select>
-      </label>
-      {!regular ? <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Reunião excepcional entra na apuração?
-        <Select name="countsForFrequency" defaultValue="true"><option value="true">Sim, quando realizada</option><option value="false">Não</option></Select>
+      <fieldset className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">
+        <legend>Tempo para registrar presença</legend>
+        <div className="flex flex-wrap gap-1.5">
+          {[3, 5, 10].map((minutes) => <label key={minutes} className="has-[:checked]:border-nite-brand-primary has-[:checked]:bg-nite-brand-soft has-[:checked]:text-nite-brand-primary inline-flex min-h-11 cursor-pointer items-center rounded-control border border-nite-border-soft bg-nite-surface px-3 text-type-body-compact font-medium text-nite-text-secondary focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-nite-focus">
+            <input className="peer sr-only" type="radio" name="confirmationWindowMinutes" value={minutes} defaultChecked={minutes === 5} />
+            <span className="peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-nite-focus">{minutes} min</span>
+          </label>)}
+        </div>
+      </fieldset>
+      {!regular ? <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Contar esta reunião na frequência
+        <Select name="countsForFrequency" defaultValue="true"><option value="true">Sim, se realizada</option><option value="false">Não</option></Select>
       </label> : <input type="hidden" name="countsForFrequency" value="" />}
       <div className="sm:col-span-2 xl:col-span-4"><Button type="submit" disabled={props.synthetic} className="w-full sm:w-auto">Abrir e projetar</Button></div>
     </form>
@@ -557,21 +629,13 @@ function MeetingList({ props, now }: { props: WorkspaceProps; now: number | null
   const selected = props.selectedList;
   const listCount = page?.total ?? 0;
   const listPageCount = page ? Math.ceil(page.total / page.size) : 0;
+  const listFilters = [["", "Todas"], ["ABERTA", "Abertas"], ["CONCLUIDA", "Concluídas"], ["CANCELADA", "Canceladas"]];
   return <section aria-label="Listas do período" className="min-w-0">
     <div className="flex flex-wrap items-end justify-between gap-3 pb-3">
       <div><h2 className="font-display text-type-component-title text-nite-text-primary">Listas do período</h2><p className="mt-1 text-type-metadata text-nite-text-muted">{listCount} {listCount === 1 ? "lista" : "listas"}</p></div>
-      <form action={props.synthetic ? pathWith({ view: "management", mode: "meeting" }, true) : "/frequencia"} method="get" className="flex items-center gap-2">
-        <input type="hidden" name="view" value="management" />
-        <input type="hidden" name="mode" value="meeting" />
-        <input type="hidden" name="range" value={props.rangeKey} />
-        <input type="hidden" name="listPage" value="0" />
-        <label className="text-type-metadata text-nite-text-secondary">
-          <span className="sr-only">Filtrar listas por situação</span>
-          <Select name="listStatus" value={props.listStatus} aria-label="Situação das listas" onChange={(event) => event.currentTarget.form?.requestSubmit()}>
-            <option value="">Todas</option><option value="ABERTA">Abertas</option><option value="CONCLUIDA">Concluídas</option><option value="CANCELADA">Canceladas</option>
-          </Select>
-        </label>
-      </form>
+      <nav aria-label="Filtrar listas por situação" className="flex flex-wrap gap-1 rounded-panel bg-nite-surface-subtle p-1">
+        {listFilters.map(([status, label]) => <FilterLink key={status} href={pathWith({ view: "management", mode: "meeting", range: props.rangeKey, listStatus: status }, props.synthetic)} active={props.listStatus === status}>{label}</FilterLink>)}
+      </nav>
     </div>
     <Issue issue={props.listIssue} />
     {page?.items.length ? <ul className="divide-y divide-nite-border-soft border-y border-nite-border-soft">
@@ -614,7 +678,7 @@ function MeetingDetail({ props, now }: { props: WorkspaceProps; now: number | nu
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><StateLabel tone={state.tone}>{state.label}</StateLabel><span className="text-type-metadata text-nite-text-muted">{listClassLabel(list)}</span></div>
         <h2 className="mt-2 break-words font-display text-type-section-title text-nite-text-primary">{list.meetingName}</h2>
         <p className="mt-2 text-type-body-compact text-nite-text-secondary">Responsável: {list.openedBy.displayName}</p>
-        <p className="mt-1 text-type-metadata text-nite-text-muted">Aberta em {formatFrequencyDate(list.openedAt, { dateStyle: "medium", timeStyle: "short" })}{list.closedAt ? " · Concluída em " + formatFrequencyDate(list.closedAt, { dateStyle: "medium", timeStyle: "short" }) : ""}</p>
+        <p className="mt-1 text-type-body-compact text-nite-text-secondary">Aberta em {formatFrequencyDate(list.openedAt, { dateStyle: "medium", timeStyle: "short" })}{list.closedAt ? (list.status === "CANCELADA" ? " · Cancelada em " : " · Concluída em ") + formatFrequencyDate(list.closedAt, { dateStyle: "medium", timeStyle: "short" }) : ""}</p>
         <p className="mt-1 text-type-metadata text-nite-text-muted">Janela total de {list.confirmationWindowMinutes} minutos · até {formatFrequencyDate(list.confirmationDeadline, { dateStyle: "short", timeStyle: "short" })}</p>
       </div>
       {open ? <div className="flex flex-wrap items-center gap-2">
@@ -623,34 +687,14 @@ function MeetingDetail({ props, now }: { props: WorkspaceProps; now: number | nu
           <input type="hidden" name="expectedVersion" value={String(list.version)} />
           <Button type="submit" variant="secondary" disabled={props.synthetic}>Projetar QR</Button>
         </form>
-        <details className="relative">
-          <summary className="flex min-h-10 cursor-pointer list-none items-center rounded-control px-3 text-type-body-compact font-medium text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden">Concluir</summary>
-          <form action={props.synthetic ? undefined : finalizeFrequencyList} className="absolute right-0 top-full z-10 mt-1 grid min-w-64 gap-3 rounded-panel border border-nite-border-soft bg-nite-background p-3 shadow-nite-floating">
-            <input type="hidden" name="listId" value={list.listId} />
-            <input type="hidden" name="expectedVersion" value={String(list.version)} />
-            <label className="grid gap-1.5 text-type-metadata text-nite-text-secondary">Resultado
-              <Select name="outcome" defaultValue={outcomeDefault}>
-                <option value="REALIZADA_CONTABILIZAVEL">Realizada e contabilizável</option>
-                {list.classification === "EXCEPTIONAL" ? <option value="REALIZADA_NAO_CONTABILIZAVEL">Realizada, não contabilizável</option> : null}
-                <option value="NAO_REALIZADA">Não realizada</option>
-              </Select>
-            </label>
-            <Button type="submit" disabled={props.synthetic}>Confirmar conclusão</Button>
-          </form>
-        </details>
-        <form action={props.synthetic ? undefined : cancelFrequencyList} onSubmit={(event) => { if (!props.synthetic && !window.confirm("Cancelar esta lista e retirar o encontro da apuração?")) event.preventDefault(); }}>
-          <input type="hidden" name="listId" value={list.listId} />
-          <input type="hidden" name="expectedVersion" value={String(list.version)} />
-          <input type="hidden" name="confirmed" value="true" />
-          <Button type="submit" variant="secondary" disabled={props.synthetic}>Cancelar</Button>
-        </form>
+        <FinalizeListAction list={list} defaultOutcome={outcomeDefault} synthetic={props.synthetic} />
+        <CancelListAction list={list} synthetic={props.synthetic} />
       </div> : null}
     </header>
     {open ? <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-type-body-compact">
       <StateLabel tone={remaining !== null && remaining === 0 ? "warning" : "info"}>{remaining === null ? "Tempo restante —:—" : remaining === 0 ? "Janela encerrada · aguardando conclusão" : "Tempo restante " + remainingLabel(remaining)}</StateLabel>
       {list.qr ? <span className="text-type-metadata text-nite-text-muted">{Date.parse(list.qr.expiresAt) <= (now ?? 0) ? "QR expirado · a lista permanece aberta" : "QR vigente até " + formatFrequencyDate(list.qr.expiresAt, { hour: "2-digit", minute: "2-digit" })}</span> : <span className="text-type-metadata text-nite-text-muted">Emissão do QR pendente</span>}
     </div> : null}
-    {open && props.participants?.counts ? <p className="mt-3 text-type-body-compact text-nite-text-secondary">Confirmações recebidas: <strong className="text-nite-text-primary">{props.participants.counts.present}</strong> de {props.participants.counts.rosterTotal}</p> : null}
     <div className="mt-4"><Issue issue={props.participantsIssue} /><GlobalParticipantCounts page={props.participants} open={open} confirmations={props.participants?.counts.present ?? 0} /></div>
       <ParticipantRoster key={props.participantSearch + ":" + props.participantStatus} props={props} list={list} now={now} />
   </section>;
@@ -664,7 +708,7 @@ function MeetingMode({ props }: { props: WorkspaceProps }) {
     ? "grid min-w-0 gap-7 xl:grid-cols-[minmax(17rem,.78fr)_minmax(0,1.6fr)]"
     : "grid min-w-0 gap-7";
   return <div className="grid min-w-0 gap-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-type-body-compact text-nite-text-secondary">Frequência por reunião</p><RangeControl props={props} /></div>
+    <div className="flex justify-end"><RangeControl props={props} /></div>
     <div className={cx(selected && "hidden xl:block")}><CreateList props={props} openKey={openKey} setOpenKey={setOpenKey} /></div>
     {props.error ? <p role="alert" className="text-type-body-compact text-status-warning">{({
       access: "Esta operação não está autorizada para sua conta.",
@@ -675,9 +719,10 @@ function MeetingMode({ props }: { props: WorkspaceProps }) {
       origin: "A origem do NITE Connect não está configurada para projetar o QR.",
     } as Record<string, string>)[props.error] ?? "Não foi possível concluir esta operação."}</p> : null}
     {props.notice ? <p role="status" className="text-type-body-compact text-status-done">{({
-      finalized: "Lista concluída e atualizada pelo servidor.",
-      canceled: "Lista cancelada e atualizada pelo servidor.",
-      updated: "Situação do integrante atualizada pelo servidor.",
+      finalized: "Lista concluída.",
+      canceled: "Lista cancelada.",
+      justified: "Ausência marcada como justificada.",
+      "absence-corrected": "Situação corrigida para ausência.",
     } as Record<string, string>)[props.notice] ?? "Operação concluída."}</p> : null}
     <div className={gridClass}>
       <div className={cx(selected && "hidden xl:block")}><MeetingList props={props} now={now} /></div>
@@ -707,7 +752,7 @@ export function FrequencyWorkspace(props: WorkspaceProps) {
     <header className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
       <div className="min-w-0">
         <h1 className="font-display text-type-page-title text-nite-text-primary">Frequência</h1>
-        <p className="mt-2 max-w-2xl text-type-body-compact text-nite-text-secondary">Consulte a frequência do período, acompanhe reuniões e confirme sua presença.</p>
+        <p className="mt-2 max-w-2xl text-type-body-compact text-nite-text-secondary">Consulte a frequência do período e acompanhe as reuniões registradas.</p>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <ViewNavigation props={props} view={view} />

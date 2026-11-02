@@ -118,7 +118,7 @@ Implementado, gestão somente:
 - GET /api/v1/attendance/lists?from&to&status&page=0&size=20: filtra por data local de opened_at, estado e página.
 - GET /api/v1/attendance/lists/{listId}: detalhes, nome/classificação, resultado, autor e horários de abertura/conclusão.
 - GET /api/v1/attendance/lists/{listId}/participants?status&name&page=0&size=50: roster snapshot alfabético, incluindo nome, situação e confirmedAt. `name` filtra o snapshot completo antes da paginação, sem diferenciar caixa ou acentos.
-- GET /api/v1/attendance/lists/{listId}/updates?afterVersion={version}: mudanças leves para tela de projeção, incluindo versão da lista, estado, qrVersion e qrExpiresAt; nunca contém QR/token. Polling recomendado a cada 3–5 segundos; ao detectar nova versão do QR, a tela limpa imediatamente o código local exibido. Não há canal push atual identificado.
+- GET /api/v1/attendance/lists/{listId}/updates?afterVersion={version}: mudanças leves para tela de projeção, incluindo versão da lista, estado, qrVersion e qrExpiresAt; nunca contém QR/token. Quando não há eventos posteriores, retorna um snapshot do estado atual com `action: null` e `occurredAt: null`; ambos são nulos juntos. Polling recomendado a cada 3–5 segundos; ao detectar nova versão do QR, a tela limpa imediatamente o código local exibido. Não há canal push atual identificado.
 
 Resposta participante contém memberId, displayName do snapshot, situação, confirmedAt e, quando cabível, changedAt/changedBy/reason mínimo. Não retorna e-mail, claims, endereço ou cadastro adicional. Para lista fora da apuração, a leitura não classifica pessoa como AUSENTE.
 
@@ -272,7 +272,7 @@ Implementado:
 
 - GET /api/v1/me/frequency/open-lists: listas cujo estado persistido ainda é `ABERTA`, ordenadas da mais recente para a mais antiga. Inclui as listas de janela já expirada que aguardam conclusão oficial, para preservar o estado de uma presença já registrada e distinguir espera de encerramento. Retorna array vazio quando não há listas abertas.
 - GET /api/v1/me/frequency/summary?from=2026-01-01&to=2026-06-30&groupBy=SEMESTER: resumo com intervalo/zona, elegíveis, presenças, justificadas, ausências, percentual e noEligibleMeetings.
-- GET /api/v1/me/frequency/history?from&to&page=0&size=20: histórico cronológico, reunião/nome, data local, estado, confirmedAt e marcação LEGADO/fora da apuração.
+- GET /api/v1/me/frequency/history?from&to&page=0&size=20: histórico cronológico, reunião/nome, data local, estado, confirmedAt, changedAt e marcação LEGADO/fora da apuração.
 - groupBy MONTH retorna um bucket por mês civil; SEMESTER retorna Jan–Jun e Jul–Dez.
 
 Exemplo real do record Java `Summary`, com `counts` aninhado:
@@ -306,7 +306,7 @@ Exemplo real do record Java `Summary`, com `counts` aninhado:
 
 Dados são escopados ao membro autenticado. Histórico legado aparece separado e não entra na fórmula.
 
-`open-lists` usa somente a identidade do JWT e exige integrante ativo. Devolve `listId`, `calendarEventId`, título e horário agendado da Agenda, `openedAt`, `confirmationDeadline`, `qrExpiresAt`, `confirmationWindowStatus`, `eligible`, `status`, `confirmedAt` e `confirmationAvailable`. Os estados pessoais são `AGUARDANDO_CONFIRMACAO`, `PRESENCA_REGISTRADA`, `JUSTIFICADO` e `NAO_ELEGIVEL`. `confirmationAvailable=true` somente quando o integrante está no snapshot, aguardando, a janela global está aberta e há QR atual não revogado e ainda válido. O DTO não devolve token, hash, handoff ou roster; GET não registra presença.
+`open-lists` usa somente a identidade do JWT e exige integrante ativo. Devolve `listId`, `calendarEventId`, título e horário agendado da Agenda, `openedAt`, `confirmationDeadline`, `qrExpiresAt`, `confirmationWindowStatus`, `eligible`, `status`, `confirmedAt`, `changedAt` e `confirmationAvailable`. Os estados pessoais são `AGUARDANDO_CONFIRMACAO`, `PRESENCA_REGISTRADA`, `JUSTIFICADO` e `NAO_ELEGIVEL`. `confirmedAt` vem da confirmação individual persistida; `changedAt` reflete o instante da situação atual quando houve alteração da linha do snapshot. `confirmationAvailable=true` somente quando o integrante está no snapshot, aguardando, a janela global está aberta e há QR atual não revogado e ainda válido. O DTO não devolve token, hash, handoff ou roster; GET não registra presença.
 
 Exemplo de um integrante elegível com QR vigente:
 
@@ -325,6 +325,7 @@ Exemplo de um integrante elegível com QR vigente:
     "eligible": true,
     "status": "AGUARDANDO_CONFIRMACAO",
     "confirmedAt": null,
+    "changedAt": null,
     "confirmationAvailable": true
   }
 ]
@@ -332,7 +333,9 @@ Exemplo de um integrante elegível com QR vigente:
 
 Um integrante fora do snapshot recebe a mesma lista pública com `eligible=false`, `status=NAO_ELEGIVEL` e `confirmationAvailable=false`; nenhum participante do snapshot é exposto. Sem lista em estado `ABERTA`, a resposta é `[]`.
 
-O histórico conserva os campos anteriores `status`, `legacy` e `inApuration` para compatibilidade e acrescenta `presenceRecorded`, `attendanceStatus`, `listStatus`, `outcome`, `confirmationDeadline`, `confirmationWindowStatus`, `accountingStatus` e `notCountedReason`. `status` mantém a representação compatível de apresentação (por exemplo `FORA_DA_APURACAO`), enquanto `attendanceStatus` preserva a situação individual armazenada. `presenceRecorded` é o fato de haver registro, independentemente da contabilização.
+O histórico conserva os campos anteriores `status`, `legacy` e `inApuration` para compatibilidade e acrescenta `presenceRecorded`, `attendanceStatus`, `listStatus`, `outcome`, `confirmationDeadline`, `confirmationWindowStatus`, `accountingStatus`, `notCountedReason` e `changedAt`. `status` mantém a representação compatível de apresentação (por exemplo `FORA_DA_APURACAO`), enquanto `attendanceStatus` preserva a situação individual armazenada. `presenceRecorded` é o fato de haver registro, independentemente da contabilização. `confirmedAt` é o horário persistido da confirmação QR; `changedAt` é o horário persistido da situação vigente. Na ausência gerada pela conclusão contabilizável, `changedAt` recebe o mesmo instante da conclusão oficial (`closedAt`); uma justificativa ou correção administrativa posterior atualiza `changedAt`, enquanto `attendance_list_events` preserva ator, ação, motivo e instante da auditoria. A data de `occurredAt` serve apenas para situar a reunião e não substitui nenhum desses horários.
+
+Para estados legados sem instante de mudança recuperável, `changedAt` é `null`; o cliente informa a indisponibilidade sem gerar um horário. A presença legada continua podendo usar o `created_at` persistido do registro de presença em `confirmedAt`.
 
 Códigos estáveis de histórico:
 
@@ -356,6 +359,7 @@ Exemplo de presença preservada em uma lista cancelada:
   "occurredAt": "2026-11-05T21:00:00Z",
   "status": "PRESENTE",
   "confirmedAt": "2026-11-05T21:00:41Z",
+  "changedAt": "2026-11-05T21:00:41Z",
   "legacy": false,
   "inApuration": false,
   "presenceRecorded": true,
@@ -375,7 +379,7 @@ Implementado, gestão somente:
 
 - GET /api/v1/attendance/frequency/summary?from&to&name&page=0&size=50: uma linha por membro que conste elegível em pelo menos uma lista do período, ainda que esteja inativo hoje, alfabética, totais/percentual e sinal de três ausências. `name` filtra antes da paginação pelo nome congelado mais recente do integrante dentro do período; resultados e contagens não consultam o cadastro atual.
 - GET /api/v1/attendance/frequency/members/{memberId}/history?from&to&page=0&size=50: histórico coletivo individual autorizado.
-- GET /api/v1/attendance/lists/{listId}/participants: lista da reunião, alfabética com integrante, situação e horário de confirmação.
+- GET /api/v1/attendance/lists/{listId}/participants: lista da reunião, alfabética com integrante, situação, confirmedAt e changedAt.
 
 Resumo usa o snapshot para determinar quem entra em cada denominador, não o status atual do membro. Sinal acompanha as três reuniões de origem e é recalculado em toda consulta. Sem e-mail, conteúdo de justificativa ou ranking. Outro papel recebe 403. Tanto essa busca quanto a busca de participantes retornam páginas estáveis em ordem alfabética pt-BR; período e situação são aplicados no servidor.
 

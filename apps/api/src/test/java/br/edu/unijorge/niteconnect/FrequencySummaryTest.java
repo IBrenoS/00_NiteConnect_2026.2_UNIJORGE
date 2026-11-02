@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -202,6 +203,7 @@ class FrequencySummaryTest extends AttendanceTestSupport {
         mvc.perform(get("/api/v1/me/frequency/history" + range).with(token(MEMBER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
                 .andExpect(jsonPath("$.items[0].status").value("LEGADO"))
+                .andExpect(jsonPath("$.items[0].changedAt").value(nullValue()))
                 .andExpect(jsonPath("$.items[0].legacy").value(true))
                 .andExpect(jsonPath("$.items[0].presenceRecorded").value(true))
                 .andExpect(jsonPath("$.items[0].attendanceStatus").value("LEGADO"))
