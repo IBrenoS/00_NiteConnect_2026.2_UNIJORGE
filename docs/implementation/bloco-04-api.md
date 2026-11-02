@@ -11,6 +11,7 @@ Os endpoints deste documento existem no backend B04, salvo os identificados expr
 | Capacidade | Estado verificado |
 |---|---|
 | Agenda, listas, snapshot, QR, confirmação, conclusão/cancelamento, justificativas e consultas B04 | Implementados em controllers/serviços Java, com persistência e trilha. |
+| Disponibilidade pessoal de check-in, estados estruturados de histórico, busca coletiva integral e contagens da lista | Implementados nesta evolução aditiva do backend; a UI ainda precisa consumir os novos campos. |
 | Scan dentro da aplicação para integrante autenticado | Página e integração ZXing implementadas; endpoint canônico chamado em ação de servidor. Permissão e leitura em câmera física não homologadas. |
 | Scan externo e handoff | Página, route handler same-origin, cookie HttpOnly, retorno Entra para destino fixo e confirmação POST implementados. Callback OAuth real não homologado neste fluxo. |
 | Projeção de QR temporário | Lista abre e emite QR pela API; SVG é renderizado no servidor, renovado próximo à expiração e removido ao detectar rotação/encerramento. Requer `NEXT_PUBLIC_APP_ORIGIN` correto. |
@@ -29,6 +30,8 @@ Nenhum endpoint de horas, saldo, revisão ou justificativa do contrato aposentad
 - Instantes persistidos/retornados são ISO-8601 UTC. Data oficial da frequência vem de attendance_lists.opened_at; confirmação de attendance_records.created_at.
 - Percentual usa contagens inteiras e arredondamento HALF_UP a 2 casas. Sem denominador, retorno é null e noEligibleMeetings=true.
 - Páginas usam PageResult, size máximo recomendado 100. Ordenar por snapshot sortKey pt-BR, nome e UUID. O filtro não altera a ordenação.
+- `GET /api/v1/attendance/lists/{listId}/participants` mantém `items`, `page`, `size` e `total`; `total` é o total que corresponde aos filtros. `pageCount` é a quantidade efetivamente retornada na página. `counts` resume o snapshot completo, sem depender de busca, situação ou página.
+- Busca por `name` é uma substring de nome, sem diferenciar caixa ou acentos, normalizada com a mesma regra pt-BR usada no snapshot. Não consulta o cadastro atual nem expõe um diretório geral de integrantes.
 - QR/handoff retornam Cache-Control: no-store. Token não vai em query, log, telemetria ou referer.
 - Escritas administrativas usam `expectedVersion`; abertura usa `Idempotency-Key`. Justificativa aceita códigos administrativos padronizados, sem texto livre.
 
@@ -114,10 +117,42 @@ Implementado, gestão somente:
 
 - GET /api/v1/attendance/lists?from&to&status&page=0&size=20: filtra por data local de opened_at, estado e página.
 - GET /api/v1/attendance/lists/{listId}: detalhes, nome/classificação, resultado, autor e horários de abertura/conclusão.
-- GET /api/v1/attendance/lists/{listId}/participants?status&page=0&size=50: roster snapshot alfabético, incluindo nome, situação e confirmedAt.
+- GET /api/v1/attendance/lists/{listId}/participants?status&name&page=0&size=50: roster snapshot alfabético, incluindo nome, situação e confirmedAt. `name` filtra o snapshot completo antes da paginação, sem diferenciar caixa ou acentos.
 - GET /api/v1/attendance/lists/{listId}/updates?afterVersion={version}: mudanças leves para tela de projeção, incluindo versão da lista, estado, qrVersion e qrExpiresAt; nunca contém QR/token. Polling recomendado a cada 3–5 segundos; ao detectar nova versão do QR, a tela limpa imediatamente o código local exibido. Não há canal push atual identificado.
 
 Resposta participante contém memberId, displayName do snapshot, situação, confirmedAt e, quando cabível, changedAt/changedBy/reason mínimo. Não retorna e-mail, claims, endereço ou cadastro adicional. Para lista fora da apuração, a leitura não classifica pessoa como AUSENTE.
+
+Além dos quatro campos de paginação, a resposta inclui `pageCount` e `counts` globais:
+
+~~~json
+{
+  "items": [
+    {
+      "memberId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "displayName": "Ana Souza",
+      "status": "PRESENTE",
+      "confirmedAt": "2026-11-05T21:00:41Z",
+      "changedAt": null,
+      "changedBy": null,
+      "reason": null
+    }
+  ],
+  "page": 0,
+  "size": 50,
+  "total": 1,
+  "pageCount": 1,
+  "counts": {
+    "rosterTotal": 4,
+    "present": 1,
+    "justified": 1,
+    "absent": 2,
+    "awaitingConfirmation": 0,
+    "outsideApuration": 0
+  }
+}
+~~~
+
+`total` conta resultados após `status` e `name`; `pageCount` conta `items`; `counts` sempre cobre os quatro integrantes do snapshot neste exemplo, mesmo que a busca ou a página retorne só uma linha. `outsideApuration` contabiliza os estados exibidos como `FORA_DA_APURACAO` em lista cancelada ou concluída sem contabilização.
 
 ### Renovar QR automaticamente
 
@@ -235,6 +270,7 @@ Enquanto ABERTA, gestão pode mudar AGUARDANDO para JUSTIFICADO. Depois de lista
 
 Implementado:
 
+- GET /api/v1/me/frequency/open-lists: listas cujo estado persistido ainda é `ABERTA`, ordenadas da mais recente para a mais antiga. Inclui as listas de janela já expirada que aguardam conclusão oficial, para preservar o estado de uma presença já registrada e distinguir espera de encerramento. Retorna array vazio quando não há listas abertas.
 - GET /api/v1/me/frequency/summary?from=2026-01-01&to=2026-06-30&groupBy=SEMESTER: resumo com intervalo/zona, elegíveis, presenças, justificadas, ausências, percentual e noEligibleMeetings.
 - GET /api/v1/me/frequency/history?from&to&page=0&size=20: histórico cronológico, reunião/nome, data local, estado, confirmedAt e marcação LEGADO/fora da apuração.
 - groupBy MONTH retorna um bucket por mês civil; SEMESTER retorna Jan–Jun e Jul–Dez.
@@ -270,17 +306,78 @@ Exemplo real do record Java `Summary`, com `counts` aninhado:
 
 Dados são escopados ao membro autenticado. Histórico legado aparece separado e não entra na fórmula.
 
-Limites confirmados na integração do frontend: não existe endpoint pessoal para consultar lista aberta/elegibilidade do integrante; a visão pessoal oferece leitura de QR sem afirmar uma reunião atual apta. O histórico pessoal não expõe estado final/resultado da lista nem motivo específico de `inApuration=false`, então a interface mostra “Fora da apuração” sem inferir cancelamento. A lista de participantes e o resumo coletivo são paginados; participantes não aceitam busca remota por nome. A busca de nomes e as contagens de participantes são explicitamente limitadas à página carregada.
+`open-lists` usa somente a identidade do JWT e exige integrante ativo. Devolve `listId`, `calendarEventId`, título e horário agendado da Agenda, `openedAt`, `confirmationDeadline`, `qrExpiresAt`, `confirmationWindowStatus`, `eligible`, `status`, `confirmedAt` e `confirmationAvailable`. Os estados pessoais são `AGUARDANDO_CONFIRMACAO`, `PRESENCA_REGISTRADA`, `JUSTIFICADO` e `NAO_ELEGIVEL`. `confirmationAvailable=true` somente quando o integrante está no snapshot, aguardando, a janela global está aberta e há QR atual não revogado e ainda válido. O DTO não devolve token, hash, handoff ou roster; GET não registra presença.
+
+Exemplo de um integrante elegível com QR vigente:
+
+~~~json
+[
+  {
+    "listId": "ad91a2c0-6a58-4b0a-859e-175f2ab9b214",
+    "calendarEventId": "3b07c8db-3a18-49e1-b70e-79e64a5dcaab",
+    "meetingName": "Reunião semanal",
+    "classification": "REGULAR",
+    "scheduledAt": "2026-11-05T21:00:00Z",
+    "openedAt": "2026-11-05T21:00:00Z",
+    "confirmationDeadline": "2026-11-05T21:05:00Z",
+    "qrExpiresAt": "2026-11-05T21:02:00Z",
+    "confirmationWindowStatus": "ABERTA",
+    "eligible": true,
+    "status": "AGUARDANDO_CONFIRMACAO",
+    "confirmedAt": null,
+    "confirmationAvailable": true
+  }
+]
+~~~
+
+Um integrante fora do snapshot recebe a mesma lista pública com `eligible=false`, `status=NAO_ELEGIVEL` e `confirmationAvailable=false`; nenhum participante do snapshot é exposto. Sem lista em estado `ABERTA`, a resposta é `[]`.
+
+O histórico conserva os campos anteriores `status`, `legacy` e `inApuration` para compatibilidade e acrescenta `presenceRecorded`, `attendanceStatus`, `listStatus`, `outcome`, `confirmationDeadline`, `confirmationWindowStatus`, `accountingStatus` e `notCountedReason`. `status` mantém a representação compatível de apresentação (por exemplo `FORA_DA_APURACAO`), enquanto `attendanceStatus` preserva a situação individual armazenada. `presenceRecorded` é o fato de haver registro, independentemente da contabilização.
+
+Códigos estáveis de histórico:
+
+| Campo | Valores |
+|---|---|
+| `listStatus` | `ABERTA`, `CONCLUIDA`, `CANCELADA`, `LEGADO` |
+| `attendanceStatus` | `AGUARDANDO`, `PRESENTE`, `JUSTIFICADO`, `AUSENTE`, `LEGADO` |
+| `confirmationWindowStatus` | `ABERTA`, `EXPIRADA`, `ENCERRADA`, `NAO_APLICAVEL` |
+| `accountingStatus` | `AGUARDANDO_CONCLUSAO`, `CONTABILIZADA`, `NAO_CONTABILIZAVEL`, `CANCELADA`, `ANTERIOR_AO_CORTE` |
+| `notCountedReason` | `LISTA_AGUARDANDO_CONCLUSAO`, `REUNIAO_CANCELADA`, `REUNIAO_NAO_REALIZADA`, `REUNIAO_NAO_CONTABILIZAVEL`, `ANTERIOR_AO_CORTE_OFICIAL`, ou `null` quando contabilizada |
+
+Um registro legado mantém `presenceRecorded=true`, `attendanceStatus=LEGADO`, `listStatus=LEGADO`, `accountingStatus=ANTERIOR_AO_CORTE` e `notCountedReason=ANTERIOR_AO_CORTE_OFICIAL`. Uma lista cancelada mantém `attendanceStatus=PRESENTE` e `confirmedAt` se a confirmação ocorreu; a reunião, contudo, fica `accountingStatus=CANCELADA` e não entra no percentual.
+
+Exemplo de presença preservada em uma lista cancelada:
+
+~~~json
+{
+  "listId": "ad91a2c0-6a58-4b0a-859e-175f2ab9b214",
+  "calendarEventId": "3b07c8db-3a18-49e1-b70e-79e64a5dcaab",
+  "meetingName": "Reunião semanal",
+  "occurredAt": "2026-11-05T21:00:00Z",
+  "status": "PRESENTE",
+  "confirmedAt": "2026-11-05T21:00:41Z",
+  "legacy": false,
+  "inApuration": false,
+  "presenceRecorded": true,
+  "attendanceStatus": "PRESENTE",
+  "listStatus": "CANCELADA",
+  "outcome": "NAO_REALIZADA",
+  "confirmationDeadline": "2026-11-05T21:05:00Z",
+  "confirmationWindowStatus": "ENCERRADA",
+  "accountingStatus": "CANCELADA",
+  "notCountedReason": "REUNIAO_CANCELADA"
+}
+~~~
 
 ### Coletiva
 
 Implementado, gestão somente:
 
-- GET /api/v1/attendance/frequency/summary?from&to&page=0&size=50: uma linha por membro que conste elegível em pelo menos uma lista do período, ainda que esteja inativo hoje, alfabética, totais/percentual e sinal de três ausências.
+- GET /api/v1/attendance/frequency/summary?from&to&name&page=0&size=50: uma linha por membro que conste elegível em pelo menos uma lista do período, ainda que esteja inativo hoje, alfabética, totais/percentual e sinal de três ausências. `name` filtra antes da paginação pelo nome congelado mais recente do integrante dentro do período; resultados e contagens não consultam o cadastro atual.
 - GET /api/v1/attendance/frequency/members/{memberId}/history?from&to&page=0&size=50: histórico coletivo individual autorizado.
 - GET /api/v1/attendance/lists/{listId}/participants: lista da reunião, alfabética com integrante, situação e horário de confirmação.
 
-Resumo usa o snapshot para determinar quem entra em cada denominador, não o status atual do membro. Sinal acompanha as três reuniões de origem e é recalculado em toda consulta. Sem e-mail, conteúdo de justificativa ou ranking. Outro papel recebe 403.
+Resumo usa o snapshot para determinar quem entra em cada denominador, não o status atual do membro. Sinal acompanha as três reuniões de origem e é recalculado em toda consulta. Sem e-mail, conteúdo de justificativa ou ranking. Outro papel recebe 403. Tanto essa busca quanto a busca de participantes retornam páginas estáveis em ordem alfabética pt-BR; período e situação são aplicados no servidor.
 
 ## 8. Erros, atomicidade e concorrência
 
@@ -328,6 +425,9 @@ Dados anteriores ao activated_at são LEGADO apenas. Nunca gerar faltas retroati
 - Evento regular é presencial ENCONTRO de quinta em America/Bahia; excepcional exige boolean countsForFrequency explícito. Sem lista concluída não há ausência ou denominador.
 - Identidade do evento canônica por calendarEventId; duplicação no mesmo evento é negada, outro evento no mesmo dia permitido.
 - Data/hora, autor, deadline e confirmação são do servidor.
+- Consulta pessoal de listas abertas não revela segredos e informa elegibilidade, situação, janela e disponibilidade da confirmação; lista expirada ainda aberta distingue `EXPIRADA` de conclusão oficial.
+- Histórico informa separadamente presença registrada, situação individual, estado/resultado da lista e estado/motivo de contabilização; legacy válido continua visível fora do percentual.
+- Busca coletiva de nomes é server-side sobre snapshots autorizados. Participantes retorna contagens do roster completo, total filtrado e tamanho da página separados; buscas não alteram denominador nem substituem nomes históricos pelo cadastro atual.
 - QR dura até 120s, o anterior é revogado na renovação, e a janela de 3/5/10min não se prolonga. Rotação automática aos 90s depende do frontend.
 - API GET não confirma; somente o POST autenticado registra a presença. O frontend implementa handoff em cookie HttpOnly e confirmação explícita; OAuth real e câmera física continuam pendentes de homologação.
 - Token expirado/rotacionado sem confirmação anterior exige nova leitura; uma repetição idempotente ainda pode reconhecer presença já registrada pela mesma identidade.

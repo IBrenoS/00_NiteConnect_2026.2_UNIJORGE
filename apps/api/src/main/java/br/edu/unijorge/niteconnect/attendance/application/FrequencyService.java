@@ -10,6 +10,8 @@ import br.edu.unijorge.niteconnect.attendance.infrastructure.AttendanceRepositor
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository;
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.AggregateCounts;
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.CollectiveAggregate;
+import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.HistoryRecord;
+import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.ParticipantQueryPage;
 import br.edu.unijorge.niteconnect.members.application.MemberDirectory;
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
@@ -339,10 +341,10 @@ public class FrequencyService {
         Event eventBefore = repo.lockEvent(list.calendarEventId());
         long nextListVersion = list.version() + 1;
         if (command.outcome() == Outcome.REALIZADA_CONTABILIZAVEL) {
-            PageResult<Participant> page;
+            ParticipantQueryPage page;
             int pageNumber = 0;
             do {
-                page = repo.participants(listId, null, pageNumber, 100);
+                page = repo.participants(listId, null, null, pageNumber, 100);
                 for (Participant participant : page.items()) {
                     if (!participant.storedStatus().equals(ParticipantStatus.AGUARDANDO.name())) continue;
                     repo.markWaitingAsAbsent(listId, participant.memberId(), participant.version(), closedAt, actor,
@@ -476,12 +478,13 @@ public class FrequencyService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<ParticipantView> participants(UUID actor, UUID listId, String status, int page, int size) {
+    public ParticipantPage participants(UUID actor, UUID listId, String status, String name, int page, int size) {
         access.requireAdministrator(actor);
         ListSnapshot list = repo.list(listId, false);
         if (status != null && !DISPLAYABLE_STATUSES.contains(status)) throw ApiException.invalid("Situação de participante inválida");
-        PageResult<Participant> result = repo.participants(listId, status, page, size);
-        return new PageResult<>(result.items().stream().map(p -> participantView(list, p)).toList(), page, size, result.total());
+        ParticipantQueryPage result = repo.participants(listId, status, nameFilter(name), page, size);
+        List<ParticipantView> items = result.items().stream().map(p -> participantView(list, p)).toList();
+        return new ParticipantPage(items, page, size, result.total(), result.pageCount(), result.counts());
     }
 
     @Transactional(readOnly = true)
@@ -510,20 +513,26 @@ public class FrequencyService {
     }
 
     @Transactional(readOnly = true)
+    public List<PersonalOpenList> personalOpenLists(UUID actor) {
+        access.requireActive(actor);
+        return repo.personalOpenLists(actor, clock.instant());
+    }
+
+    @Transactional(readOnly = true)
     public PageResult<HistoryEntry> personalHistory(UUID actor, LocalDate from, LocalDate to, int page, int size) {
         access.requireActive(actor);
         FrequencyRules.range(from, to);
-        return repo.history(actor, FrequencyRules.startOf(from), FrequencyRules.endExclusive(to),
-                repo.activatedAt(), page, size);
+        return historyPage(actor, FrequencyRules.startOf(from), FrequencyRules.endExclusive(to), page, size);
     }
 
     @Transactional(readOnly = true)
     public PageResult<CollectiveSummaryRow> collectiveSummary(UUID actor, LocalDate from, LocalDate to,
-                                                                int page, int size) {
+                                                                String name, int page, int size) {
         access.requireAdministrator(actor);
         FrequencyRules.range(from, to);
         PageResult<CollectiveAggregate> result = repo.collectiveCounts(
-                FrequencyRules.startOf(from), FrequencyRules.endExclusive(to), repo.activatedAt(), page, size);
+                FrequencyRules.startOf(from), FrequencyRules.endExclusive(to), repo.activatedAt(),
+                nameFilter(name), page, size);
         Map<UUID, List<FrequencyRepository.AbsenceHistory>> recent = new HashMap<>();
         for (FrequencyRepository.AbsenceHistory meeting : repo.lastCountableMeetings(
                 result.items().stream().map(CollectiveAggregate::memberId).toList(), repo.activatedAt())) {
@@ -546,8 +555,51 @@ public class FrequencyService {
         access.requireAdministrator(actor);
         members.require(memberId);
         FrequencyRules.range(from, to);
-        return repo.history(memberId, FrequencyRules.startOf(from), FrequencyRules.endExclusive(to),
-                repo.activatedAt(), page, size);
+        return historyPage(memberId, FrequencyRules.startOf(from), FrequencyRules.endExclusive(to), page, size);
+    }
+
+    private PageResult<HistoryEntry> historyPage(UUID memberId, Instant from, Instant to, int page, int size) {
+        PageResult<HistoryRecord> result = repo.history(memberId, from, to, repo.activatedAt(), page, size);
+        Instant evaluatedAt = clock.instant();
+        List<HistoryEntry> items = result.items().stream().map(record -> historyEntry(record, evaluatedAt)).toList();
+        return new PageResult<>(items, page, size, result.total());
+    }
+
+    private HistoryEntry historyEntry(HistoryRecord record, Instant evaluatedAt) {
+        HistoryListStatus listStatus = HistoryListStatus.valueOf(record.listStatus());
+        Outcome outcome = record.outcome() == null ? null : Outcome.valueOf(record.outcome());
+        ConfirmationWindowStatus windowStatus = switch (listStatus) {
+            case LEGADO -> ConfirmationWindowStatus.NAO_APLICAVEL;
+            case CONCLUIDA, CANCELADA -> ConfirmationWindowStatus.ENCERRADA;
+            case ABERTA -> record.confirmationDeadline().isAfter(evaluatedAt)
+                    ? ConfirmationWindowStatus.ABERTA : ConfirmationWindowStatus.EXPIRADA;
+        };
+
+        AccountingStatus accountingStatus;
+        NonApurationReason notCountedReason;
+        if (listStatus == HistoryListStatus.LEGADO) {
+            accountingStatus = AccountingStatus.ANTERIOR_AO_CORTE;
+            notCountedReason = NonApurationReason.ANTERIOR_AO_CORTE_OFICIAL;
+        } else if (listStatus == HistoryListStatus.CANCELADA) {
+            accountingStatus = AccountingStatus.CANCELADA;
+            notCountedReason = NonApurationReason.REUNIAO_CANCELADA;
+        } else if (listStatus == HistoryListStatus.ABERTA) {
+            accountingStatus = AccountingStatus.AGUARDANDO_CONCLUSAO;
+            notCountedReason = NonApurationReason.LISTA_AGUARDANDO_CONCLUSAO;
+        } else if (outcome == Outcome.REALIZADA_CONTABILIZAVEL && record.countsForFrequency()) {
+            accountingStatus = AccountingStatus.CONTABILIZADA;
+            notCountedReason = null;
+        } else {
+            accountingStatus = AccountingStatus.NAO_CONTABILIZAVEL;
+            notCountedReason = outcome == Outcome.NAO_REALIZADA
+                    ? NonApurationReason.REUNIAO_NAO_REALIZADA
+                    : NonApurationReason.REUNIAO_NAO_CONTABILIZAVEL;
+        }
+
+        return new HistoryEntry(record.listId(), record.calendarEventId(), record.meetingName(), record.occurredAt(),
+                record.status(), record.confirmedAt(), record.legacy(), record.inApuration(), record.presenceRecorded(),
+                HistoryParticipantStatus.valueOf(record.attendanceStatus()), listStatus, outcome,
+                record.confirmationDeadline(), windowStatus, accountingStatus, notCountedReason);
     }
 
     private List<Bucket> buildBuckets(LocalDate from, LocalDate to, GroupBy groupBy,
@@ -577,6 +629,13 @@ public class FrequencyService {
         return new Counts(aggregate.eligibleMeetings(), aggregate.present(), aggregate.justified(),
                 aggregate.unjustifiedAbsences(), FrequencyRules.percentage(aggregate.present(), aggregate.eligibleMeetings()),
                 aggregate.eligibleMeetings() == 0);
+    }
+
+    private String nameFilter(String name) {
+        if (name == null || name.isBlank()) return null;
+        String normalized = name.strip();
+        if (normalized.length() > 120) throw ApiException.invalid("A busca por nome aceita até 120 caracteres");
+        return FrequencyRules.sortKey(normalized);
     }
 
     private ListView view(ListSnapshot list) {
