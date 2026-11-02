@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getAuthenticatedNiteSession } from "../auth/server-session";
 import { apiIssueFromStatus } from "../api/contracts";
 import { resolveApiUrl } from "../api/server";
-import { canManageFrequency } from "./query";
+import { canManageFrequency, isRegularFrequencyMeeting } from "./query";
 import { parseConfirmation, parseListView, parseQrPayload, type Confirmation, type FrequencyList, type QrPayload } from "./contracts";
 import { frequencyScanUrl } from "./qr";
 import { qrSvg } from "./qr-image";
@@ -64,8 +64,8 @@ function issueMessage(issue: MutationIssue | null): string {
   if (issue === "access") return "Esta operação não está autorizada para sua conta.";
   if (issue === "not-found") return "A lista não está disponível para esta conta.";
   if (issue === "conflict") return "A lista mudou ou a janela expirou. Atualize a consulta antes de tentar novamente.";
-  if (issue === "invalid") return "Não foi possível aceitar esta ação. Confira as informações e tente novamente.";
-  return "Não foi possível confirmar agora. Tente novamente.";
+  if (issue === "invalid") return "A API recusou os dados desta operação.";
+  return "Não foi possível concluir a operação agora.";
 }
 
 async function authorizedManager() {
@@ -99,26 +99,30 @@ export async function confirmFrequencyHandoff(): Promise<FrequencyActionResult> 
 
 export async function openFrequencyList(form: FormData): Promise<never> {
   const session = await authorizedManager();
-  if (!publicAppOrigin()) redirect("/frequencia?mode=meeting&error=origin");
+  if (!publicAppOrigin()) redirect("/frequencia?view=management&mode=meeting&error=origin");
   const idempotencyKey = stringField(form, "idempotencyKey");
   const eventId = stringField(form, "calendarEventId");
   const meetingName = stringField(form, "meetingName");
   const windowMinutes = Number(stringField(form, "confirmationWindowMinutes"));
-  const classification = stringField(form, "classification");
+  const agendaClassification = stringField(form, "agendaClassification");
   const countsValue = stringField(form, "countsForFrequency");
-  if (!uuid.test(idempotencyKey) || ![3, 5, 10].includes(windowMinutes) || (eventId && !uuid.test(eventId)) || (!eventId && (meetingName.length < 3 || meetingName.length > 200)) || (!eventId && classification !== "REGULAR" && classification !== "EXCEPTIONAL") || (!eventId && classification === "EXCEPTIONAL" && countsValue !== "true" && countsValue !== "false")) redirect("/frequencia?mode=meeting&error=invalid");
+  if (!uuid.test(idempotencyKey) || ![3, 5, 10].includes(windowMinutes) || (eventId && (!uuid.test(eventId) || (agendaClassification !== "REGULAR" && agendaClassification !== "EXCEPTIONAL"))) || (!eventId && (meetingName.length < 3 || meetingName.length > 200))) redirect("/frequencia?view=management&mode=meeting&error=invalid");
+  // For Agenda events this hint only shapes the optional field; the API revalidates the actual classification.
+  const regularMeeting = eventId
+    ? agendaClassification === "REGULAR"
+    : isRegularFrequencyMeeting("ENCONTRO", "PRESENCIAL", new Date());
+  const requiresFrequencyChoice = !regularMeeting;
+  if (requiresFrequencyChoice && countsValue !== "true" && countsValue !== "false") redirect("/frequencia?view=management&mode=meeting&error=invalid");
 
   const body: Record<string, string | number | boolean> = { confirmationWindowMinutes: windowMinutes };
   if (eventId) body.calendarEventId = eventId;
-  else {
-    body.meetingName = meetingName;
-    if (classification === "EXCEPTIONAL") body.countsForFrequency = countsValue === "true";
-  }
+  else body.meetingName = meetingName;
+  if (requiresFrequencyChoice) body.countsForFrequency = countsValue === "true";
   const opened = await mutate("/api/v1/attendance/lists", session.bearer, "POST", body, parseListView, { "Idempotency-Key": idempotencyKey });
-  if (opened.issue) redirect(`/frequencia?mode=meeting&error=${opened.issue}${opened.issue === "unavailable" ? `&openKey=${encodeURIComponent(idempotencyKey)}` : ""}`);
+  if (opened.issue) redirect(`/frequencia?view=management&mode=meeting&error=${opened.issue}${opened.issue === "unavailable" ? `&openKey=${encodeURIComponent(idempotencyKey)}` : ""}`);
 
   const qr = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(opened.data.listId)}/qr/renew`, session.bearer, "POST", { expectedVersion: opened.data.version }, parseQrPayload);
-  if (qr.issue) redirect(`/frequencia?mode=meeting&list=${encodeURIComponent(opened.data.listId)}&error=qr`);
+  if (qr.issue) redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(opened.data.listId)}&error=qr`);
   const cookieStore = await cookies();
   const maxAge = Math.max(1, Math.min(120, Math.floor((Date.parse(qr.data.expiresAt) - Date.now()) / 1_000)));
   setProjectorQrCookie(cookieStore, opened.data.listId, qr.data, maxAge);
@@ -133,6 +137,9 @@ export async function renewFrequencyQr(listId: string, expectedVersion: number):
   if (!origin) return { ok: false, message: "Configure a origem pública do NITE Connect para emitir o QR." };
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/qr/renew`, session.bearer, "POST", { expectedVersion }, parseQrPayload);
   if (result.issue) return { ok: false, message: result.issue === "conflict" ? "A lista mudou. Recarregue a projeção para obter o QR vigente." : issueMessage(result.issue) };
+  const cookieStore = await cookies();
+  const maxAge = Math.max(1, Math.min(120, Math.floor((Date.parse(result.data.expiresAt) - Date.now()) / 1_000)));
+  setProjectorQrCookie(cookieStore, listId, result.data, maxAge);
   return { ok: true, svg: qrSvg(frequencyScanUrl(result.data.qrToken, origin, result.data.listId)), expiresAt: result.data.expiresAt, version: result.data.version };
 }
 
@@ -182,19 +189,19 @@ export async function finalizeFrequencyList(form: FormData): Promise<never> {
   const listId = stringField(form, "listId");
   const expectedVersion = parseVersion(stringField(form, "expectedVersion"));
   const outcome = stringField(form, "outcome");
-  if (!uuid.test(listId) || expectedVersion === null || (outcome !== "REALIZADA_CONTABILIZAVEL" && outcome !== "REALIZADA_NAO_CONTABILIZAVEL" && outcome !== "NAO_REALIZADA")) redirect("/frequencia?mode=meeting&error=invalid");
+  if (!uuid.test(listId) || expectedVersion === null || (outcome !== "REALIZADA_CONTABILIZAVEL" && outcome !== "REALIZADA_NAO_CONTABILIZAVEL" && outcome !== "NAO_REALIZADA")) redirect("/frequencia?view=management&mode=meeting&error=invalid");
   const reason = outcome === "NAO_REALIZADA" ? "Reunião não realizada" : outcome === "REALIZADA_NAO_CONTABILIZAVEL" ? "Reunião realizada fora da apuração" : "Reunião realizada";
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/finalize`, session.bearer, "POST", { expectedVersion, outcome, reason }, parseListView);
-  redirect(`/frequencia?mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=finalized"}`);
+  redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=finalized"}`);
 }
 
 export async function cancelFrequencyList(form: FormData): Promise<never> {
   const session = await authorizedManager();
   const listId = stringField(form, "listId");
   const expectedVersion = parseVersion(stringField(form, "expectedVersion"));
-  if (!uuid.test(listId) || expectedVersion === null || stringField(form, "confirmed") !== "true") redirect("/frequencia?mode=meeting&error=invalid");
+  if (!uuid.test(listId) || expectedVersion === null || stringField(form, "confirmed") !== "true") redirect("/frequencia?view=management&mode=meeting&error=invalid");
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/cancel`, session.bearer, "POST", { expectedVersion, reason: "Reunião cancelada pela gestão", confirmed: true }, parseListView);
-  redirect(`/frequencia?mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=canceled"}`);
+  redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=canceled"}`);
 }
 
 export async function changeFrequencyParticipant(form: FormData): Promise<never> {
@@ -203,20 +210,20 @@ export async function changeFrequencyParticipant(form: FormData): Promise<never>
   const memberId = stringField(form, "memberId");
   const expectedVersion = parseVersion(stringField(form, "expectedVersion"));
   const targetStatus = stringField(form, "targetStatus");
-  if (!uuid.test(listId) || !uuid.test(memberId) || expectedVersion === null || (targetStatus !== "JUSTIFICADO" && targetStatus !== "AUSENTE")) redirect("/frequencia?mode=meeting&error=invalid");
+  if (!uuid.test(listId) || !uuid.test(memberId) || expectedVersion === null || (targetStatus !== "JUSTIFICADO" && targetStatus !== "AUSENTE")) redirect("/frequencia?view=management&mode=meeting&error=invalid");
   const reason = targetStatus === "JUSTIFICADO" ? "EMAIL_EXTERNO_RECEBIDO" : "CORRECAO_ADMINISTRATIVA";
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/participants/${encodeURIComponent(memberId)}`, session.bearer, "PATCH", { expectedVersion, targetStatus, reason }, (value) => typeof value === "object" && value !== null ? value : null);
-  redirect(`/frequencia?mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=updated"}`);
+  redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=updated"}`);
 }
 
 export async function renewFrequencyListQr(form: FormData): Promise<never> {
   const session = await authorizedManager();
-  if (!publicAppOrigin()) redirect("/frequencia?mode=meeting&error=origin");
+  if (!publicAppOrigin()) redirect("/frequencia?view=management&mode=meeting&error=origin");
   const listId = stringField(form, "listId");
   const expectedVersion = parseVersion(stringField(form, "expectedVersion"));
-  if (!uuid.test(listId) || expectedVersion === null) redirect("/frequencia?mode=meeting&error=invalid");
+  if (!uuid.test(listId) || expectedVersion === null) redirect("/frequencia?view=management&mode=meeting&error=invalid");
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/qr/renew`, session.bearer, "POST", { expectedVersion }, parseQrPayload);
-  if (result.issue) redirect(`/frequencia?mode=meeting&list=${encodeURIComponent(listId)}&error=${result.issue}`);
+  if (result.issue) redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}&error=${result.issue}`);
   const cookieStore = await cookies();
   const maxAge = Math.max(1, Math.min(120, Math.floor((Date.parse(result.data.expiresAt) - Date.now()) / 1_000)));
   setProjectorQrCookie(cookieStore, listId, result.data, maxAge);
@@ -231,7 +238,6 @@ export async function qrSvgFromProjectorCookie(listId: string): Promise<{ svg: s
   if (!token || !qrPattern.test(token) || !expiresAt || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now()) return null;
   const origin = publicAppOrigin();
   if (!origin) return null;
-  cookieStore.delete(name);
   return { svg: qrSvg(frequencyScanUrl(token, origin, listId)), expiresAt };
 }
 

@@ -1,6 +1,6 @@
-import type { HistoryEntry, NotCountedReason } from "./contracts";
+import type { HistoryEntry, NonApurationReason } from "./contracts";
 
-const reasonLabels: Record<NotCountedReason, string> = {
+const reasonLabels: Record<NonApurationReason, string> = {
   LISTA_AGUARDANDO_CONCLUSAO: "Aguardando conclusão",
   REUNIAO_CANCELADA: "Reunião cancelada",
   REUNIAO_NAO_REALIZADA: "Não realizada",
