@@ -5,6 +5,7 @@ import br.edu.unijorge.niteconnect.attendance.domain.Frequency.*;
 import br.edu.unijorge.niteconnect.identity.application.IdentityDirectory;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -53,11 +54,12 @@ public class FrequencyController {
     }
 
     @GetMapping("/api/v1/attendance/lists/{listId}/participants")
-    PageResult<ParticipantView> participants(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID listId,
-                                             @RequestParam(required = false) String status,
-                                             @RequestParam(defaultValue = "0") int page,
-                                             @RequestParam(defaultValue = "50") int size) {
-        return frequency.participants(identities.member(jwt), listId, status, page, size);
+    ParticipantPage participants(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID listId,
+                                 @RequestParam(required = false) String status,
+                                 @RequestParam(required = false) @Size(max = 120) String name,
+                                 @RequestParam(defaultValue = "0") int page,
+                                 @RequestParam(defaultValue = "50") int size) {
+        return frequency.participants(identities.member(jwt), listId, status, name, page, size);
     }
 
     @GetMapping("/api/v1/attendance/lists/{listId}/updates")
@@ -104,6 +106,12 @@ public class FrequencyController {
         return ResponseEntity.status(result.alreadyRegistered() ? HttpStatus.OK : HttpStatus.CREATED).body(result);
     }
 
+    @GetMapping("/api/v1/me/frequency/open-lists")
+    ResponseEntity<List<PersonalOpenList>> personalOpenLists(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(frequency.personalOpenLists(identities.member(jwt)));
+    }
+
     @GetMapping("/api/v1/me/frequency/summary")
     Summary personalSummary(@AuthenticationPrincipal Jwt jwt,
                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -125,9 +133,10 @@ public class FrequencyController {
     PageResult<CollectiveSummaryRow> collectiveSummary(@AuthenticationPrincipal Jwt jwt,
                                                         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                                         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                                        @RequestParam(required = false) @Size(max = 120) String name,
                                                         @RequestParam(defaultValue = "0") int page,
                                                         @RequestParam(defaultValue = "50") int size) {
-        return frequency.collectiveSummary(identities.member(jwt), from, to, page, size);
+        return frequency.collectiveSummary(identities.member(jwt), from, to, name, page, size);
     }
 
     @GetMapping("/api/v1/attendance/frequency/members/{memberId}/history")

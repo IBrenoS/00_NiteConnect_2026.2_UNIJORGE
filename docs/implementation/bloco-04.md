@@ -46,12 +46,13 @@ Esta consolidação fixa a elegibilidade por vínculo ativo, a regra de reuniõe
 - Não há rate limiting na API, no Worker Cloudflare versionado nem no Compose local. Antes da exposição, o ingresso confiável que recebe a leitura do navegador deverá limitar `POST /api/v1/frequency/qr/handoffs`, responder 429 e impedir que outro caminho contorne a mesma proteção. Se Next.js chamar a API servidor-servidor, o limite por cliente deve ser aplicado na borda que ainda conhece a origem do navegador; limite agregado no IP do BFF não substitui essa proteção. O número deve ser definido e testado contra o pico de leitores no ambiente de implantação.
 - `infra/cloudflare` não tem Worker implantado, e `infra/compose.yaml` publica a API apenas em loopback para desenvolvimento. A configuração real externa de WAF/proxy não é verificável neste repositório.
 
-### Limites de contrato observados na integração frontend
+### Contratos B04 ampliados nesta etapa
 
-- A API não oferece consulta pessoal de lista aberta nem de elegibilidade para a lista atual. A visão pessoal exibe a ação compacta do scanner, sem afirmar qual reunião está aberta ou se aquela conta está no snapshot.
-- `HistoryEntry` não devolve o estado final/resultado da lista nem a causa de `inApuration=false`; a interface mostra “Fora da apuração” e não infere cancelamento.
-- A API de participantes não recebe busca por nome. A busca e as contagens exibidas na gestão por reunião se restringem à página carregada; a consulta coletiva de integrantes continua paginada.
-- `Summary` retorna `period`, `counts` e `buckets` aninhados. O parser do frontend valida esse record Java; o exemplo contratual anterior com contagens no nível superior foi corrigido.
+- `GET /api/v1/me/frequency/open-lists` informa todas as listas ainda `ABERTA`, inclusive as que já passaram da janela e aguardam conclusão. Por lista, retorna metadados públicos do encontro, janela, elegibilidade pelo snapshot, situação pessoal e disponibilidade real de confirmação. Não retorna QR, hash, handoff nem roster. Requer JWT e vínculo ativo; nenhuma leitura grava presença. A tela atual ainda precisa consumir essa consulta para apresentar o scanner de forma contextual.
+- O histórico preserva `status`, `legacy` e `inApuration`, e acrescenta `presenceRecorded`, situação individual armazenada, estado/resultado da lista, estado da janela, estado de contabilização e `notCountedReason` estruturado. Confirmação válida continua aparecendo mesmo em encontro cancelado, não contabilizável ou anterior ao corte oficial.
+- Participantes aceita `name` e `status` no servidor. A resposta separa total do roster, totais por situação, estados fora da apuração, total após filtros e quantidade efetiva da página. Busca e contagens não ficam limitadas ao conjunto já carregado pelo cliente.
+- O resumo coletivo aceita `name` e pagina resultados em ordem alfabética estável; período, elegibilidade, nome e contagens vêm dos snapshots do período, não do cadastro atual.
+- `Summary` retorna `period`, `counts` e `buckets` aninhados. O parser atual do frontend valida esse record Java; os novos campos de histórico e a nova consulta pessoal ainda exigem integração visual.
 - O QR da projeção usa a origem pública `NEXT_PUBLIC_APP_ORIGIN`. Em produção deve ser HTTPS, corresponder ao domínio real e estar configurada antes de abrir/renovar listas.
 
 `event_participants` continua representando participantes esperados na Agenda; o roster completo da Frequência vem do snapshot de `attendance_list_members`, não dessa tabela.

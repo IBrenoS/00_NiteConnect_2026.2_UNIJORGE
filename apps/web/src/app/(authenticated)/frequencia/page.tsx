@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FrequencyWorkspace } from "../../../components/frequency/frequency-workspace";
 import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
-import { getAgendaEvents, getCollectiveFrequencySummary, getCollectiveMemberHistory, getFrequencyList, getFrequencyLists, getFrequencyParticipants, getPersonalFrequencyHistory, getPersonalFrequencySummary } from "../../../lib/frequency/data";
+import { getAgendaEvents, getCollectiveFrequencySummary, getCollectiveMemberHistory, getFrequencyList, getFrequencyLists, getFrequencyParticipants, getPersonalFrequencyHistory, getPersonalFrequencySummary, getPersonalOpenLists } from "../../../lib/frequency/data";
 import { canManageFrequency, currentBahiaMonth, currentBahiaSemester, periodFromSelection, type FrequencyGroupBy } from "../../../lib/frequency/query";
 
 export const metadata: Metadata = { title: "Frequência" };
@@ -39,26 +39,6 @@ function parseRange(raw: string | undefined): { key: string; groupBy: FrequencyG
   return { key: `${groupBy}:${selection}`, groupBy, selection, from: period.from, to: period.to };
 }
 
-function rangeOptions(): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [];
-  const todayParts = new Intl.DateTimeFormat("en", { timeZone: "America/Bahia", year: "numeric", month: "numeric" }).formatToParts(new Date());
-  const year = Number(todayParts.find((part) => part.type === "year")?.value ?? "2026");
-  const month = Number(todayParts.find((part) => part.type === "month")?.value ?? "1");
-  for (let offset = 0; offset < 24; offset += 1) {
-    const date = new Date(Date.UTC(year, month - 1 - offset, 1));
-    const value = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-    const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
-    options.push({ value: `MONTH:${value}`, label: label.charAt(0).toLocaleUpperCase("pt-BR") + label.slice(1) });
-  }
-  for (let offset = 0; offset < 6; offset += 1) {
-    const absoluteSemester = year * 2 + (month <= 6 ? 0 : 1) - offset;
-    const semesterYear = Math.floor(absoluteSemester / 2);
-    const semester = absoluteSemester % 2 === 0 ? 1 : 2;
-    options.push({ value: `SEMESTER:${semesterYear}-S${semester}`, label: `${semester}º semestre de ${semesterYear}` });
-  }
-  return options;
-}
-
 function issue(value: ApiIssue | undefined): ApiIssue {
   return value ?? null;
 }
@@ -84,11 +64,14 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
   const participantStatus = ["AGUARDANDO", "PRESENTE", "JUSTIFICADO", "AUSENTE"].includes(participantStatusRaw) ? participantStatusRaw : "";
   const listStatusRaw = first(params.listStatus) ?? "";
   const listStatus = ["ABERTA", "CONCLUIDA", "CANCELADA"].includes(listStatusRaw) ? listStatusRaw : undefined;
+  const participantSearch = (first(params.participantSearch) ?? "").trim().slice(0, 120);
+  const memberSearch = (first(params.memberSearch) ?? "").trim().slice(0, 120);
   const today = localToday();
   const personalDataPromise = Promise.all([
     getPersonalFrequencySummary(session.bearer, range.from, range.to, range.groupBy),
     getPersonalFrequencyHistory(session.bearer, range.from, range.to, historyPage),
   ]);
+  const openListsPromise = view === "personal" ? getPersonalOpenLists(session.bearer) : Promise.resolve({ data: null, issue: null } as const);
   const managerDataPromise = (async () => {
     if (view !== "management") return { kind: "none" as const };
     if (mode === "meeting") {
@@ -96,17 +79,17 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
         getFrequencyLists(session.bearer, range.from, range.to, listPage, listStatus),
         getAgendaEvents(session.bearer, today, today),
         validListId ? getFrequencyList(session.bearer, validListId) : Promise.resolve({ data: null, issue: null } as const),
-        validListId ? getFrequencyParticipants(session.bearer, validListId, participantPage, participantStatus || undefined) : Promise.resolve({ data: null, issue: null } as const),
+        validListId ? getFrequencyParticipants(session.bearer, validListId, participantPage, participantStatus || undefined, participantSearch || undefined) : Promise.resolve({ data: null, issue: null } as const),
       ]);
       return { kind: "meeting" as const, lists, events, selectedList, participants };
     }
     const [collective, memberHistory] = await Promise.all([
-      getCollectiveFrequencySummary(session.bearer, range.from, range.to, collectivePage),
+      getCollectiveFrequencySummary(session.bearer, range.from, range.to, collectivePage, memberSearch || undefined),
       selectedMemberId ? getCollectiveMemberHistory(session.bearer, selectedMemberId, range.from, range.to, memberHistoryPage) : Promise.resolve({ data: null, issue: null } as const),
     ]);
     return { kind: "member" as const, collective, memberHistory };
   })();
-  const [personalData, managerData] = await Promise.all([personalDataPromise, managerDataPromise]);
+  const [personalData, managerData, openLists] = await Promise.all([personalDataPromise, managerDataPromise, openListsPromise]);
   const personalSummary = personalData[0];
   const personalHistory = personalData[1];
   const lists = managerData.kind === "meeting" ? managerData.lists : null;
@@ -123,13 +106,14 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
     groupBy={range.groupBy}
     rangeKey={range.key}
     openKey={openKey}
-    rangeOptions={rangeOptions()}
     from={range.from}
     to={range.to}
     historyPage={personalHistory.data}
     historyIssue={issue(personalHistory.issue)}
     personalSummary={personalSummary.data}
     summaryIssue={issue(personalSummary.issue)}
+    openLists={openLists.data}
+    openListsIssue={issue(openLists.issue)}
     selectedHistoryPage={historyPage}
     lists={lists?.data ?? null}
     listIssue={issue(lists?.issue)}
@@ -138,11 +122,13 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
     participantsIssue={issue(participants?.issue)}
     participantPage={participantPage}
     participantStatus={participantStatus}
+    participantSearch={participantSearch}
     listStatus={listStatus ?? ""}
     events={events?.data?.items ?? []}
     collective={collective?.data ?? null}
     collectiveIssue={issue(collective?.issue)}
     collectivePage={collectivePage}
+    memberSearch={memberSearch}
     selectedMemberId={selectedMemberId}
     memberHistory={memberHistory?.data ?? null}
     memberHistoryIssue={issue(memberHistory?.issue)}

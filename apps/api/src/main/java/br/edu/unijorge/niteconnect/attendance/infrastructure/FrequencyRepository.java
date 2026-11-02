@@ -3,6 +3,7 @@ package br.edu.unijorge.niteconnect.attendance.infrastructure;
 import br.edu.unijorge.niteconnect.attendance.domain.Agenda.Event;
 import br.edu.unijorge.niteconnect.attendance.domain.Agenda.EventStatus;
 import br.edu.unijorge.niteconnect.attendance.domain.Frequency.*;
+import br.edu.unijorge.niteconnect.attendance.domain.FrequencyRules;
 import br.edu.unijorge.niteconnect.attendance.domain.Agenda.EventKind;
 import br.edu.unijorge.niteconnect.attendance.domain.Agenda.Modality;
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
@@ -202,36 +203,81 @@ public class FrequencyRepository {
                 """, PARTICIPANT, listId, memberId).stream().findFirst();
     }
 
-    public PageResult<Participant> participants(UUID listId, String displayedStatus, int page, int size) {
-        var args = new ArrayList<Object>();
-        args.add(listId);
-        String from = """
-                from nite_connect.attendance_list_members lm
-                join nite_connect.attendance_lists l on l.id=lm.list_id
-                where lm.list_id=?
-                  and (l.status='CONCLUIDA' and l.outcome<>'REALIZADA_CONTABILIZAVEL' or l.status='CANCELADA')
-                  and lm.status in ('AGUARDANDO','AUSENTE')
-                  """;
-        if (displayedStatus != null) {
-            if (!displayedStatus.equals("FORA_DA_APURACAO")) {
-                from = """
-                        from nite_connect.attendance_list_members lm
-                        join nite_connect.attendance_lists l on l.id=lm.list_id
-                        where lm.list_id=?
-                          and case when (l.status='CONCLUIDA' and l.outcome<>'REALIZADA_CONTABILIZAVEL' or l.status='CANCELADA')
-                                   and lm.status in ('AGUARDANDO','AUSENTE') then 'FORA_DA_APURACAO' else lm.status end=?
-                        """;
-                args.add(displayedStatus);
-            }
-        } else {
-            from = """
-                    from nite_connect.attendance_list_members lm
-                    join nite_connect.attendance_lists l on l.id=lm.list_id
-                    where lm.list_id=?
-                    """;
-        }
-        return page("lm.member_id,lm.display_name,lm.status as stored_status,lm.confirmed_at,lm.changed_at,lm.changed_by,lm.reason,lm.version",
-                from, args, "lm.sort_key,lm.display_name,lm.member_id", PARTICIPANT, page, size);
+    public ParticipantQueryPage participants(UUID listId, String displayedStatus, String name, int page, int size) {
+        PageResult.validate(page, size);
+        String search = name == null || name.isBlank() ? null : FrequencyRules.sortKey(name);
+        String sql = """
+                with all_members as (
+                    select lm.member_id,lm.display_name,lm.sort_key,lm.status as stored_status,
+                           lm.confirmed_at,lm.changed_at,lm.changed_by,lm.reason,lm.version,
+                           case when (l.status='CONCLUIDA' and l.outcome<>'REALIZADA_CONTABILIZAVEL' or l.status='CANCELADA')
+                                     and lm.status in ('AGUARDANDO','AUSENTE') then 'FORA_DA_APURACAO'
+                                else lm.status end as displayed_status
+                      from nite_connect.attendance_list_members lm
+                      join nite_connect.attendance_lists l on l.id=lm.list_id
+                     where lm.list_id=?
+                ), list_counts as (
+                    select count(*) as roster_total,
+                           count(*) filter (where displayed_status='PRESENTE') as present,
+                           count(*) filter (where displayed_status='JUSTIFICADO') as justified,
+                           count(*) filter (where displayed_status='AUSENTE') as absent,
+                           count(*) filter (where displayed_status='AGUARDANDO') as awaiting_confirmation,
+                           count(*) filter (where displayed_status='FORA_DA_APURACAO') as outside_apuration
+                      from all_members
+                ), filtered as (
+                    select * from all_members
+                     where (cast(? as text) is null or displayed_status=?)
+                       and (cast(? as text) is null or position(? in sort_key)>0)
+                ), filtered_total as (
+                    select count(*) as total from filtered
+                ), page_rows as (
+                    select * from filtered order by sort_key,display_name,member_id limit ? offset ?
+                )
+                select p.member_id,p.display_name,p.stored_status,p.confirmed_at,p.changed_at,p.changed_by,p.reason,p.version,
+                       c.roster_total,c.present,c.justified,c.absent,c.awaiting_confirmation,c.outside_apuration,
+                       f.total as filtered_total,(select count(*) from page_rows) as page_count
+                  from list_counts c cross join filtered_total f
+                  left join page_rows p on true
+                 order by p.sort_key nulls last,p.display_name nulls last,p.member_id nulls last
+                """;
+        List<ParticipantQueryRow> rows = jdbc.query(sql, (r, i) -> new ParticipantQueryRow(
+                r.getObject("member_id") == null ? null : PARTICIPANT.mapRow(r, i),
+                new ParticipantCounts(r.getLong("roster_total"), r.getLong("present"), r.getLong("justified"),
+                        r.getLong("absent"), r.getLong("awaiting_confirmation"), r.getLong("outside_apuration")),
+                r.getLong("filtered_total"), r.getInt("page_count")),
+                listId, displayedStatus, displayedStatus, search, search, size, (long) page * size);
+        ParticipantQueryRow metadata = rows.getFirst();
+        return new ParticipantQueryPage(rows.stream().map(ParticipantQueryRow::participant)
+                .filter(java.util.Objects::nonNull).toList(), page, size, metadata.total(), metadata.pageCount(), metadata.counts());
+    }
+
+    public List<PersonalOpenList> personalOpenLists(UUID memberId, Instant now) {
+        return jdbc.query("""
+                select l.id as list_id,l.calendar_event_id,l.meeting_name,l.classification,e.starts_at as scheduled_at,
+                       l.opened_at,l.confirmation_deadline,l.qr_expires_at,
+                       case when l.confirmation_deadline>? then 'ABERTA' else 'EXPIRADA' end as confirmation_window_status,
+                       (lm.member_id is not null) as eligible,
+                       case when lm.member_id is null then 'NAO_ELEGIVEL'
+                            when lm.status='PRESENTE' then 'PRESENCA_REGISTRADA'
+                            when lm.status='JUSTIFICADO' then 'JUSTIFICADO'
+                            else 'AGUARDANDO_CONFIRMACAO' end as participant_status,
+                       lm.confirmed_at,
+                       coalesce(lm.status='AGUARDANDO' and l.confirmation_deadline>? and l.qr_expires_at>?
+                         and exists(select 1 from nite_connect.attendance_list_qr_tokens q
+                                     where q.list_id=l.id and q.token_hash=l.qr_token_hash and q.qr_version=l.qr_version
+                                       and q.revoked_at is null and q.expires_at>?),false) as confirmation_available
+                  from nite_connect.attendance_lists l
+                  join nite_connect.calendar_events e on e.id=l.calendar_event_id
+                  left join nite_connect.attendance_list_members lm on lm.list_id=l.id and lm.member_id=?
+                 where l.status='ABERTA'
+                 order by l.opened_at desc,l.id desc
+                """, (r, i) -> new PersonalOpenList(uuid(r, "list_id"), uuid(r, "calendar_event_id"),
+                r.getString("meeting_name"), Classification.valueOf(r.getString("classification")),
+                instant(r, "scheduled_at"), instant(r, "opened_at"), instant(r, "confirmation_deadline"),
+                instant(r, "qr_expires_at"), ConfirmationWindowStatus.valueOf(r.getString("confirmation_window_status")),
+                r.getBoolean("eligible"), PersonalConfirmationStatus.valueOf(r.getString("participant_status")),
+                instant(r, "confirmed_at"), r.getBoolean("confirmation_available")),
+                ts(now), ts(now), ts(now), ts(now), memberId);
     }
 
     public PageResult<ListSnapshot> lists(LocalDate fromDate, LocalDate toDate, String status, int page, int size) {
@@ -440,15 +486,10 @@ public class FrequencyRepository {
                         r.getLong("absent"))), memberId, ts(from), ts(activatedAt), ts(to));
     }
 
-    public PageResult<CollectiveAggregate> collectiveCounts(Instant from, Instant to, Instant activatedAt, int page, int size) {
+    public PageResult<CollectiveAggregate> collectiveCounts(Instant from, Instant to, Instant activatedAt,
+                                                           String name, int page, int size) {
         PageResult.validate(page, size);
-        String allRoster = """
-                from nite_connect.attendance_lists l
-                join nite_connect.attendance_list_members lm on lm.list_id=l.id
-                where l.opened_at>=? and l.opened_at>=? and l.opened_at<?
-                """;
-        long total = jdbc.queryForObject("select count(*) from (select lm.member_id " + allRoster +
-                " group by lm.member_id) eligible_members", Long.class, ts(from), ts(activatedAt), ts(to));
+        String search = name == null || name.isBlank() ? null : FrequencyRules.sortKey(name);
         String sql = """
                 with roster as (
                     select lm.member_id,lm.display_name,lm.sort_key,
@@ -456,6 +497,10 @@ public class FrequencyRepository {
                       from nite_connect.attendance_lists l
                       join nite_connect.attendance_list_members lm on lm.list_id=l.id
                      where l.opened_at>=? and l.opened_at>=? and l.opened_at<?
+                ), latest_roster as (
+                    select member_id,display_name,sort_key from roster where latest=1
+                ), named_roster as (
+                    select * from latest_roster where cast(? as text) is null or position(? in sort_key)>0
                 ), eligible as (
                     select lm.member_id,lm.status
                       from nite_connect.attendance_lists l
@@ -469,16 +514,31 @@ public class FrequencyRepository {
                            count(*) filter (where status='AUSENTE') as absent
                       from eligible group by member_id
                 )
-                select r.member_id,r.display_name,r.sort_key,coalesce(t.eligible,0) as eligible,
-                       coalesce(t.present,0) as present,coalesce(t.justified,0) as justified,coalesce(t.absent,0) as absent
-                  from roster r left join totals t on t.member_id=r.member_id
-                 where r.latest=1 order by r.sort_key,r.display_name,r.member_id limit ? offset ?
+                , filtered as (
+                    select r.member_id,r.display_name,r.sort_key,coalesce(t.eligible,0) as eligible,
+                           coalesce(t.present,0) as present,coalesce(t.justified,0) as justified,coalesce(t.absent,0) as absent
+                      from named_roster r left join totals t on t.member_id=r.member_id
+                ), metadata as (
+                    select count(*) as total from filtered
+                ), page_rows as (
+                    select * from filtered order by sort_key,display_name,member_id limit ? offset ?
+                )
+                select p.member_id,p.display_name,p.sort_key,p.eligible,p.present,p.justified,p.absent,m.total
+                  from metadata m left join page_rows p on true
+                 order by p.sort_key nulls last,p.display_name nulls last,p.member_id nulls last
                 """;
-        return new PageResult<>(jdbc.query(sql, (r, i) -> new CollectiveAggregate(uuid(r, "member_id"),
-                r.getString("display_name"), r.getString("sort_key"),
-                new AggregateCounts(r.getLong("eligible"), r.getLong("present"), r.getLong("justified"),
-                        r.getLong("absent"))), ts(from), ts(activatedAt), ts(to), ts(from), ts(activatedAt), ts(to),
-                size, (long) page * size), page, size, total);
+        List<CollectiveAggregate> result = new ArrayList<>();
+        long[] total = {0};
+        jdbc.query(sql, (r, i) -> {
+            total[0] = r.getLong("total");
+            if (r.getObject("member_id") != null) {
+                result.add(new CollectiveAggregate(uuid(r, "member_id"), r.getString("display_name"),
+                        r.getString("sort_key"), new AggregateCounts(r.getLong("eligible"), r.getLong("present"),
+                        r.getLong("justified"), r.getLong("absent"))));
+            }
+            return null;
+        }, ts(from), ts(activatedAt), ts(to), search, search, ts(from), ts(activatedAt), ts(to), size, (long) page * size);
+        return new PageResult<>(result, page, size, total[0]);
     }
 
     public List<AbsenceHistory> lastCountableMeetings(List<UUID> memberIds, Instant activatedAt) {
@@ -503,8 +563,8 @@ public class FrequencyRepository {
                         instant(r, "opened_at")), r.getString("status")), args.toArray());
     }
 
-    public PageResult<HistoryEntry> history(UUID memberId, Instant from, Instant to, Instant activatedAt,
-                                             int page, int size) {
+    public PageResult<HistoryRecord> history(UUID memberId, Instant from, Instant to, Instant activatedAt,
+                                              int page, int size) {
         PageResult.validate(page, size);
         String cte = """
                 with history as (
@@ -514,12 +574,15 @@ public class FrequencyRepository {
                                 else lm.status end as status,
                            lm.confirmed_at,false as legacy,
                            (l.status='CONCLUIDA' and l.outcome='REALIZADA_CONTABILIZAVEL'
-                                and l.counts_for_frequency=true) as in_apuration
+                                 and l.counts_for_frequency=true) as in_apuration,
+                           (lm.attendance_id is not null) as presence_recorded,lm.status as attendance_status,
+                           l.status as list_status,l.outcome,l.confirmation_deadline,l.counts_for_frequency
                       from nite_connect.attendance_list_members lm
                       join nite_connect.attendance_lists l on l.id=lm.list_id
                      where lm.member_id=? and l.opened_at>=?
                     union all
-                    select null::uuid,a.event_id,e.title,a.created_at,'LEGADO',a.created_at,true,false
+                     select null::uuid,a.event_id,e.title,a.created_at,'LEGADO',a.created_at,true,false,
+                            true,'LEGADO','LEGADO',null::varchar,null::timestamptz,false
                       from nite_connect.attendance_records a
                       join nite_connect.calendar_events e on e.id=a.event_id
                       left join nite_connect.attendance_lists l on l.calendar_event_id=a.event_id
@@ -529,17 +592,20 @@ public class FrequencyRepository {
         long total = jdbc.queryForObject(cte + "select count(*) from history where occurred_at>=? and occurred_at<?",
                 Long.class, memberId, ts(activatedAt), memberId, ts(activatedAt), ts(from), ts(to));
         String sql = cte + """
-                select list_id,calendar_event_id,meeting_name,occurred_at,status,confirmed_at,legacy,in_apuration
+                select list_id,calendar_event_id,meeting_name,occurred_at,status,confirmed_at,legacy,in_apuration,
+                       presence_recorded,attendance_status,list_status,outcome,confirmation_deadline,counts_for_frequency
                   from history where occurred_at>=? and occurred_at<?
-                 order by occurred_at desc,list_id nulls last limit ? offset ?
+                 order by occurred_at desc,list_id desc nulls last,calendar_event_id desc limit ? offset ?
                 """;
         var args = new ArrayList<Object>();
         args.add(memberId); args.add(ts(activatedAt)); args.add(memberId); args.add(ts(activatedAt));
         args.add(ts(from)); args.add(ts(to)); args.add(size); args.add((long) page * size);
-        return new PageResult<>(jdbc.query(sql, (r, i) -> new HistoryEntry(uuid(r, "list_id"),
+        return new PageResult<>(jdbc.query(sql, (r, i) -> new HistoryRecord(uuid(r, "list_id"),
                 uuid(r, "calendar_event_id"), r.getString("meeting_name"), instant(r, "occurred_at"),
                 r.getString("status"), instant(r, "confirmed_at"), r.getBoolean("legacy"),
-                r.getBoolean("in_apuration")), args.toArray()), page, size, total);
+                r.getBoolean("in_apuration"), r.getBoolean("presence_recorded"), r.getString("attendance_status"),
+                r.getString("list_status"), r.getString("outcome"), instant(r, "confirmation_deadline"),
+                r.getBoolean("counts_for_frequency")), args.toArray()), page, size, total);
     }
 
     private <T> PageResult<T> page(String columns, String from, List<Object> args, String order,
@@ -569,4 +635,11 @@ public class FrequencyRepository {
     public record BucketCounts(LocalDate periodStart, AggregateCounts counts) {}
     public record CollectiveAggregate(UUID memberId, String displayName, String sortKey, AggregateCounts counts) {}
     public record AbsenceHistory(UUID memberId, AbsenceMeeting meeting, String status) {}
+    public record ParticipantQueryPage(List<Participant> items, int page, int size, long total,
+                                       int pageCount, ParticipantCounts counts) {}
+    private record ParticipantQueryRow(Participant participant, ParticipantCounts counts, long total, int pageCount) {}
+    public record HistoryRecord(UUID listId, UUID calendarEventId, String meetingName, Instant occurredAt,
+                                String status, Instant confirmedAt, boolean legacy, boolean inApuration,
+                                boolean presenceRecorded, String attendanceStatus, String listStatus,
+                                String outcome, Instant confirmationDeadline, boolean countsForFrequency) {}
 }

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getApiJson } from "../api/server";
-import { parseCollectiveSummaryRow, parseFrequencyPage, parseFrequencySummary, parseHistoryEntry, parseListView, parseParticipant, type CollectiveSummaryRow, type FrequencyList, type FrequencyPage, type FrequencySummary, type HistoryEntry, type Participant } from "./contracts";
+import { parseCollectiveSummaryRow, parseFrequencyPage, parseFrequencySummary, parseHistoryEntry, parseListView, parseParticipantPage, parsePersonalOpenLists, type CollectiveSummaryRow, type FrequencyList, type FrequencyPage, type FrequencySummary, type HistoryEntry, type Participant, type ParticipantPage, type PersonalOpenList } from "./contracts";
 
 export type AgendaEvent = { id: string; title: string; kind: string; modality: string; startsAt: string; endsAt: string | null; status: string; version: number };
 
@@ -27,6 +27,10 @@ export function getPersonalFrequencyHistory(bearer: string, from: string, to: st
   return getApiJson(`/api/v1/me/frequency/history?${pageQuery(from, to, page, 20)}`, bearer, (value) => parseFrequencyPage(value, parseHistoryEntry));
 }
 
+export function getPersonalOpenLists(bearer: string) {
+  return getApiJson("/api/v1/me/frequency/open-lists", bearer, parsePersonalOpenLists);
+}
+
 export function getFrequencyLists(bearer: string, from: string, to: string, page = 0, status?: string) {
   const query = new URLSearchParams(pageQuery(from, to, page, 50));
   if (status) query.set("status", status);
@@ -37,14 +41,17 @@ export function getFrequencyList(bearer: string, listId: string) {
   return getApiJson(`/api/v1/attendance/lists/${encodeURIComponent(listId)}`, bearer, parseListView);
 }
 
-export function getFrequencyParticipants(bearer: string, listId: string, page = 0, status?: string) {
+export function getFrequencyParticipants(bearer: string, listId: string, page = 0, status?: string, name?: string) {
   const query = new URLSearchParams({ page: String(page), size: "50" });
   if (status) query.set("status", status);
-  return getApiJson(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/participants?${query}`, bearer, (value) => parseFrequencyPage(value, parseParticipant));
+  if (name?.trim()) query.set("name", name.trim());
+  return getApiJson(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/participants?${query}`, bearer, parseParticipantPage);
 }
 
-export function getCollectiveFrequencySummary(bearer: string, from: string, to: string, page = 0) {
-  return getApiJson(`/api/v1/attendance/frequency/summary?${pageQuery(from, to, page, 50)}`, bearer, (value) => parseFrequencyPage(value, parseCollectiveSummaryRow));
+export function getCollectiveFrequencySummary(bearer: string, from: string, to: string, page = 0, name?: string) {
+  const query = new URLSearchParams(pageQuery(from, to, page, 50));
+  if (name?.trim()) query.set("name", name.trim());
+  return getApiJson(`/api/v1/attendance/frequency/summary?${query}`, bearer, (value) => parseFrequencyPage(value, parseCollectiveSummaryRow));
 }
 
 export function getCollectiveMemberHistory(bearer: string, memberId: string, from: string, to: string, page = 0) {
@@ -56,4 +63,4 @@ export function getAgendaEvents(bearer: string, from: string, to: string) {
   return getApiJson(`/api/v1/agenda/events?${query}`, bearer, (value) => parseFrequencyPage(value, parseAgendaEvent));
 }
 
-export type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant };
+export type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant, ParticipantPage, PersonalOpenList };

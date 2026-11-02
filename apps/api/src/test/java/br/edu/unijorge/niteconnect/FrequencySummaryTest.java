@@ -203,6 +203,11 @@ class FrequencySummaryTest extends AttendanceTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
                 .andExpect(jsonPath("$.items[0].status").value("LEGADO"))
                 .andExpect(jsonPath("$.items[0].legacy").value(true))
+                .andExpect(jsonPath("$.items[0].presenceRecorded").value(true))
+                .andExpect(jsonPath("$.items[0].attendanceStatus").value("LEGADO"))
+                .andExpect(jsonPath("$.items[0].listStatus").value("LEGADO"))
+                .andExpect(jsonPath("$.items[0].accountingStatus").value("ANTERIOR_AO_CORTE"))
+                .andExpect(jsonPath("$.items[0].notCountedReason").value("ANTERIOR_AO_CORTE_OFICIAL"))
                 .andExpect(jsonPath("$.items[0].inApuration").value(false));
         mvc.perform(get("/api/v1/me/frequency/summary" + range).with(token(MEMBER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.counts.eligibleMeetings").value(0))

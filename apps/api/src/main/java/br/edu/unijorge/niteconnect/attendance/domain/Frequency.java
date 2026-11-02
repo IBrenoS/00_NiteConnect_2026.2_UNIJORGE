@@ -14,6 +14,15 @@ public final class Frequency {
     public enum Outcome { REALIZADA_CONTABILIZAVEL, REALIZADA_NAO_CONTABILIZAVEL, NAO_REALIZADA }
     public enum ParticipantStatus { AGUARDANDO, PRESENTE, JUSTIFICADO, AUSENTE }
     public enum GroupBy { MONTH, SEMESTER }
+    public enum PersonalConfirmationStatus { AGUARDANDO_CONFIRMACAO, PRESENCA_REGISTRADA, JUSTIFICADO, NAO_ELEGIVEL }
+    public enum HistoryListStatus { ABERTA, CONCLUIDA, CANCELADA, LEGADO }
+    public enum ConfirmationWindowStatus { ABERTA, EXPIRADA, ENCERRADA, NAO_APLICAVEL }
+    public enum AccountingStatus { AGUARDANDO_CONCLUSAO, CONTABILIZADA, NAO_CONTABILIZAVEL, CANCELADA, ANTERIOR_AO_CORTE }
+    public enum NonApurationReason {
+        LISTA_AGUARDANDO_CONCLUSAO, REUNIAO_CANCELADA, REUNIAO_NAO_REALIZADA,
+        REUNIAO_NAO_CONTABILIZAVEL, ANTERIOR_AO_CORTE_OFICIAL
+    }
+    public enum HistoryParticipantStatus { AGUARDANDO, PRESENTE, JUSTIFICADO, AUSENTE, LEGADO }
 
     public record OpenedBy(UUID memberId, String displayName, String role) {}
 
@@ -76,6 +85,19 @@ public final class Frequency {
             UUID changedBy,
             String reason) {}
 
+    public record ParticipantCounts(long rosterTotal, long present, long justified, long absent,
+                                    long awaitingConfirmation, long outsideApuration) {}
+
+    public record ParticipantPage(List<ParticipantView> items, int page, int size, long total,
+                                  int pageCount, ParticipantCounts counts) {}
+
+    public record PersonalOpenList(UUID listId, UUID calendarEventId, String meetingName,
+                                   Classification classification, Instant scheduledAt, Instant openedAt,
+                                   Instant confirmationDeadline, Instant qrExpiresAt,
+                                   ConfirmationWindowStatus confirmationWindowStatus, boolean eligible,
+                                   PersonalConfirmationStatus status, Instant confirmedAt,
+                                   boolean confirmationAvailable) {}
+
     public record Confirmation(
             UUID attendanceId,
             UUID calendarEventId,
@@ -102,7 +124,11 @@ public final class Frequency {
     public record CollectiveSummaryRow(UUID memberId, String displayName, Counts counts, AbsenceSignal absenceSignal) {}
 
     public record HistoryEntry(UUID listId, UUID calendarEventId, String meetingName, Instant occurredAt,
-                               String status, Instant confirmedAt, boolean legacy, boolean inApuration) {}
+                               String status, Instant confirmedAt, boolean legacy, boolean inApuration,
+                               boolean presenceRecorded, HistoryParticipantStatus attendanceStatus,
+                               HistoryListStatus listStatus, Outcome outcome, Instant confirmationDeadline,
+                               ConfirmationWindowStatus confirmationWindowStatus, AccountingStatus accountingStatus,
+                               NonApurationReason notCountedReason) {}
 
     public record ListUpdate(long version, ListStatus status, int qrVersion, Instant qrExpiresAt,
                              String action, Instant occurredAt) {}
