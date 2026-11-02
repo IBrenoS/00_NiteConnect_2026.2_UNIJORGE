@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canManageFrequency, currentBahiaMonth, periodFromSelection } from "./query";
+import { adjacentRangeKey, canManageFrequency, currentBahiaMonth, periodFromSelection, rangeKeyForGroup } from "./query";
 
 describe("filtros e acesso à Frequência", () => {
   it("restringe a gestão coletiva aos dois papéis autorizados", () => {
@@ -19,5 +19,22 @@ describe("filtros e acesso à Frequência", () => {
     expect(periodFromSelection("2026-13", "MONTH")).toBeNull();
     expect(periodFromSelection("2026-S3", "SEMESTER")).toBeNull();
     expect(periodFromSelection("2026-01", "SEMESTER")).toBeNull();
+  });
+
+  it("navega períodos disponíveis e limita anterior/próximo às opções existentes", () => {
+    const ranges = ["MONTH:2026-11", "MONTH:2026-10", "MONTH:2026-09", "SEMESTER:2026-S2", "SEMESTER:2026-S1"]
+      .map((value) => ({ value, label: value }));
+    expect(adjacentRangeKey("MONTH:2026-11", "previous", ranges)).toBe("MONTH:2026-10");
+    expect(adjacentRangeKey("MONTH:2026-10", "next", ranges)).toBe("MONTH:2026-11");
+    expect(adjacentRangeKey("MONTH:2026-11", "next", ranges)).toBeNull();
+    expect(adjacentRangeKey("MONTH:2025-01", "previous", ranges)).toBeNull();
+  });
+
+  it("alterna agrupamento preservando o período selecionado quando aplicável", () => {
+    const ranges = ["MONTH:2026-11", "MONTH:2026-10", "SEMESTER:2026-S2", "SEMESTER:2026-S1"]
+      .map((value) => ({ value, label: value }));
+    expect(rangeKeyForGroup("MONTH:2026-11", "SEMESTER", ranges)).toBe("SEMESTER:2026-S2");
+    expect(rangeKeyForGroup("SEMESTER:2026-S2", "MONTH", ranges, new Date("2026-11-02T12:00:00Z"))).toBe("MONTH:2026-11");
+    expect(rangeKeyForGroup("SEMESTER:2026-S1", "MONTH", ranges, new Date("2026-11-02T12:00:00Z"))).toBeNull();
   });
 });

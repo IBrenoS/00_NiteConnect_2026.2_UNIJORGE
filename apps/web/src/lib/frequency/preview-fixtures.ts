@@ -1,4 +1,4 @@
-import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant } from "./contracts";
+import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant, PersonalOpenList } from "./contracts";
 import type { AgendaEvent } from "./data";
 
 const memberIds = [
@@ -23,11 +23,45 @@ export const previewFrequencySummary: FrequencySummary = {
 
 export const previewFrequencyHistory: FrequencyPage<HistoryEntry> = {
   items: [
-    { listId: "93000000-0000-4000-8000-000000000101", calendarEventId: "93000000-0000-4000-8000-000000000201", meetingName: "Encontro semanal do NITE", occurredAt: "2026-11-05T21:00:00Z", status: "PRESENTE", confirmedAt: "2026-11-05T21:02:18Z", legacy: false, inApuration: true },
-    { listId: "93000000-0000-4000-8000-000000000102", calendarEventId: "93000000-0000-4000-8000-000000000202", meetingName: "Planejamento de projetos", occurredAt: "2026-11-12T21:00:00Z", status: "JUSTIFICADO", confirmedAt: null, legacy: false, inApuration: true },
-    { listId: "93000000-0000-4000-8000-000000000103", calendarEventId: "93000000-0000-4000-8000-000000000203", meetingName: "Encontro semanal do NITE", occurredAt: "2026-11-19T21:00:00Z", status: "AUSENTE", confirmedAt: null, legacy: false, inApuration: true },
-    { listId: "93000000-0000-4000-8000-000000000104", calendarEventId: "93000000-0000-4000-8000-000000000204", meetingName: "Reunião de acompanhamento", occurredAt: "2026-11-26T21:00:00Z", status: "FORA_DA_APURACAO", confirmedAt: null, legacy: false, inApuration: false },
-  ], page: 0, size: 20, total: 4,
+    { listId: "93000000-0000-4000-8000-000000000105", calendarEventId: "93000000-0000-4000-8000-000000000205", meetingName: "Encontro em andamento", occurredAt: "2026-11-28T21:00:00Z", status: "AGUARDANDO", confirmedAt: null, legacy: false, inApuration: false, presenceRecorded: false, attendanceStatus: "AGUARDANDO", listStatus: "ABERTA", outcome: null, confirmationDeadline: "2026-11-28T21:05:00Z", confirmationWindowStatus: "ABERTA", accountingStatus: "AGUARDANDO_CONCLUSAO", notCountedReason: "LISTA_AGUARDANDO_CONCLUSAO" },
+    { listId: "93000000-0000-4000-8000-000000000101", calendarEventId: "93000000-0000-4000-8000-000000000201", meetingName: "Encontro semanal do NITE", occurredAt: "2026-11-26T21:00:00Z", status: "PRESENTE", confirmedAt: "2026-11-26T21:02:18Z", legacy: false, inApuration: true, presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", confirmationDeadline: "2026-11-26T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null },
+    { listId: "93000000-0000-4000-8000-000000000107", calendarEventId: "93000000-0000-4000-8000-000000000207", meetingName: "Encontro semanal do NITE", occurredAt: "2026-11-23T21:00:00Z", status: "PRESENTE", confirmedAt: "2026-11-23T21:01:52Z", legacy: false, inApuration: true, presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", confirmationDeadline: "2026-11-23T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null },
+    { listId: "93000000-0000-4000-8000-000000000108", calendarEventId: "93000000-0000-4000-8000-000000000208", meetingName: "Planejamento de projetos", occurredAt: "2026-11-21T21:00:00Z", status: "PRESENTE", confirmedAt: "2026-11-21T21:03:02Z", legacy: false, inApuration: true, presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", confirmationDeadline: "2026-11-21T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null },
+    { listId: "93000000-0000-4000-8000-000000000102", calendarEventId: "93000000-0000-4000-8000-000000000202", meetingName: "Planejamento de projetos", occurredAt: "2026-11-19T21:00:00Z", status: "JUSTIFICADO", confirmedAt: null, legacy: false, inApuration: true, presenceRecorded: false, attendanceStatus: "JUSTIFICADO", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", confirmationDeadline: "2026-11-19T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null },
+    { listId: "93000000-0000-4000-8000-000000000109", calendarEventId: "93000000-0000-4000-8000-000000000209", meetingName: "Encontro semanal do NITE", occurredAt: "2026-11-17T21:00:00Z", status: "PRESENTE", confirmedAt: "2026-11-17T21:02:26Z", legacy: false, inApuration: true, presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", confirmationDeadline: "2026-11-17T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null },
+    { listId: "93000000-0000-4000-8000-000000000103", calendarEventId: "93000000-0000-4000-8000-000000000203", meetingName: "Encontro semanal do NITE", occurredAt: "2026-11-12T21:00:00Z", status: "AUSENTE", confirmedAt: null, legacy: false, inApuration: true, presenceRecorded: false, attendanceStatus: "AUSENTE", listStatus: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", confirmationDeadline: "2026-11-12T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CONTABILIZADA", notCountedReason: null },
+    { listId: "93000000-0000-4000-8000-000000000104", calendarEventId: "93000000-0000-4000-8000-000000000204", meetingName: "Reunião de acompanhamento", occurredAt: "2026-11-05T21:00:00Z", status: "FORA_DA_APURACAO", confirmedAt: "2026-11-05T21:02:41Z", legacy: false, inApuration: false, presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CANCELADA", outcome: "NAO_REALIZADA", confirmationDeadline: "2026-11-05T21:05:00Z", confirmationWindowStatus: "ENCERRADA", accountingStatus: "CANCELADA", notCountedReason: "REUNIAO_CANCELADA" },
+    { listId: "93000000-0000-4000-8000-000000000106", calendarEventId: null, meetingName: "Registro de participação anterior", occurredAt: "2026-11-01T21:00:00Z", status: "FORA_DA_APURACAO", confirmedAt: null, legacy: true, inApuration: false, presenceRecorded: true, attendanceStatus: "LEGADO", listStatus: "LEGADO", outcome: null, confirmationDeadline: null, confirmationWindowStatus: "NAO_APLICAVEL", accountingStatus: "ANTERIOR_AO_CORTE", notCountedReason: "ANTERIOR_AO_CORTE_OFICIAL" },
+  ], page: 0, size: 20, total: 9,
+};
+
+export const previewPersonalOpenList: PersonalOpenList = {
+  listId: "93000000-0000-4000-8000-000000000301",
+  calendarEventId: "93000000-0000-4000-8000-000000000201",
+  meetingName: "Encontro semanal do NITE",
+  classification: "REGULAR",
+  scheduledAt: "2026-11-05T21:00:00Z",
+  openedAt: "2026-11-05T21:00:00Z",
+  confirmationDeadline: "2026-11-05T21:05:00Z",
+  qrExpiresAt: "2026-11-05T21:02:00Z",
+  confirmationWindowStatus: "ABERTA",
+  eligible: true,
+  status: "AGUARDANDO_CONFIRMACAO",
+  confirmedAt: null,
+  confirmationAvailable: true,
+};
+
+export const previewPersonalConfirmedOpenList: PersonalOpenList = {
+  ...previewPersonalOpenList,
+  status: "PRESENCA_REGISTRADA",
+  confirmedAt: "2026-11-05T21:02:18Z",
+  confirmationAvailable: false,
+};
+
+export const previewEmptyFrequencySummary: FrequencySummary = {
+  period: { from: "2026-11-01", to: "2026-11-30", zoneId: "America/Bahia" },
+  counts: { eligibleMeetings: 0, present: 0, justified: 0, unjustifiedAbsences: 0, attendancePercentage: null, noEligibleMeetings: true },
+  buckets: [],
 };
 
 export const previewFrequencyList: FrequencyList = {

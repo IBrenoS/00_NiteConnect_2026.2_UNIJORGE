@@ -3,6 +3,12 @@ export type ListStatus = (typeof listStatuses)[number];
 export type ParticipantStatus = "AGUARDANDO" | "PRESENTE" | "JUSTIFICADO" | "AUSENTE";
 export type HistoryStatus = ParticipantStatus | "FORA_DA_APURACAO";
 export type Outcome = "REALIZADA_CONTABILIZAVEL" | "REALIZADA_NAO_CONTABILIZAVEL" | "NAO_REALIZADA";
+export type PersonalConfirmationStatus = "AGUARDANDO_CONFIRMACAO" | "PRESENCA_REGISTRADA" | "JUSTIFICADO" | "NAO_ELEGIVEL";
+export type ConfirmationWindowStatus = "ABERTA" | "EXPIRADA" | "ENCERRADA" | "NAO_APLICAVEL";
+export type AccountingStatus = "AGUARDANDO_CONCLUSAO" | "CONTABILIZADA" | "NAO_CONTABILIZAVEL" | "CANCELADA" | "ANTERIOR_AO_CORTE";
+export type NotCountedReason = "LISTA_AGUARDANDO_CONCLUSAO" | "REUNIAO_CANCELADA" | "REUNIAO_NAO_REALIZADA" | "REUNIAO_NAO_CONTABILIZAVEL" | "ANTERIOR_AO_CORTE_OFICIAL";
+export type HistoryListStatus = "ABERTA" | "CONCLUIDA" | "CANCELADA" | "LEGADO";
+export type HistoryParticipantStatus = ParticipantStatus | "LEGADO";
 
 export type Counts = {
   eligibleMeetings: number;
@@ -49,6 +55,29 @@ export type HistoryEntry = {
   confirmedAt: string | null;
   legacy: boolean;
   inApuration: boolean;
+  presenceRecorded: boolean;
+  attendanceStatus: HistoryParticipantStatus;
+  listStatus: HistoryListStatus;
+  outcome: Outcome | null;
+  confirmationDeadline: string | null;
+  confirmationWindowStatus: ConfirmationWindowStatus;
+  accountingStatus: AccountingStatus;
+  notCountedReason: NotCountedReason | null;
+};
+export type PersonalOpenList = {
+  listId: string;
+  calendarEventId: string | null;
+  meetingName: string;
+  classification: "REGULAR" | "EXCEPTIONAL";
+  scheduledAt: string;
+  openedAt: string;
+  confirmationDeadline: string;
+  qrExpiresAt: string;
+  confirmationWindowStatus: ConfirmationWindowStatus;
+  eligible: boolean;
+  status: PersonalConfirmationStatus;
+  confirmedAt: string | null;
+  confirmationAvailable: boolean;
 };
 export type CollectiveSummaryRow = {
   memberId: string;
@@ -76,6 +105,10 @@ const localDate = (value: unknown): value is string => {
   return date.toISOString().slice(0, 10) === value;
 };
 const isListStatus = (value: unknown): value is ListStatus => value === "ABERTA" || value === "CONCLUIDA" || value === "CANCELADA";
+const isOutcome = (value: unknown): value is Outcome => value === "REALIZADA_CONTABILIZAVEL" || value === "REALIZADA_NAO_CONTABILIZAVEL" || value === "NAO_REALIZADA";
+const isConfirmationWindowStatus = (value: unknown): value is ConfirmationWindowStatus => value === "ABERTA" || value === "EXPIRADA" || value === "ENCERRADA" || value === "NAO_APLICAVEL";
+const isAccountingStatus = (value: unknown): value is AccountingStatus => value === "AGUARDANDO_CONCLUSAO" || value === "CONTABILIZADA" || value === "NAO_CONTABILIZAVEL" || value === "CANCELADA" || value === "ANTERIOR_AO_CORTE";
+const isNotCountedReason = (value: unknown): value is NotCountedReason => value === "LISTA_AGUARDANDO_CONCLUSAO" || value === "REUNIAO_CANCELADA" || value === "REUNIAO_NAO_REALIZADA" || value === "REUNIAO_NAO_CONTABILIZAVEL" || value === "ANTERIOR_AO_CORTE_OFICIAL";
 
 export function parseCounts(value: unknown): Counts | null {
   if (!record(value)) return null;
@@ -129,8 +162,19 @@ export function parseParticipant(value: unknown): Participant | null {
 }
 
 export function parseHistoryEntry(value: unknown): HistoryEntry | null {
-  if (!record(value) || !string(value.listId) || !nullableString(value.calendarEventId) || !string(value.meetingName) || !instant(value.occurredAt) || !(value.status === "AGUARDANDO" || value.status === "PRESENTE" || value.status === "JUSTIFICADO" || value.status === "AUSENTE" || value.status === "FORA_DA_APURACAO") || !nullableInstant(value.confirmedAt) || typeof value.legacy !== "boolean" || typeof value.inApuration !== "boolean") return null;
-  return { listId: value.listId, calendarEventId: value.calendarEventId, meetingName: value.meetingName, occurredAt: value.occurredAt, status: value.status, confirmedAt: value.confirmedAt, legacy: value.legacy, inApuration: value.inApuration };
+  if (!record(value) || !string(value.listId) || !nullableString(value.calendarEventId) || !string(value.meetingName) || !instant(value.occurredAt) || !(value.status === "AGUARDANDO" || value.status === "PRESENTE" || value.status === "JUSTIFICADO" || value.status === "AUSENTE" || value.status === "FORA_DA_APURACAO") || !nullableInstant(value.confirmedAt) || typeof value.legacy !== "boolean" || typeof value.inApuration !== "boolean" || typeof value.presenceRecorded !== "boolean" || !(value.attendanceStatus === "AGUARDANDO" || value.attendanceStatus === "PRESENTE" || value.attendanceStatus === "JUSTIFICADO" || value.attendanceStatus === "AUSENTE" || value.attendanceStatus === "LEGADO") || !(value.listStatus === "ABERTA" || value.listStatus === "CONCLUIDA" || value.listStatus === "CANCELADA" || value.listStatus === "LEGADO") || !(value.outcome === null || isOutcome(value.outcome)) || !nullableInstant(value.confirmationDeadline) || !isConfirmationWindowStatus(value.confirmationWindowStatus) || !isAccountingStatus(value.accountingStatus) || !(value.notCountedReason === null || isNotCountedReason(value.notCountedReason))) return null;
+  if (value.presenceRecorded !== (value.attendanceStatus === "PRESENTE" || value.attendanceStatus === "LEGADO")) return null;
+  return { listId: value.listId, calendarEventId: value.calendarEventId, meetingName: value.meetingName, occurredAt: value.occurredAt, status: value.status, confirmedAt: value.confirmedAt, legacy: value.legacy, inApuration: value.inApuration, presenceRecorded: value.presenceRecorded, attendanceStatus: value.attendanceStatus, listStatus: value.listStatus, outcome: value.outcome, confirmationDeadline: value.confirmationDeadline, confirmationWindowStatus: value.confirmationWindowStatus, accountingStatus: value.accountingStatus, notCountedReason: value.notCountedReason };
+}
+
+export function parsePersonalOpenLists(value: unknown): PersonalOpenList[] | null {
+  if (!Array.isArray(value)) return null;
+  const items = value.map((item): PersonalOpenList | null => {
+    if (!record(item) || !string(item.listId) || !nullableString(item.calendarEventId) || !string(item.meetingName) || (item.classification !== "REGULAR" && item.classification !== "EXCEPTIONAL") || !instant(item.scheduledAt) || !instant(item.openedAt) || !instant(item.confirmationDeadline) || !instant(item.qrExpiresAt) || !isConfirmationWindowStatus(item.confirmationWindowStatus) || typeof item.eligible !== "boolean" || !(item.status === "AGUARDANDO_CONFIRMACAO" || item.status === "PRESENCA_REGISTRADA" || item.status === "JUSTIFICADO" || item.status === "NAO_ELEGIVEL") || !nullableInstant(item.confirmedAt) || typeof item.confirmationAvailable !== "boolean") return null;
+    if ((item.status === "NAO_ELEGIVEL") !== !item.eligible || (item.status === "PRESENCA_REGISTRADA" && item.confirmedAt === null) || (item.confirmationAvailable && (!item.eligible || item.status !== "AGUARDANDO_CONFIRMACAO" || item.confirmationWindowStatus !== "ABERTA"))) return null;
+    return { listId: item.listId, calendarEventId: item.calendarEventId, meetingName: item.meetingName, classification: item.classification, scheduledAt: item.scheduledAt, openedAt: item.openedAt, confirmationDeadline: item.confirmationDeadline, qrExpiresAt: item.qrExpiresAt, confirmationWindowStatus: item.confirmationWindowStatus, eligible: item.eligible, status: item.status, confirmedAt: item.confirmedAt, confirmationAvailable: item.confirmationAvailable };
+  });
+  return items.some((item) => item === null) ? null : items.filter((item): item is PersonalOpenList => item !== null);
 }
 
 export function parseCollectiveSummaryRow(value: unknown): CollectiveSummaryRow | null {

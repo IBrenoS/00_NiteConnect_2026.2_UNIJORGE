@@ -64,8 +64,8 @@ function issueMessage(issue: MutationIssue | null): string {
   if (issue === "access") return "Esta operação não está autorizada para sua conta.";
   if (issue === "not-found") return "A lista não está disponível para esta conta.";
   if (issue === "conflict") return "A lista mudou ou a janela expirou. Atualize a consulta antes de tentar novamente.";
-  if (issue === "invalid") return "A API recusou os dados desta operação.";
-  return "Não foi possível concluir a operação agora.";
+  if (issue === "invalid") return "Não foi possível aceitar esta ação. Confira as informações e tente novamente.";
+  return "Não foi possível confirmar agora. Tente novamente.";
 }
 
 async function authorizedManager() {
@@ -133,7 +133,7 @@ export async function renewFrequencyQr(listId: string, expectedVersion: number):
   if (!origin) return { ok: false, message: "Configure a origem pública do NITE Connect para emitir o QR." };
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/qr/renew`, session.bearer, "POST", { expectedVersion }, parseQrPayload);
   if (result.issue) return { ok: false, message: result.issue === "conflict" ? "A lista mudou. Recarregue a projeção para obter o QR vigente." : issueMessage(result.issue) };
-  return { ok: true, svg: qrSvg(frequencyScanUrl(result.data.qrToken, origin)), expiresAt: result.data.expiresAt, version: result.data.version };
+  return { ok: true, svg: qrSvg(frequencyScanUrl(result.data.qrToken, origin, result.data.listId)), expiresAt: result.data.expiresAt, version: result.data.version };
 }
 
 export async function pollFrequencyProjector(listId: string, afterVersion: number): Promise<{ ok: true; list: FrequencyList; updates: ProjectorUpdate[] } | { ok: false; message: string }> {
@@ -232,7 +232,7 @@ export async function qrSvgFromProjectorCookie(listId: string): Promise<{ svg: s
   const origin = publicAppOrigin();
   if (!origin) return null;
   cookieStore.delete(name);
-  return { svg: qrSvg(frequencyScanUrl(token, origin)), expiresAt };
+  return { svg: qrSvg(frequencyScanUrl(token, origin, listId)), expiresAt };
 }
 
 function setProjectorQrCookie(cookieStore: Awaited<ReturnType<typeof cookies>>, listId: string, qr: QrPayload, maxAge: number): void {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FrequencyWorkspace } from "../../../components/frequency/frequency-workspace";
 import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
-import { getAgendaEvents, getCollectiveFrequencySummary, getCollectiveMemberHistory, getFrequencyList, getFrequencyLists, getFrequencyParticipants, getPersonalFrequencyHistory, getPersonalFrequencySummary } from "../../../lib/frequency/data";
+import { getAgendaEvents, getCollectiveFrequencySummary, getCollectiveMemberHistory, getFrequencyList, getFrequencyLists, getFrequencyParticipants, getPersonalFrequencyHistory, getPersonalFrequencySummary, getPersonalOpenLists } from "../../../lib/frequency/data";
 import { canManageFrequency, currentBahiaMonth, currentBahiaSemester, periodFromSelection, type FrequencyGroupBy } from "../../../lib/frequency/query";
 
 export const metadata: Metadata = { title: "Frequência" };
@@ -89,6 +89,7 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
     getPersonalFrequencySummary(session.bearer, range.from, range.to, range.groupBy),
     getPersonalFrequencyHistory(session.bearer, range.from, range.to, historyPage),
   ]);
+  const openListsPromise = view === "personal" ? getPersonalOpenLists(session.bearer) : Promise.resolve({ data: null, issue: null } as const);
   const managerDataPromise = (async () => {
     if (view !== "management") return { kind: "none" as const };
     if (mode === "meeting") {
@@ -106,7 +107,7 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
     ]);
     return { kind: "member" as const, collective, memberHistory };
   })();
-  const [personalData, managerData] = await Promise.all([personalDataPromise, managerDataPromise]);
+  const [personalData, managerData, openLists] = await Promise.all([personalDataPromise, managerDataPromise, openListsPromise]);
   const personalSummary = personalData[0];
   const personalHistory = personalData[1];
   const lists = managerData.kind === "meeting" ? managerData.lists : null;
@@ -130,6 +131,8 @@ export default async function FrequencyPage({ searchParams }: PageProps) {
     historyIssue={issue(personalHistory.issue)}
     personalSummary={personalSummary.data}
     summaryIssue={issue(personalSummary.issue)}
+    openLists={openLists.data}
+    openListsIssue={issue(openLists.issue)}
     selectedHistoryPage={historyPage}
     lists={lists?.data ?? null}
     listIssue={issue(lists?.issue)}

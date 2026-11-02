@@ -8,6 +8,7 @@ import {
   getCollectiveFrequencySummary,
   getCollectiveMemberHistory,
   getPersonalFrequencyHistory,
+  getPersonalOpenLists,
   getPersonalFrequencySummary,
 } from "./data";
 
@@ -31,6 +32,12 @@ describe("consultas de Frequência", () => {
     const url = new URL(path, "https://nite.example.org");
     expect(url.pathname).toBe("/api/v1/me/frequency/history");
     expect(Object.fromEntries(url.searchParams)).toEqual({ from: "2026-11-01", to: "2026-11-30", page: "2", size: "20" });
+  });
+
+  it("consulta listas abertas pessoais sem parâmetros que possam registrar presença", async () => {
+    mocks.getApiJson.mockResolvedValue({ data: [], issue: null });
+    await getPersonalOpenLists("bearer");
+    expect(mocks.getApiJson).toHaveBeenCalledWith("/api/v1/me/frequency/open-lists", "bearer", expect.any(Function));
   });
 
   it("consulta lista coletiva paginada e histórico da pessoa selecionada", async () => {

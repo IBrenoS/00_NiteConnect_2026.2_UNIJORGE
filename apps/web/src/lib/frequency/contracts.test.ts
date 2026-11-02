@@ -5,6 +5,7 @@ import {
   parseHistoryEntry,
   parseListView,
   parsePageResult,
+  parsePersonalOpenLists,
   parseParticipant,
 } from "./contracts";
 
@@ -54,8 +55,25 @@ describe("contratos reais da Frequência", () => {
     })?.status).toBe("ABERTA");
     expect(parseHistoryEntry({
       listId: "list-1", calendarEventId: "event-1", meetingName: "Reunião", occurredAt: "2026-11-05T21:00:00Z",
-      status: "PRESENTE", confirmedAt: "2026-11-05T21:02:00Z", legacy: false, inApuration: true,
-    })?.confirmedAt).toBe("2026-11-05T21:02:00Z");
+      status: "FORA_DA_APURACAO", confirmedAt: "2026-11-05T21:02:00Z", legacy: false, inApuration: false,
+      presenceRecorded: true, attendanceStatus: "PRESENTE", listStatus: "CANCELADA", outcome: "NAO_REALIZADA",
+      confirmationDeadline: "2026-11-05T21:05:00Z", confirmationWindowStatus: "ENCERRADA",
+      accountingStatus: "CANCELADA", notCountedReason: "REUNIAO_CANCELADA",
+    })).toMatchObject({ status: "FORA_DA_APURACAO", attendanceStatus: "PRESENTE", presenceRecorded: true, notCountedReason: "REUNIAO_CANCELADA" });
+  });
+
+  it("valida listas abertas pessoais e mantém distintas elegibilidade e confirmação", () => {
+    const openList = {
+      listId: "93000000-0000-4000-8000-000000000001", calendarEventId: "93000000-0000-4000-8000-000000000201",
+      meetingName: "Encontro semanal do NITE", classification: "REGULAR", scheduledAt: "2026-11-05T21:00:00Z",
+      openedAt: "2026-11-05T21:00:00Z", confirmationDeadline: "2026-11-05T21:05:00Z",
+      qrExpiresAt: "2026-11-05T21:02:00Z", confirmationWindowStatus: "ABERTA", eligible: true,
+      status: "AGUARDANDO_CONFIRMACAO", confirmedAt: null, confirmationAvailable: true,
+    };
+    expect(parsePersonalOpenLists([openList])).toEqual([openList]);
+    expect(parsePersonalOpenLists([{ ...openList, eligible: false, status: "NAO_ELEGIVEL", confirmationAvailable: false }])).toMatchObject([{ eligible: false, status: "NAO_ELEGIVEL", confirmationAvailable: false }]);
+    expect(parsePersonalOpenLists([{ ...openList, confirmationAvailable: true, eligible: false }])).toBeNull();
+    expect(parsePersonalOpenLists({ items: [] })).toBeNull();
   });
 
   it("lê sinal coletivo e não promove status administrativo a presença", () => {

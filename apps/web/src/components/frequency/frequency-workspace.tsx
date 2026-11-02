@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import type { ReactNode } from "react";
 import { Button, Badge, Select, TextField } from "../ui";
 import { QrScanner } from "./qr-scanner";
 import { cancelFrequencyList, changeFrequencyParticipant, finalizeFrequencyList, openFrequencyList, renewFrequencyListQr } from "../../lib/frequency/actions";
-import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant } from "../../lib/frequency/contracts";
+import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant, PersonalOpenList } from "../../lib/frequency/contracts";
 import type { AgendaEvent } from "../../lib/frequency/data";
-import { formatFrequencyDate, type FrequencyGroupBy } from "../../lib/frequency/query";
+import { adjacentRangeKey, formatFrequencyDate, rangeKeyForGroup, type FrequencyGroupBy } from "../../lib/frequency/query";
+import { historyPresentation } from "../../lib/frequency/presentation";
 
 type RangeOption = { value: string; label: string };
 type ApiIssue = "access" | "not-found" | "unavailable" | "invalid" | null;
@@ -25,6 +28,8 @@ type WorkspaceProps = {
   historyIssue: ApiIssue;
   personalSummary: FrequencySummary | null;
   summaryIssue: ApiIssue;
+  openLists: PersonalOpenList[] | null;
+  openListsIssue: ApiIssue;
   selectedHistoryPage: number;
   lists: FrequencyPage<FrequencyList> | null;
   listIssue: ApiIssue;
@@ -51,18 +56,18 @@ type WorkspaceProps = {
 const issueCopy: Record<Exclude<ApiIssue, null>, string> = {
   access: "Sua conta não tem autorização para consultar estes dados.",
   "not-found": "O registro não está disponível nesta consulta.",
-  unavailable: "A API de Frequência não respondeu. Tente novamente em instantes.",
-  invalid: "A API retornou dados em um formato inesperado.",
+  unavailable: "Não foi possível carregar estas informações agora.",
+  invalid: "Não foi possível ler estas informações. Tente novamente.",
 };
 
-function Icon({ name }: { name: "scan" | "calendar" | "arrow" | "check" }) {
+function Icon({ name, className = "" }: { name: "scan" | "calendar" | "arrow" | "check"; className?: string }) {
   const paths = {
     scan: <><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M8 8h8v8H8z" /></>,
     calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" /></>,
     arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
     check: <path d="m5 12 4 4L19 6" />,
   };
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-[18px]">{paths[name]}</svg>;
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`size-[18px] ${className}`}>{paths[name]}</svg>;
 }
 
 function pathWith(params: Record<string, string | undefined>): string {
@@ -83,8 +88,37 @@ function Issue({ issue }: { issue: ApiIssue }) {
   return issue ? <p role="alert" className="rounded-control border border-status-warning-border bg-status-warning-soft px-3 py-2.5 text-type-body-compact text-status-warning">{issueCopy[issue]}</p> : null;
 }
 
-function PageLink({ href, children, disabled = false }: { href: string; children: string; disabled?: boolean }) {
+function PageLink({ href, children, disabled = false }: { href: string; children: ReactNode; disabled?: boolean }) {
   return disabled ? <span aria-disabled="true" className="inline-flex min-h-10 items-center rounded-control border border-nite-border-soft px-3 text-type-metadata text-nite-text-muted">{children}</span> : <Link href={href} className="inline-flex min-h-10 items-center rounded-control border border-nite-border-strong px-3 text-type-metadata font-medium text-nite-text-secondary transition-colors hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">{children}</Link>;
+}
+
+function PeriodNavigator({ props }: { props: WorkspaceProps }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const older = adjacentRangeKey(props.rangeKey, "previous", props.rangeOptions);
+  const newer = adjacentRangeKey(props.rangeKey, "next", props.rangeOptions);
+  const otherGroup: FrequencyGroupBy = props.groupBy === "MONTH" ? "SEMESTER" : "MONTH";
+  const otherRange = rangeKeyForGroup(props.rangeKey, otherGroup, props.rangeOptions);
+  const currentLabel = props.rangeOptions.find((option) => option.value === props.rangeKey)?.label ?? "Período selecionado";
+  const href = (range: string) => pathWith({ view: "personal", range, historyPage: "0" });
+  const controlClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3 text-type-body-compact font-medium transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus";
+  const navigate = (range: string) => startTransition(() => router.push(href(range), { scroll: false }));
+  const monthTarget = props.groupBy === "MONTH" ? props.rangeKey : otherGroup === "MONTH" ? otherRange : null;
+  const semesterTarget = props.groupBy === "SEMESTER" ? props.rangeKey : otherGroup === "SEMESTER" ? otherRange : null;
+  const toggle = (label: string, target: string | null, selected: boolean) => selected
+    ? <button key={label} type="button" aria-pressed="true" disabled className={`${controlClass} min-h-9 px-3 bg-nite-brand-soft text-nite-brand-primary`}>{label}</button>
+    : <button key={label} type="button" aria-pressed="false" disabled={!target || isPending} onClick={() => { if (target) navigate(target); }} className={`${controlClass} min-h-9 px-3 text-nite-text-secondary hover:bg-nite-surface-subtle disabled:cursor-not-allowed disabled:text-nite-text-muted`}>{label}</button>;
+  return <div className="grid min-w-0 gap-3 sm:flex sm:items-center sm:justify-end sm:gap-4" aria-busy={isPending}>
+    <div role="group" aria-label="Agrupar período" className="inline-flex w-fit rounded-control border border-nite-border-soft bg-nite-surface p-1">
+      {toggle("Mês", monthTarget, props.groupBy === "MONTH")}
+      {toggle("Semestre", semesterTarget, props.groupBy === "SEMESTER")}
+    </div>
+    <div className="flex min-w-0 items-center gap-2">
+      <button type="button" aria-label="Período anterior" disabled={!older || isPending} onClick={() => { if (older) navigate(older); }} className={`${controlClass} w-11 shrink-0 border border-nite-border-soft text-nite-text-secondary hover:bg-nite-surface-subtle disabled:cursor-not-allowed disabled:text-nite-text-muted`}><Icon name="arrow" className="rotate-180" /></button>
+      <p aria-live="polite" className="min-w-0 flex-1 text-center text-type-body-compact font-medium text-nite-text-primary sm:min-w-[10rem]">{isPending ? "Carregando período…" : currentLabel}</p>
+      <button type="button" aria-label="Próximo período" disabled={!newer || isPending} onClick={() => { if (newer) navigate(newer); }} className={`${controlClass} w-11 shrink-0 border border-nite-border-soft text-nite-text-secondary hover:bg-nite-surface-subtle disabled:cursor-not-allowed disabled:text-nite-text-muted`}><Icon name="arrow" /></button>
+    </div>
+  </div>;
 }
 
 function PeriodSelect({ props, hidden = {} }: { props: WorkspaceProps; hidden?: Record<string, string> }) {
@@ -99,43 +133,73 @@ function PeriodSelect({ props, hidden = {} }: { props: WorkspaceProps; hidden?: 
   </form>;
 }
 
-function HistoryRows({ page, pageNumber, params }: { page: FrequencyPage<HistoryEntry> | null; pageNumber: number; params: Record<string, string | undefined> }) {
-  if (!page || page.items.length === 0) return <p className="rounded-panel border border-dashed border-nite-border-strong px-4 py-8 text-center text-type-body-compact text-nite-text-muted">Nenhuma reunião aparece neste período.</p>;
+function HistoryRows({ page, pageNumber, params, personal = false }: { page: FrequencyPage<HistoryEntry> | null; pageNumber: number; params: Record<string, string | undefined>; personal?: boolean }) {
+  if (!page || page.items.length === 0) return personal ? null : <p className="rounded-panel border border-dashed border-nite-border-strong px-4 py-8 text-center text-type-body-compact text-nite-text-muted">Nenhuma reunião aparece neste período.</p>;
   return <>
-    <ol className="divide-y divide-nite-border-soft border-y border-nite-border-soft" aria-label="Histórico de Frequência">
-      {page.items.map((item) => <li key={item.listId} className="grid min-w-0 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-5">
-        <div className="flex min-w-0 items-start gap-3"><span className="mt-1 grid size-8 shrink-0 place-items-center rounded-control bg-nite-surface-elevated text-nite-brand-accent"><Icon name="calendar" /></span><div className="min-w-0"><p className="truncate text-type-body-compact font-medium text-nite-text-primary">{item.meetingName}</p><p className="mt-0.5 text-type-metadata text-nite-text-muted">{formatFrequencyDate(item.occurredAt, { dateStyle: "medium", timeStyle: "short" })}</p></div></div>
-        <Status status={item.status} inApuration={item.inApuration} />
-        <p className="text-type-metadata text-nite-text-secondary sm:text-right">{item.confirmedAt ? `Confirmada às ${formatFrequencyDate(item.confirmedAt, { hour: "2-digit", minute: "2-digit" })}` : "Sem horário de confirmação"}</p>
-      </li>)}
+    <ol className="divide-y divide-nite-border-soft border-y border-nite-border-soft" aria-label={personal ? "Histórico de reuniões" : "Histórico de Frequência"}>
+      {page.items.map((item) => {
+        const presentation = personal ? historyPresentation(item) : null;
+        return <li key={item.listId} className={`grid min-w-0 gap-2 py-3 sm:items-center sm:gap-5 ${personal ? "sm:grid-cols-[minmax(0,1fr)_minmax(8rem,auto)]" : "sm:grid-cols-[minmax(0,1fr)_auto_auto]"}`}>
+          <div className="flex min-w-0 items-start gap-3"><span className="mt-1 grid size-8 shrink-0 place-items-center rounded-control bg-nite-surface-elevated text-nite-brand-accent"><Icon name="calendar" /></span><div className="min-w-0"><p className="text-type-metadata text-nite-text-muted">{formatFrequencyDate(item.occurredAt, { dateStyle: "medium", timeStyle: "short" })}</p><p className={`mt-0.5 text-type-body-compact font-medium text-nite-text-primary ${personal ? "break-words" : "truncate"}`}>{item.meetingName}</p></div></div>
+          {presentation ? <div className="grid min-w-0 gap-1 sm:justify-items-end"><p className="break-words text-type-body-compact font-medium text-nite-text-secondary sm:text-right">{presentation.label}{presentation.context ? <span className="font-normal text-nite-text-muted"> · {presentation.context}</span> : null}</p>{item.confirmedAt ? <p className="text-type-metadata text-nite-text-secondary sm:text-right">Confirmada às {formatFrequencyDate(item.confirmedAt, { hour: "2-digit", minute: "2-digit" })}</p> : null}</div> : <><Status status={item.status} inApuration={item.inApuration} />{item.confirmedAt ? <p className="text-type-metadata text-nite-text-secondary sm:text-right">Confirmada às {formatFrequencyDate(item.confirmedAt, { hour: "2-digit", minute: "2-digit" })}</p> : <p className="text-type-metadata text-nite-text-secondary sm:text-right">Sem horário de confirmação</p>}</>}
+        </li>;
+      })}
     </ol>
     {page.total > page.size ? <div className="flex items-center justify-between gap-3"><span className="text-type-metadata text-nite-text-muted">Página {pageNumber + 1} de {Math.ceil(page.total / page.size)}</span><div className="flex gap-2"><PageLink href={pathWith({ ...params, historyPage: String(pageNumber - 1) })} disabled={pageNumber <= 0}>Anterior</PageLink><PageLink href={pathWith({ ...params, historyPage: String(pageNumber + 1) })} disabled={(pageNumber + 1) * page.size >= page.total}>Próxima</PageLink></div></div> : null}
   </>;
 }
 
-function PersonalView({ props }: { props: WorkspaceProps }) {
-  const summary = props.personalSummary;
-  const counts = summary?.counts;
-  return <div className="grid gap-8">
+function RetryButton() {
+  const router = useRouter();
+  return <Button type="button" variant="secondary" onClick={() => router.refresh()} className="min-h-10 w-fit">Tentar novamente</Button>;
+}
+
+function personalOpenListDescription(list: PersonalOpenList): string {
+  if (list.status === "PRESENCA_REGISTRADA" && list.confirmedAt) return `Presença confirmada às ${formatFrequencyDate(list.confirmedAt, { hour: "2-digit", minute: "2-digit" })}.`;
+  if (list.status === "JUSTIFICADO") return "Presença justificada.";
+  if (list.confirmationAvailable) return "Sua presença ainda não foi confirmada.";
+  if (list.confirmationWindowStatus === "EXPIRADA" || list.confirmationWindowStatus === "ENCERRADA") return "O prazo para confirmar foi encerrado.";
+  return "A confirmação não está disponível neste momento.";
+}
+
+function PersonalOpenLists({ props, onScan }: { props: WorkspaceProps; onScan: (list: PersonalOpenList) => void }) {
+  if (props.openListsIssue) return <section aria-labelledby="current-meeting-title" className="grid gap-2"><h2 id="current-meeting-title" className="font-display text-type-component-title text-nite-text-primary">Encontro atual</h2><div className="flex flex-wrap items-center gap-3"><Issue issue={props.openListsIssue} /><RetryButton /></div></section>;
+  const items = props.openLists?.filter((list) => list.status !== "NAO_ELEGIVEL") ?? [];
+  if (items.length === 0) return null;
+  return <section aria-labelledby="current-meeting-title" className="grid max-w-3xl gap-3">
+    <h2 id="current-meeting-title" className="font-display text-type-component-title text-nite-text-primary">Encontro atual</h2>
+    <ul className="divide-y divide-nite-border-soft border-y border-nite-border-soft">
+      {items.map((list) => <li key={list.listId} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <p className="break-words text-type-body font-semibold text-nite-text-primary">{list.meetingName}</p>
+          <p className="mt-1 text-type-metadata text-nite-text-muted">{formatFrequencyDate(list.scheduledAt, { dateStyle: "medium", timeStyle: "short" })}</p>
+          <p role={list.status === "PRESENCA_REGISTRADA" ? "status" : undefined} className="mt-1 text-type-body-compact text-nite-text-secondary">{personalOpenListDescription(list)}</p>
+        </div>
+        {list.eligible && list.status === "AGUARDANDO_CONFIRMACAO" && list.confirmationAvailable ? <Button type="button" leadingIcon={<Icon name="scan" />} onClick={() => onScan(list)} disabled={props.synthetic} className="w-full sm:w-auto lg:hidden">Escanear QR Code</Button> : null}
+      </li>)}
+    </ul>
+  </section>;
+}
+
+function PersonalView({ props, onScan }: { props: WorkspaceProps; onScan: (list: PersonalOpenList) => void }) {
+  const counts = props.personalSummary?.counts;
+  return <div className="grid gap-8" data-testid="personal-frequency-view">
+    <PersonalOpenLists props={props} onScan={onScan} />
     <section aria-labelledby="personal-summary-title" className="grid gap-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-type-metadata font-medium uppercase tracking-[0.12em] text-nite-text-muted">Acompanhamento pessoal</p><h2 id="personal-summary-title" className="mt-1 font-display text-type-section-title text-nite-text-primary">Sua assiduidade</h2></div><PeriodSelect props={props} hidden={{ view: "personal" }} /></div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"><h2 id="personal-summary-title" className="font-display text-type-section-title text-nite-text-primary">Suas presenças</h2><PeriodNavigator props={props} /></div>
       <Issue issue={props.summaryIssue} />
-      {counts ? <div className="flex min-w-0 flex-col gap-4 rounded-panel border border-nite-border-soft bg-nite-surface px-4 py-4 sm:flex-row sm:items-center sm:gap-7 sm:px-5">
-        <div className="flex items-baseline gap-3"><span className="font-display text-4xl font-semibold tracking-tight text-nite-text-primary sm:text-5xl">{counts.noEligibleMeetings || counts.attendancePercentage === null ? "—" : `${Number(counts.attendancePercentage).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</span><span className="text-type-metadata text-nite-text-muted">comparecimento real</span></div>
-        <div className="h-px w-full bg-nite-border-soft sm:h-10 sm:w-px" />
-        <dl className="flex flex-wrap gap-x-6 gap-y-2 text-type-body-compact"><div><dt className="inline text-nite-text-muted">Presenças </dt><dd className="inline font-semibold text-nite-text-primary">{counts.present}</dd></div><div><dt className="inline text-nite-text-muted">Justificadas </dt><dd className="inline font-semibold text-nite-text-primary">{counts.justified}</dd></div><div><dt className="inline text-nite-text-muted">Ausências </dt><dd className="inline font-semibold text-nite-text-primary">{counts.unjustifiedAbsences}</dd></div><div><dt className="inline text-nite-text-muted">Reuniões elegíveis </dt><dd className="inline font-semibold text-nite-text-primary">{counts.eligibleMeetings}</dd></div></dl>
-        {counts.noEligibleMeetings ? <p className="w-full text-type-metadata text-nite-text-muted sm:ml-auto sm:w-auto sm:max-w-44 sm:text-right">Sem reuniões elegíveis no período; o percentual não é calculado.</p> : null}
-      </div> : !props.summaryIssue ? <p className="text-type-body-compact text-nite-text-muted">O resumo ainda não está disponível.</p> : null}
+      {props.summaryIssue ? <RetryButton /> : counts ? <div className="grid max-w-4xl gap-5 xl:grid-cols-[minmax(15rem,.7fr)_minmax(0,1.3fr)] xl:items-center xl:gap-8">
+        <div><p className="font-display text-5xl font-semibold leading-none tracking-tight text-nite-text-primary sm:text-6xl" aria-label={counts.noEligibleMeetings || counts.attendancePercentage === null ? "Sem percentual calculável" : `Comparecimento real: ${Number(counts.attendancePercentage).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}>{counts.noEligibleMeetings || counts.attendancePercentage === null ? "—" : `${Number(counts.attendancePercentage).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`}</p><p className="mt-2 text-type-body-compact text-nite-text-secondary">presença nas reuniões realizadas</p>{counts.noEligibleMeetings ? <p className="mt-1 max-w-sm text-type-metadata text-nite-text-muted">Ainda não há reuniões contabilizáveis neste período.</p> : null}</div>
+        <dl className="grid grid-cols-2 gap-x-5 gap-y-4 lg:grid-cols-4 lg:gap-x-6"><div><dt className="text-type-metadata text-nite-text-muted">Presenças</dt><dd className="mt-1 text-2xl font-semibold text-nite-text-primary">{counts.present}</dd></div><div><dt className="text-type-metadata text-nite-text-muted">Ausências justificadas</dt><dd className="mt-1 text-2xl font-semibold text-nite-text-primary">{counts.justified}</dd></div><div><dt className="text-type-metadata text-nite-text-muted">Ausências</dt><dd className="mt-1 text-2xl font-semibold text-nite-text-primary">{counts.unjustifiedAbsences}</dd></div><div><dt className="text-type-metadata text-nite-text-muted">Reuniões realizadas</dt><dd className="mt-1 text-2xl font-semibold text-nite-text-primary">{counts.eligibleMeetings}</dd></div></dl>
+      </div> : <p className="text-type-body-compact text-nite-text-muted">O resumo ainda não está disponível.</p>}
     </section>
     <section aria-labelledby="personal-history-title" className="grid gap-4">
-      <div><p className="text-type-metadata font-medium uppercase tracking-[0.12em] text-nite-text-muted">Linha do tempo</p><h2 id="personal-history-title" className="mt-1 font-display text-type-section-title text-nite-text-primary">Histórico de reuniões</h2></div>
+      <h2 id="personal-history-title" className="font-display text-type-section-title text-nite-text-primary">Histórico de reuniões</h2>
       <Issue issue={props.historyIssue} />
-      <HistoryRows page={props.historyPage} pageNumber={props.selectedHistoryPage} params={{ view: "personal", range: props.rangeKey }} />
-      <p className="text-type-metadata text-nite-text-muted">O histórico informa situação e confirmação. Quando a API marca um item fora da apuração, ela não expõe aqui o motivo específico.</p>
+      {props.historyIssue ? <RetryButton /> : props.historyPage?.items.length ? <HistoryRows page={props.historyPage} pageNumber={props.selectedHistoryPage} params={{ view: "personal", range: props.rangeKey }} personal /> : props.historyPage?.total === 0 ? <p className="text-type-body-compact text-nite-text-muted">Nenhuma reunião registrada neste período.</p> : props.historyPage ? <p className="text-type-body-compact text-nite-text-muted">Nenhuma reunião nesta página.</p> : null}
     </section>
   </div>;
 }
-
 function compactCounts(row: CollectiveSummaryRow["counts"]): string {
   return row.noEligibleMeetings || row.attendancePercentage === null ? "Sem reuniões elegíveis" : `${Number(row.attendancePercentage).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% · ${row.present} presenças · ${row.justified} justificadas · ${row.unjustifiedAbsences} ausências`;
 }
@@ -227,22 +291,21 @@ function MeetingMode({ props }: { props: WorkspaceProps }) {
 }
 
 export function FrequencyWorkspace(props: WorkspaceProps) {
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerList, setScannerList] = useState<PersonalOpenList | null>(null);
   const view = props.manager && props.view === "management" ? "management" : "personal";
-  const errorLabels: Record<string, string> = { access: "A operação não está autorizada.", conflict: "A lista mudou. Recarregue os dados antes de tentar novamente.", invalid: "A API recusou os dados. Confira nome, janela e classificação.", unavailable: "A API não respondeu; verifique a operação antes de repeti-la.", qr: "A lista foi aberta, mas a primeira emissão do QR falhou. Acesse a lista para renovar o código." };
-  const noticeLabels: Record<string, string> = { finalized: "Lista concluída. A apuração e as ausências foram definidas pelo backend.", canceled: "Lista cancelada; o backend retirou o encontro da apuração.", updated: "Situação atualizada pela gestão." };
-  return <div className="grid min-w-0 gap-6 sm:gap-8">
+  const errorLabels: Record<string, string> = { access: "Sua conta não tem acesso a esta ação.", conflict: "A lista mudou. Atualize os dados e tente novamente.", invalid: "Não foi possível aceitar os dados. Confira as informações e tente novamente.", unavailable: "Não foi possível concluir agora. Tente novamente.", qr: "O QR não ficou disponível. Atualize a lista para tentar novamente." };
+  const noticeLabels: Record<string, string> = { finalized: "Lista concluída. As presenças foram atualizadas.", canceled: "Lista cancelada.", updated: "Situação atualizada pela gestão." };
+  return <div className="grid min-w-0 gap-6 sm:gap-8" data-testid="frequency-workspace">
     <header className="flex min-w-0 flex-col gap-4 border-b border-nite-border-soft pb-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between xl:flex-nowrap">
-      <div className="min-w-0"><p className="text-type-metadata font-medium uppercase tracking-[0.14em] text-nite-brand-accent">Meu espaço · B04</p><h1 className="mt-1 font-display text-type-page-title text-nite-text-primary">Frequência</h1><p className="mt-2 max-w-2xl text-type-body-compact text-nite-text-secondary">Acompanhe presenças por reunião e confirme apenas a sua participação.</p></div>
-      {!props.manager || view === "personal" ? <Button type="button" leadingIcon={<Icon name="scan" />} onClick={() => setScannerOpen(true)} disabled={props.synthetic} className="w-full sm:w-auto">Escanear QR Code</Button> : null}
+      <div className="min-w-0"><h1 className="font-display text-type-page-title text-nite-text-primary">Frequência</h1><p className="mt-2 max-w-2xl text-type-body-compact text-nite-text-secondary">{view === "personal" ? "Veja suas presenças e acompanhe as reuniões do NITE." : "Acompanhe as listas e presenças das reuniões do NITE."}</p></div>
       {props.manager ? <nav aria-label="Área de Frequência" className="flex min-w-0 flex-wrap gap-1 rounded-control border border-nite-border-soft bg-nite-surface p-1"><Link href={pathWith({ view: "personal", range: props.rangeKey })} aria-current={view === "personal" ? "page" : undefined} className={`inline-flex min-h-10 items-center rounded-control px-3 text-type-body-compact font-medium focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${view === "personal" ? "bg-nite-brand-soft text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>Visão pessoal</Link><Link href={pathWith({ view: "management", mode: props.mode, range: props.rangeKey })} aria-current={view === "management" ? "page" : undefined} className={`inline-flex min-h-10 items-center rounded-control px-3 text-type-body-compact font-medium focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${view === "management" ? "bg-nite-brand-soft text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>Gestão coletiva</Link></nav> : null}
     </header>
     {props.error ? <p role="alert" className="rounded-control border border-status-warning-border bg-status-warning-soft px-3 py-2.5 text-type-body-compact text-status-warning">{errorLabels[props.error] ?? "Não foi possível concluir a operação."}</p> : null}
     {props.notice ? <p role="status" className="rounded-control border border-status-done-border bg-status-done-soft px-3 py-2.5 text-type-body-compact text-status-done">{noticeLabels[props.notice] ?? "Operação concluída."}</p> : null}
-    {view === "personal" ? <PersonalView props={props} /> : <>
+    {view === "personal" ? <PersonalView props={props} onScan={setScannerList} /> : <>
       <nav aria-label="Modo de acompanhamento coletivo" className="flex flex-wrap gap-2 border-b border-nite-border-soft pb-2"><Link href={pathWith({ view: "management", mode: "meeting", range: props.rangeKey })} aria-current={props.mode === "meeting" ? "page" : undefined} className={`inline-flex min-h-10 items-center gap-2 rounded-control px-3 text-type-body-compact focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${props.mode === "meeting" ? "bg-nite-brand-soft font-medium text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}><Icon name="calendar" />Por reunião</Link><Link href={pathWith({ view: "management", mode: "member", range: props.rangeKey })} aria-current={props.mode === "member" ? "page" : undefined} className={`inline-flex min-h-10 items-center gap-2 rounded-control px-3 text-type-body-compact focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${props.mode === "member" ? "bg-nite-brand-soft font-medium text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>Por integrante</Link></nav>
       {props.mode === "member" ? <MemberMode props={props} /> : <MeetingMode props={props} />}
     </>}
-    {scannerOpen ? <QrScanner onClose={() => setScannerOpen(false)} /> : null}
+    {scannerList ? <QrScanner listId={scannerList.listId} meetingName={scannerList.meetingName} onClose={() => setScannerList(null)} /> : null}
   </div>;
 }
