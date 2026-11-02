@@ -1,6 +1,6 @@
 # Bloco 04 — Frequência
 
-**Estado:** backend da Frequência implementado; frontend B04 ainda não implementado
+**Estado:** backend e superfícies do frontend B04 implementados; revisão visual/funcional e homologações de infraestrutura ainda pendentes
 **Base técnica:** código Java, migrations V22–V23 e testes PostgreSQL 17/Testcontainers. A homologação real com Microsoft Entra e implantação pública permanecem pendentes.
 **Data:** 2026-11-02
 
@@ -33,18 +33,26 @@ Esta consolidação fixa a elegibilidade por vínculo ativo, a regra de reuniõe
 - `attendance_lists` e `attendance_list_members` registram uma lista por encontro, a autoria e os horários do servidor, além do snapshot alfabético dos membros ativos.
 - Abertura, renovação do QR, confirmação individual, handoff anônimo, conclusão, cancelamento, justificativas, consultas pessoais/coletivas e trilha append-only têm rotas e serviços ativos.
 - A confirmação autenticada usa identidade tid/oid, elegibilidade do snapshot, unicidade por integrante/encontro, QR vigente e `attendance_records.created_at`; não cria segmentos de horas.
-- QR tem 32 bytes aleatórios Base64URL e TTL máximo de 120 segundos; a janela da lista aceita 3, 5 ou 10 minutos. A renovação é explícita pela API e versionada; a renovação automática depende da tela de projeção, ainda não implementada.
+- QR tem 32 bytes aleatórios Base64URL e TTL máximo de 120 segundos; a janela da lista aceita 3, 5 ou 10 minutos. A API renova de forma explícita/versionada; a tela de projeção renova próximo à expiração e não altera o prazo global.
 - Handoff anônimo é temporário, não cria presença nem revela roster, e só é consumido em confirmação autenticada. Expurgo retém os registros por 24 horas após expirar, em lotes concorrentes de até 500.
 - Conclusão idempotente é reconhecida pela trilha persistida e não repete mutações/auditoria para o mesmo ator, versão, resultado e motivo.
 - B06 mantém evidência por segmentos históricos e adiciona leitura de confirmação pontual; B03 fornece o contrato de membros ativos e B07 não recebe efeitos automáticos de frequência.
 
 ### Dependente do frontend ou da implantação
 
-- O scanner de `@zxing/browser` ainda não está conectado às páginas/ações B04. A confirmação QR de pessoa já autenticada pode chamar o endpoint canônico.
-- A leitura externa por câmera, route handler same-origin, cookie `__Host-nite-frequency-handoff` e continuidade depois do login ainda não existem no frontend. A API de handoff está pronta; o fluxo OAuth completo não foi homologado.
+- O scanner de `@zxing/browser` está conectado à confirmação autenticada pelo endpoint canônico; permissão e leitura por câmera física ainda não foram homologadas.
+- A leitura externa usa route handler same-origin, cookie `__Host-nite-frequency-handoff` e retorno para uma tela de confirmação explícita. O fluxo de código está implementado; o callback OAuth real não foi homologado.
 - Os testes usam identidade JWT sintética. Não comprovam callback real do Microsoft Entra, permissões de câmera do navegador, HTTPS público ou comportamento no domínio institucional.
 - Não há rate limiting na API, no Worker Cloudflare versionado nem no Compose local. Antes da exposição, o ingresso confiável que recebe a leitura do navegador deverá limitar `POST /api/v1/frequency/qr/handoffs`, responder 429 e impedir que outro caminho contorne a mesma proteção. Se Next.js chamar a API servidor-servidor, o limite por cliente deve ser aplicado na borda que ainda conhece a origem do navegador; limite agregado no IP do BFF não substitui essa proteção. O número deve ser definido e testado contra o pico de leitores no ambiente de implantação.
 - `infra/cloudflare` não tem Worker implantado, e `infra/compose.yaml` publica a API apenas em loopback para desenvolvimento. A configuração real externa de WAF/proxy não é verificável neste repositório.
+
+### Limites de contrato observados na integração frontend
+
+- A API não oferece consulta pessoal de lista aberta nem de elegibilidade para a lista atual. A visão pessoal exibe a ação compacta do scanner, sem afirmar qual reunião está aberta ou se aquela conta está no snapshot.
+- `HistoryEntry` não devolve o estado final/resultado da lista nem a causa de `inApuration=false`; a interface mostra “Fora da apuração” e não infere cancelamento.
+- A API de participantes não recebe busca por nome. A busca e as contagens exibidas na gestão por reunião se restringem à página carregada; a consulta coletiva de integrantes continua paginada.
+- `Summary` retorna `period`, `counts` e `buckets` aninhados. O parser do frontend valida esse record Java; o exemplo contratual anterior com contagens no nível superior foi corrigido.
+- O QR da projeção usa a origem pública `NEXT_PUBLIC_APP_ORIGIN`. Em produção deve ser HTTPS, corresponder ao domínio real e estar configurada antes de abrir/renovar listas.
 
 `event_participants` continua representando participantes esperados na Agenda; o roster completo da Frequência vem do snapshot de `attendance_list_members`, não dessa tabela.
 
@@ -170,36 +178,36 @@ Preservar attendance_records, segmentos e trilhas anteriores ao activated_at. Hi
 
 ## 6. QR Code e autenticação
 
-### Integrante autenticado no navegador (API implementada; página pendente)
+### Integrante autenticado no navegador (API e integração frontend implementadas)
 
-A futura página pessoal mostrará Escanear QR Code. O scanner existente poderá ser conectado ao fluxo novo: câmera no navegador (HTTPS e permissão explícita), decodificação local e POST autenticado com token no corpo. A API resolve identidade por Bearer Entra (tid/oid), requer vínculo ativo e presença do membro no snapshot; memberId não é aceito do cliente. Na mesma transação, revalida lista/janela/token, insere attendance_records, define PRESENTE e não cria attendance_segments.
+A visão pessoal oferece Escanear QR Code, abre leitor ZXing dentro do navegador e envia o token pelo corpo de uma Server Action. A API resolve identidade por Bearer Entra (tid/oid), requer vínculo ativo e presença do membro no snapshot; memberId não é aceito do cliente. Na mesma transação, revalida lista/janela/token, insere attendance_records, define PRESENTE e não cria attendance_segments. A câmera exige HTTPS e permissão; a leitura física não foi homologada.
 
 O servidor impõe UNIQUE(event_id,member_id) e UNIQUE(list_id,member_id). Retry/concorrência do mesmo integrante devolve a confirmação persistida com alreadyRegistered=true; não cria outra linha. confirmedAt usa created_at do servidor.
 
-### QR curto e rotação automática (API implementada; automação depende da tela)
+### QR curto e rotação automática (API e projeção implementadas)
 
-Contrato técnico implementado: token aleatório criptograficamente forte de 32 bytes Base64URL; persistir somente SHA-256, nunca token bruto. Cada token dura no máximo 120 segundos. Janela global da lista dura exatamente 3, 5 ou 10 minutos desde opened_at. A futura tela de projeção deverá renovar aos 90 segundos enquanto a janela global estiver ativa; essa automação ainda não existe. Expiração do token individual é min(issued_at + 120 s, confirmation_deadline). Cada rotação substitui hash e revoga imediatamente token anterior; rotação não amplia deadline. Uma só emissão válida por lista.
+Contrato técnico implementado: token aleatório criptograficamente forte de 32 bytes Base64URL; persistir somente SHA-256, nunca token bruto. Cada token dura no máximo 120 segundos. Janela global da lista dura exatamente 3, 5 ou 10 minutos desde opened_at. A tela de projeção renova próximo à expiração, usando `expectedVersion`, enquanto a janela global estiver ativa. Expiração do token individual é min(issued_at + 120 s, confirmation_deadline). Cada rotação substitui hash e revoga imediatamente token anterior; rotação não amplia deadline. Uma só emissão válida por lista.
 
 A tela usa renovação autenticada com expectedVersion. Se várias telas tentarem renovar a mesma versão, uma vence e as demais recebem conflito, atualizam o estado e limpam eventual QR local; elas não renovam automaticamente. Polling detecta mudança de versão e remove QR antigo. Uma nova emissão exige comando explícito da gestão e invalida imediatamente qualquer código ainda exibido em outra tela. POST de renovação retorna QR/token uma vez com Cache-Control: no-store; GET nunca revela token. Depois do deadline, QR não renova e check-in é recusado, mas lista segue ABERTA para finalização/cancelamento. Fechamento/cancelamento revoga QR e handoffs.
 
-### Fluxo de referência: câmera externa e continuação após login Microsoft (frontend pendente)
+### Fluxo de câmera externa e continuação após login Microsoft (integração implementada; OAuth real pendente)
 
-O backend de handoff e consumo autenticado existe. Página de scan, route handler, cookie seguro e continuidade Auth.js ainda não foram implementados; os passos abaixo são requisitos da integração futura.
+API e integração frontend estão implementadas. Os passos abaixo descrevem o fluxo no checkout.
 
 O fluxo usa fragmento do QR e cookie efêmero HttpOnly; handoff não passa por query string, cookie JavaScript, referer ou destino arbitrário:
 
-1. QR aponta para /frequency/scan#t=<token>. A página lê fragmento no navegador e o apaga imediatamente com history.replaceState; fragmento não é enviado no GET inicial.
-2. A página envia token no corpo a endpoint same-origin do Next.js. O route handler chama POST /api/v1/frequency/qr/handoffs sem autenticação; API valida QR atual e cria intenção de uso único com hash/versão do QR, lista e expiração, sem registrar presença nem retornar roster.
-3. Route handler grava somente handoffId aleatório no cookie __Host-nite-frequency-handoff: HttpOnly, Secure, SameSite=Lax, Path=/, sem Domain, Cache-Control: no-store e prazo não maior que o token QR. Como o prefixo __Host- exige Secure, o fluxo externo também requer HTTPS no desenvolvimento. Não devolver ID a JavaScript nem registrá-lo em logs.
-4. Hoje signInWithMicrosoft redireciona sempre para /dashboard. Adaptar a ação para ler o cookie no servidor e escolher somente destino fixo: /frequency/confirm se houver handoff ou /dashboard se não houver. Nunca aceitar callback URL de query/body. SameSite=Lax preserva cookie no retorno top-level do login Microsoft.
-5. Após OAuth, GET /frequency/confirm apenas lê sessão/cookie e mostra aviso de confirmação pendente e botão explícito Confirmar presença; GET não registra presença. POST do botão, por server action, chama API com Bearer autenticado e handoffId. API revalida hash/versão vigente, prazo, identidade Entra ativa, elegibilidade, lista e unicidade. A ação consome handoff e grava presença na mesma transação; repetição pela mesma identidade retorna a confirmação existente. A ação limpa cookie.
-6. Se token expirar, rotacionar, for revogado, lista expirar/cancelar ou handoff for consumido por outra identidade antes do POST, responder conflito, limpar cookie e orientar nova leitura. Validação anônima inicial nunca se transforma em presença futura.
+1. QR aponta para `/frequency/scan#t=<token>`. A página lê o fragmento no navegador e o apaga imediatamente com `history.replaceState`; fragmento não é enviado no GET inicial.
+2. A página envia token no corpo a endpoint same-origin do Next.js. O route handler chama `POST /api/v1/frequency/qr/handoffs` sem autenticação; API valida QR atual e cria intenção de uso único com hash/versão do QR, lista e expiração, sem registrar presença nem retornar roster.
+3. Route handler grava somente handoffId aleatório no cookie `__Host-nite-frequency-handoff`: HttpOnly, Secure, SameSite=Lax, Path=/, sem Domain, Cache-Control: no-store e prazo não maior que o token QR. O prefixo `__Host-` exige Secure e, portanto, HTTPS. ID não é devolvido ao JavaScript nem registrado pela aplicação.
+4. `signInWithMicrosoft` lê o cookie no servidor e escolhe somente destino fixo: `/frequency/confirm` se houver handoff válido ou `/dashboard` se não houver. Nunca aceita callback URL de query/body. SameSite=Lax preserva cookie no retorno top-level do login Microsoft.
+5. Após OAuth, GET `/frequency/confirm` apenas lê a sessão e mostra aviso de confirmação pendente e botão explícito Confirmar presença; GET não registra presença. POST do botão, por server action, chama API com Bearer autenticado e handoffId. API revalida hash/versão vigente, prazo, identidade Entra ativa, elegibilidade, lista e unicidade. A ação consome handoff e grava presença na mesma transação; repetição pela mesma identidade retorna a confirmação existente. A ação limpa cookie após resposta conclusiva.
+6. Se token expirar, rotacionar, for revogado, lista expirar/cancelar ou handoff for consumido por outra identidade antes do POST, responder conflito, limpar cookie e orientar nova leitura. Uma repetição depois de resposta perdida pode usar o ID opaco retido por cinco minutos; o backend devolve presença anterior da mesma identidade ou nega handoff vencido sem confirmação. Validação anônima inicial nunca se transforma em presença futura.
 
 Corpo do POST anônimo e tokens não devem ser registrados por Next.js/API, proxy, analytics ou telemetria; páginas scan/confirm definem Referrer-Policy: no-referrer e respostas no-store. QR compartilhado remotamente pode ser usado por outra conta ativa elegível enquanto válido; autenticação titular, janela curta, rotação, unicidade e auditoria reduzem abuso, mas não provam presença física. Sem geolocalização, biometria ou reconhecimento facial.
 
 ### Estado atual da autenticação
 
-`apps/web/src/lib/auth/actions.ts` ainda chama `signIn(microsoft-entra-id, redirectTo=/dashboard)`; a continuidade B04 não existe. O backend de handoff está ativo, mas leitura/uso do cookie e seleção de destino interno fixo precisam ser implementados no frontend. Auth.js mantém OAuth state/callback; o handoff deverá ficar separado em cookie same-site e só ser consumido por POST após a sessão autenticada.
+`apps/web/src/lib/auth/actions.ts` lê o cookie HttpOnly e escolhe apenas os destinos internos `/frequency/confirm` ou `/dashboard`. Auth.js mantém OAuth state/callback; o ID opaco do handoff permanece em cookie same-site por cinco minutos após sua expiração para permitir repetição idempotente; o backend rejeita handoffs sem confirmação anterior. O handoff só é consumido por POST após a sessão autenticada. O callback real Microsoft continua pendente de homologação.
 
 ## 7. Integrações e transição dos contratos atuais
 
@@ -239,7 +247,7 @@ Para presença nova, attendance_records.created_at é o horário real e não há
 
 ## 9. Pendências efetivamente bloqueantes
 
-O contrato de backend não tem regra funcional aguardando decisão. Para uso real ainda faltam: implementação do scanner/páginas B04, continuidade do cookie após login Microsoft e homologação do callback Entra nesse fluxo; configurar e testar rate limiting confiável para o handoff anônimo antes de exposição pública; inventariar consumidores externos do alias legado; executar procedimento institucional para eventos legados ainda `ABERTO`; implantar e homologar em ambiente HTTPS autorizado.
+O contrato funcional não tem regra de negócio aguardando decisão. No checkout, as páginas e ações de Frequência, scanner ZXing, handoff protegido e projeção de QR estão implementados. Para uso real ainda faltam: homologar câmera e callback/login Entra em ambiente autorizado; configurar e testar rate limiting confiável para o handoff anônimo antes de qualquer exposição pública; inventariar consumidores externos do alias legado; executar procedimento institucional para eventos legados ainda `ABERTO`; configurar `NEXT_PUBLIC_APP_ORIGIN` corretamente e implantar em HTTPS autorizado.
 
 ### Transição de sessões legadas `ABERTO`
 
@@ -251,8 +259,8 @@ V22 revoga os QRs de sessão anteriores, mas não fecha nem classifica automatic
 - Reunião regular (ENCONTRO presencial de quinta-feira local) só conta após lista oficial concluída como realizada; sem lista não há ausência/denominador. Excepcional exige escolha explícita de inclusão.
 - Uma lista por evento; eventos distintos na mesma data são válidos. Idempotência impede duplicação de abertura rápida; restrições únicas impedem presença repetida.
 - Expiração do QR só encerra a janela de confirmação; a lista permanece aberta até conclusão/cancelamento.
-- Cada token dura no máximo 120s; renovação automática aos 90s e remoção do QR antigo dependem da tela de projeção, ainda pendente. A API revoga o token anterior na rotação e não prolonga o deadline.
-- A confirmação exige POST autenticado e revalidação. O fluxo OAuth/cookie de handoff é dependente do frontend e ainda não está disponível.
+- Cada token dura no máximo 120s; a projeção renova próximo da expiração e detecta rotações/encerramentos em polling, sem prolongar o deadline. A API revoga o token anterior na rotação.
+- A confirmação exige POST autenticado e revalidação. O frontend implementa scanner interno e handoff externo HttpOnly com confirmação explícita após o login; OAuth e câmera reais não foram homologados.
 - Conclusão contabilizável gera ausência só para snapshot sem presença/justificativa; justificativa não é presença. Gestão não cria presença nem altera presença própria confirmada.
 - Cancelamento antes/depois da conclusão preserva trilha/presenças, exclui reunião de todos os cálculos e recalcula o sinal; mutações exigem versão/ator/motivo.
 - Histórico antes de activated_at é legado e fica fora dos indicadores. Mês/semestre civis em America/Bahia; percentual HALF_UP em duas casas; denominador zero retorna nulo.
@@ -270,10 +278,12 @@ Componentes ativos e limitações:
 - [V5](../../apps/api/src/main/resources/Migrations/V5__agenda_attendance_work_logs.sql), [V21](../../apps/api/src/main/resources/Migrations/V21__remove_retired_participation_scope.sql), [V22](../../apps/api/src/main/resources/Migrations/V22__frequency_attendance_lists.sql) e [V23](../../apps/api/src/main/resources/Migrations/V23__frequency_handoff_retention_index.sql): histórico, persistência Frequência e índice do expurgo.
 - [AttendanceAcademicReader](../../apps/api/src/main/java/br/edu/unijorge/niteconnect/attendance/application/AttendanceAcademicReader.java), [AcademicStates](../../apps/api/src/main/java/br/edu/unijorge/niteconnect/academic/domain/AcademicStates.java) e [contrato B06](bloco-06-contrato.md): leitor atual de segmentos.
 - [AccessService](../../apps/api/src/main/java/br/edu/unijorge/niteconnect/access/application/AccessService.java) e [IdentityDirectory](../../apps/api/src/main/java/br/edu/unijorge/niteconnect/identity/application/IdentityDirectory.java): vínculo e autorização.
-- [Auth.js sign-in action](../../apps/web/src/lib/auth/actions.ts): ainda redireciona sempre para `/dashboard`; handoff após OAuth não existe.
-- [Scanner](../../apps/web/src/components/attendance/qr-check-in.tsx) e [ação de check-in](../../apps/web/src/lib/attendance/actions.ts): scanner não conectado a página B04; ação ainda chama alias legado.
+- [Frequência pessoal e coletiva](../../apps/web/src/app/(authenticated)/frequencia/page.tsx), [ações server-side](../../apps/web/src/lib/frequency/actions.ts) e [contratos de frontend](../../apps/web/src/lib/frequency/contracts.ts): consultas, mutações, autorização por papel e parsing dos records do backend.
+- [Scanner interno](../../apps/web/src/components/frequency/qr-scanner.tsx), [handoff público](../../apps/web/src/app/api/frequency/qr/handoffs/route.ts), [tela de confirmação externa](../../apps/web/src/app/(authenticated)/frequency/confirm/page.tsx) e [projeção](../../apps/web/src/app/frequency/lists/[listId]/projector/page.tsx): fluxos B04 atuais; leitura física e OAuth ainda dependem de homologação.
+- [Auth.js sign-in action](../../apps/web/src/lib/auth/actions.ts): usa o cookie HttpOnly server-side e só escolhe destino interno fixo.
+- [Scanner legado](../../apps/web/src/components/attendance/qr-check-in.tsx) e [ação legada](../../apps/web/src/lib/attendance/actions.ts): permanecem no código por compatibilidade, mas não são usados pela Frequência nova.
 
 Os testes de backend incluem:
 
 - [FrequencyBoundaryTest](../../apps/api/src/test/java/br/edu/unijorge/niteconnect/FrequencyBoundaryTest.java), [FrequencySummaryTest](../../apps/api/src/test/java/br/edu/unijorge/niteconnect/FrequencySummaryTest.java), [AttendanceTransactionsTest](../../apps/api/src/test/java/br/edu/unijorge/niteconnect/AttendanceTransactionsTest.java), [FrequencyHandoffRetentionTest](../../apps/api/src/test/java/br/edu/unijorge/niteconnect/FrequencyHandoffRetentionTest.java), [AttendanceHistoryIntegrityTest](../../apps/api/src/test/java/br/edu/unijorge/niteconnect/AttendanceHistoryIntegrityTest.java) e [AttendanceAcademicReaderTest](../../apps/api/src/test/java/br/edu/unijorge/niteconnect/AttendanceAcademicReaderTest.java) cobrem contratos, concorrência, migração legada e integrações.
-- O frontend ainda precisa de testes de câmera, cookie/callback e destino interno.
+- Testes do frontend cobrem parser de contrato, períodos, consultas pessoais/coletivas, QR same-origin, navegação/papéis, mensagens de erro da câmera e respostas idempotentes/expiradas do handoff. Capturas sintéticas revisam Light/Dark nos breakpoints 320, 360, 768, 1024 e 1440 px. A câmera em dispositivo físico, o fluxo OAuth real e a integração contra API institucional ainda dependem de homologação.
