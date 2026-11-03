@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveCreateMeetingGate, shouldRouteMeetingLinkAction } from "./meeting-action-gate";
 import { meetingIssueFromResponse } from "./meeting-api-issues";
-import { meetingJoinFailureFeedback, parseMeetingJoinFeedback } from "./meeting-join-feedback";
+import { meetingJoinErrorHref, meetingJoinFailureFeedback, parseMeetingJoinErrorReason, parseMeetingJoinFeedback } from "./meeting-join-feedback";
 
 describe("bloqueios Graph em ações de Reuniões", () => {
   it("encaminha Iniciar reunião e Agendar à página apenas com o consentimento OBO exato", () => {
@@ -31,13 +31,22 @@ describe("bloqueios Graph em ações de Reuniões", () => {
   it("não confunde erros genéricos de join com o código de consentimento", () => {
     expect(meetingJoinFailureFeedback(403, "OBO_CONSENT_REQUIRED")).toBe("consent-required");
     expect(meetingJoinFailureFeedback(403, "FORBIDDEN")).toBe("forbidden");
-    expect(meetingJoinFailureFeedback(401, "OBO_CONSENT_REQUIRED")).toBe("forbidden");
+    expect(meetingJoinFailureFeedback(401, "OBO_CONSENT_REQUIRED")).toBe("session-required");
     expect(meetingJoinFailureFeedback(404, null)).toBe("not-found");
     expect(meetingJoinFailureFeedback(503, null)).toBe("unavailable");
   });
 
+  it("encaminha falhas de entrada à tela de erro sem aceitar identificadores arbitrários", () => {
+    const meetingId = "f563d6d1-0376-43cc-ab5b-ab720b8fd9ef";
+    expect(meetingJoinErrorHref("forbidden", meetingId)).toBe(`/reunioes/erro?reason=forbidden&meetingId=${meetingId}`);
+    expect(meetingJoinErrorHref("not-found", "javascript:alert(1)")).toBe("/reunioes/erro?reason=not-found");
+    expect(parseMeetingJoinErrorReason("session-required")).toBe("session-required");
+    expect(parseMeetingJoinErrorReason("unknown")).toBeNull();
+  });
+
   it("aceita somente feedbacks conhecidos no retorno à página de Reuniões", () => {
     expect(parseMeetingJoinFeedback("forbidden")).toBe("forbidden");
+    expect(parseMeetingJoinFeedback("session-required")).toBe("session-required");
     expect(parseMeetingJoinFeedback("not-found")).toBe("not-found");
     expect(parseMeetingJoinFeedback("unavailable")).toBe("unavailable");
     expect(parseMeetingJoinFeedback("consent-required")).toBeNull();

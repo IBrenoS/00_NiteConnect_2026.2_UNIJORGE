@@ -26,6 +26,7 @@ type Props = {
   previewMode?: boolean;
   previewCandidates?: MeetingCandidate[];
   initialOverlay?: "immediate" | "scheduled" | "invite" | "linked" | "history" | "cancelled";
+  initialListFilter?: MeetingListFilter;
   upcoming: MeetingPage<Meeting> | null;
   past: MeetingPage<Meeting> | null;
   cancelled: MeetingPage<Meeting> | null;
@@ -42,6 +43,7 @@ type Props = {
   graphHelpHref?: string | null;
 };
 
+type MeetingListFilter = "upcoming" | "past" | "cancelled";
 type EditorState = { key: number; mode: "create" | "edit"; meetingMode: "IMMEDIATE" | "SCHEDULED"; meeting?: Meeting };
 type DetailState = { meeting: Meeting; cancelConfirm: boolean; busy: boolean; feedback: string };
 
@@ -104,6 +106,22 @@ function meetingSummary(meeting: Meeting): string {
   return `${invitees} convidado${invitees === 1 ? "" : "s"}`;
 }
 
+function VideoMeetingIcon() {
+  return <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-nite-brand-soft text-nite-brand-primary sm:size-12">
+    <svg data-icon="video" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-5">
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="m16 10 5-3v10l-5-3z" />
+    </svg>
+  </span>;
+}
+
+function DetailsIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="size-5">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5m0-8h.01" />
+  </svg>;
+}
+
 function MeetingRow({ meeting, viewerId, previewMode = false, graphConsentRequired = false, onDetails, onRespond }: {
   meeting: Meeting;
   viewerId: string;
@@ -116,16 +134,25 @@ function MeetingRow({ meeting, viewerId, previewMode = false, graphConsentRequir
   const ownInvite = meeting.invitees.find((invitee) => invitee.memberId === viewerId);
   const canRespond = !organizer && ownInvite?.internalStatus === "PENDENTE" && meeting.status !== "CANCELADA";
   const canJoin = isJoinable(meeting) && meeting.status !== "CANCELADA";
-  return <li className="flex min-w-0 flex-col gap-3 border-b border-nite-border-soft py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+  const detailsButton = (className: string) => <button type="button" aria-label={`Detalhes da reunião ${meeting.title}`} onClick={() => onDetails(meeting)} className={className}><DetailsIcon /></button>;
+  return <li className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] gap-x-3 border-b border-nite-border-soft py-4 last:border-b-0 xl:grid-cols-[3rem_minmax(0,1fr)_minmax(8.5rem,.45fr)_auto] xl:items-center xl:gap-x-5">
+    <VideoMeetingIcon />
     <div className="min-w-0">
-      <h3 className="truncate text-type-body-compact font-semibold text-nite-text-primary">{meeting.title}</h3>
-      <p className="mt-1 text-type-body-compact leading-6 text-nite-text-secondary">{formatMeetingDate(meeting.startsAt, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · {formatMeetingTime(meeting.startsAt)} <span className="text-nite-text-muted">·</span> {organizer ? "Organizada por você" : meeting.organizerName}</p>
-      <p className="mt-1 text-type-body-compact text-nite-text-muted">{meetingSummary(meeting)} <span className="px-1">·</span> {statusText(meeting)}</p>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <h3 className="min-w-0 flex-1 truncate text-type-label font-semibold text-nite-text-primary">{meeting.title}</h3>
+        {detailsButton("grid size-11 shrink-0 place-items-center rounded-control text-nite-text-secondary transition-colors hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus motion-reduce:transition-none xl:hidden")}
+      </div>
+      <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 text-type-metadata text-nite-text-secondary"><span>{organizer ? "Organizada por você" : meeting.organizerName}</span><span aria-hidden="true" className="text-nite-text-muted">·</span><span>{meetingSummary(meeting)}</span></p>
+      <p className="mt-0.5 text-type-metadata text-nite-text-muted">{statusText(meeting)}</p>
     </div>
-    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+    <div className="col-start-2 mt-1 flex min-w-0 items-baseline gap-2 text-type-body-compact text-nite-text-secondary xl:col-start-3 xl:row-start-1 xl:mt-0 xl:block xl:justify-self-end xl:text-right">
+      <time dateTime={meeting.startsAt} className="font-medium text-nite-text-primary">{formatMeetingDate(meeting.startsAt, { day: "numeric", month: "short", year: "numeric" })}</time>
+      <span className="text-nite-text-muted xl:block">{formatMeetingTime(meeting.startsAt)}</span>
+    </div>
+    <div className="col-start-2 mt-2 flex min-w-0 flex-wrap items-center gap-2 xl:col-start-4 xl:row-start-1 xl:mt-0 xl:justify-end">
       {canRespond ? <Button type="button" variant="secondary" onClick={() => onRespond(meeting)}>Responder</Button> : null}
       {canJoin ? previewMode ? <Button type="button" disabled>Entrar</Button> : <Link href={graphConsentRequired ? "/reunioes/erro-403" : `/reunioes/${encodeURIComponent(meeting.id)}/entrar`} className="inline-flex min-h-11 items-center justify-center rounded-control border border-nite-brand-primary bg-nite-brand-primary px-4 py-2 text-type-label font-medium text-nite-action-text transition-colors hover:bg-nite-brand-primary/90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus motion-reduce:transition-none">Entrar</Link> : null}
-      <Button type="button" variant="quiet" onClick={() => onDetails(meeting)}>Detalhes</Button>
+      {detailsButton("hidden size-11 shrink-0 place-items-center rounded-control text-nite-text-secondary transition-colors hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus motion-reduce:transition-none xl:grid")}
     </div>
   </li>;
 }
@@ -143,7 +170,7 @@ function CancelledIssue({ issue }: { issue: MeetingIssue | null }) {
   </div>;
 }
 
-export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandidates = [], initialOverlay, upcoming: initialUpcoming, past: initialPast, cancelled: initialCancelled, notifications: initialNotifications, upcomingIssue, pastIssue, cancelledIssue, notificationIssue, upcomingPage, pastPage, cancelledPage, initialGraphAvailability, initialJoinFeedback, graphHelpHref }: Props) {
+export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandidates = [], initialOverlay, initialListFilter = "upcoming", upcoming: initialUpcoming, past: initialPast, cancelled: initialCancelled, notifications: initialNotifications, upcomingIssue, pastIssue, cancelledIssue, notificationIssue, upcomingPage, pastPage, cancelledPage, initialGraphAvailability, initialJoinFeedback, graphHelpHref }: Props) {
   const router = useRouter();
   const previewMeetings = [...(initialUpcoming?.items ?? []), ...(initialPast?.items ?? []), ...(initialCancelled?.items ?? [])];
   const invitePreviewMeeting = previewMeetings.find((meeting) => meeting.organizerMemberId !== viewerId && meeting.invitees.some((invitee) => invitee.memberId === viewerId && invitee.internalStatus === "PENDENTE"));
@@ -156,6 +183,7 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
   const [past, setPast] = useState(initialPast);
   const [cancelled, setCancelled] = useState(initialCancelled);
   const [notifications, setNotifications] = useState(initialNotifications);
+  const [listFilter, setListFilter] = useState<MeetingListFilter>(initialListFilter);
   const [loadedUpcomingPage, setLoadedUpcomingPage] = useState(initialUpcoming?.page ?? upcomingPage);
   const [loadedPastPage, setLoadedPastPage] = useState(initialPast?.page ?? pastPage);
   const [loadedCancelledPage, setLoadedCancelledPage] = useState(initialCancelled?.page ?? cancelledPage);
@@ -184,10 +212,24 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
   const pendingInvites = useMemo(() => allMeetings.filter((meeting) => meeting.organizerMemberId !== viewerId && meeting.status !== "CANCELADA" && meeting.invitees.some((invitee) => invitee.memberId === viewerId && invitee.internalStatus === "PENDENTE")), [allMeetings, viewerId]);
   const pendingInviteIds = useMemo(() => new Set(pendingInvites.map((meeting) => meeting.id)), [pendingInvites]);
   const cancelledMeetingIds = useMemo(() => new Set((cancelled?.items ?? []).filter((meeting) => meeting.status === "CANCELADA").map((meeting) => meeting.id)), [cancelled]);
-  const visibleUpcoming = upcoming?.items.filter((meeting) => meeting.status !== "CANCELADA" && !cancelledMeetingIds.has(meeting.id) && !pendingInviteIds.has(meeting.id)) ?? [];
-  const visiblePast = past?.items.filter((meeting) => meeting.status !== "CANCELADA" && !cancelledMeetingIds.has(meeting.id) && !pendingInviteIds.has(meeting.id)) ?? [];
-  const visibleCancelled = cancelled?.items.filter((meeting) => meeting.status === "CANCELADA") ?? [];
+  const visibleUpcoming = useMemo(() => Array.from(new Map((upcoming?.items ?? [])
+    .filter((meeting) => meeting.status !== "CANCELADA" && !cancelledMeetingIds.has(meeting.id) && !pendingInviteIds.has(meeting.id))
+    .map((meeting) => [meeting.id, meeting] as const)).values()), [upcoming, cancelledMeetingIds, pendingInviteIds]);
+  const upcomingMeetingIds = useMemo(() => new Set(visibleUpcoming.map((meeting) => meeting.id)), [visibleUpcoming]);
+  const visiblePast = useMemo(() => Array.from(new Map((past?.items ?? [])
+    .filter((meeting) => meeting.status !== "CANCELADA" && !cancelledMeetingIds.has(meeting.id) && !pendingInviteIds.has(meeting.id) && !upcomingMeetingIds.has(meeting.id))
+    .map((meeting) => [meeting.id, meeting] as const)).values()), [past, cancelledMeetingIds, pendingInviteIds, upcomingMeetingIds]);
+  const visibleCancelled = useMemo(() => Array.from(new Map((cancelled?.items ?? [])
+    .filter((meeting) => meeting.status === "CANCELADA")
+    .map((meeting) => [meeting.id, meeting] as const)).values()), [cancelled]);
   const unread = (notifications?.items ?? []).filter((notification) => notification.readAt === null && notification.type !== "RELATORIO_DE_PRESENCA_DISPONIVEL");
+  const activeMeetings = listFilter === "upcoming" ? visibleUpcoming : listFilter === "past" ? visiblePast : visibleCancelled;
+  const activeIssue = listFilter === "upcoming" ? upcomingIssue : listFilter === "past" ? pastIssue : cancelledIssue;
+  const activePage = listFilter === "upcoming" ? upcoming : listFilter === "past" ? past : cancelled;
+  const activePageNumber = listFilter === "upcoming" ? loadedUpcomingPage : listFilter === "past" ? loadedPastPage : loadedCancelledPage;
+  const activeHeading = listFilter === "upcoming" ? "Próximas reuniões" : listFilter === "past" ? "Reuniões anteriores" : "Reuniões canceladas";
+  const activeEmptyMessage = listFilter === "upcoming" ? "Nenhuma reunião futura por enquanto." : listFilter === "past" ? "Nenhuma reunião anterior por enquanto." : "Nenhuma reunião cancelada.";
+  const activeMoreLabel = listFilter === "upcoming" ? "Ver mais reuniões" : listFilter === "past" ? "Ver mais histórico" : "Ver mais canceladas";
 
   const checkGraphAvailability = useCallback(async (force = false) => {
     if (previewMode || availabilityCheckRef.current) return;
@@ -409,9 +451,9 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
       {graphAvailability !== "checking" && graphAvailability !== "consent-required" ? <Button type="button" variant="quiet" disabled={previewMode} onClick={() => void checkGraphAvailability(true)}>Verificar novamente</Button> : null}
     </section> : null}
 
-    {notificationIssue ? <PageIssue issue={notificationIssue} /> : unread.length ? <section aria-label="Atualizações recentes" className="flex min-w-0 flex-col gap-2 py-1 sm:flex-row sm:items-start sm:gap-5">
+    {notificationIssue ? <PageIssue issue={notificationIssue} /> : unread.length ? <section aria-label="Atualizações recentes" className="flex min-w-0 flex-col gap-2 py-1 xl:flex-row xl:items-start xl:gap-5">
       <div className="flex shrink-0 items-baseline gap-2"><h2 className="text-type-label font-semibold text-nite-text-primary">Atualizações</h2><span className="text-type-metadata text-nite-brand-primary">{unread.length} novas recentes</span></div>
-      <ul className="grid min-w-0 flex-1 gap-1 sm:grid-cols-2">
+      <ul className="grid min-w-0 flex-1 gap-1 xl:grid-cols-2">
         {unread.map((notification) => <li key={notification.id} className="flex min-w-0 items-center justify-between gap-2 text-type-metadata">
           <button type="button" onClick={() => { void markRead(notification); const meeting = allMeetings.find((item) => item.id === notification.meetingId); if (meeting) setDetail({ meeting, cancelConfirm: false, busy: false, feedback: "" }); }} className="min-w-0 truncate text-left text-nite-text-secondary underline decoration-nite-border-strong underline-offset-4 hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">{notificationText[notification.type] ?? "Atualização da reunião"} · {notification.title}</button>
           <button type="button" aria-label={`Marcar atualização de ${notification.title} como lida`} onClick={() => void markRead(notification)} disabled={previewMode} className="min-h-9 shrink-0 rounded-control px-2 text-nite-text-muted hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:text-nite-text-muted">Lida</button>
@@ -421,38 +463,26 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
 
     {pendingInviteSection}
 
-    <section aria-labelledby="upcoming-meetings-heading" id="proximas">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="upcoming-meetings-heading" className="font-display text-type-section-title text-nite-text-primary">Próximas reuniões</h2>
+    <div className="min-w-0 space-y-4">
+      <div role="group" aria-label="Filtro temporal das reuniões" className="flex w-full max-w-full gap-0.5 overflow-x-auto rounded-control bg-nite-surface-subtle p-0.5 sm:w-fit sm:gap-1 sm:p-1">
+        {(["upcoming", "past", "cancelled"] as const).map((scope) => {
+          const label = scope === "upcoming" ? "Próximas" : scope === "past" ? "Anteriores" : "Canceladas";
+          const selected = listFilter === scope;
+          return <button key={scope} type="button" aria-pressed={selected} onClick={() => setListFilter(scope)} className={`min-h-10 min-w-0 flex-1 whitespace-nowrap rounded-control px-1 transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus motion-reduce:transition-none sm:flex-none sm:px-3 ${selected ? "bg-nite-background font-medium text-nite-text-primary shadow-sm" : "text-nite-text-secondary hover:bg-nite-background/60 hover:text-nite-text-primary"}`}><span className="text-type-metadata sm:text-type-body-compact">{label}</span></button>;
+        })}
       </div>
-      <PageIssue issue={upcomingIssue} />
-      {upcomingIssue ? null : visibleUpcoming.length ? <ul>
-        {visibleUpcoming.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} viewerId={viewerId} previewMode={previewMode} graphConsentRequired={graphConsentRequired} onDetails={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} onRespond={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} />)}
-      </ul> : <p className="py-2 text-type-body-compact text-nite-text-secondary">{pendingInvites.length ? "Os encontros que aguardam sua resposta estão listados acima." : "Nenhuma reunião futura por enquanto."}</p>}
-      {upcoming && (loadedUpcomingPage + 1) * upcoming.size < upcoming.total ? <button type="button" onClick={() => void loadMoreMeetings("upcoming")} disabled={loadingMore !== null || previewMode} aria-busy={loadingMore === "upcoming"} className="mt-3 inline-flex min-h-10 items-center rounded-control px-3 text-type-body-compact font-medium text-nite-text-secondary underline underline-offset-4 hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-wait disabled:text-nite-text-muted">{loadingMore === "upcoming" ? "Carregando reuniões…" : "Ver mais reuniões"}</button> : null}
-    </section>
 
-    <section aria-labelledby="past-meetings-heading" id="historico">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="past-meetings-heading" className="font-display text-type-section-title text-nite-text-primary">Reuniões anteriores</h2>
-      </div>
-      <PageIssue issue={pastIssue} />
-      {pastIssue ? null : visiblePast.length ? <ul>
-        {visiblePast.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} viewerId={viewerId} previewMode={previewMode} graphConsentRequired={graphConsentRequired} onDetails={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} onRespond={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} />)}
-      </ul> : <p className="py-2 text-type-body-compact text-nite-text-secondary">Nenhuma reunião anterior por enquanto.</p>}
-      {past && (loadedPastPage + 1) * past.size < past.total ? <button type="button" onClick={() => void loadMoreMeetings("past")} disabled={loadingMore !== null || previewMode} aria-busy={loadingMore === "past"} className="mt-3 inline-flex min-h-10 items-center rounded-control px-3 text-type-body-compact font-medium text-nite-text-secondary underline underline-offset-4 hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-wait disabled:text-nite-text-muted">{loadingMore === "past" ? "Carregando histórico…" : "Ver mais histórico"}</button> : null}
-    </section>
-
-    <section aria-labelledby="cancelled-meetings-heading" id="canceladas">
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="cancelled-meetings-heading" className="font-display text-type-section-title text-nite-text-primary">Reuniões canceladas</h2>
-      </div>
-      <CancelledIssue issue={cancelledIssue} />
-      {cancelledIssue ? null : visibleCancelled.length ? <ul>
-        {visibleCancelled.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} viewerId={viewerId} previewMode={previewMode} graphConsentRequired={graphConsentRequired} onDetails={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} onRespond={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} />)}
-      </ul> : <p className="py-2 text-type-body-compact text-nite-text-secondary">Nenhuma reunião cancelada.</p>}
-      {cancelled && (loadedCancelledPage + 1) * cancelled.size < cancelled.total ? <button type="button" onClick={() => void loadMoreMeetings("cancelled")} disabled={loadingMore !== null || previewMode} aria-busy={loadingMore === "cancelled"} className="mt-3 inline-flex min-h-10 items-center rounded-control px-3 text-type-body-compact font-medium text-nite-text-secondary underline underline-offset-4 hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-wait disabled:text-nite-text-muted">{loadingMore === "cancelled" ? "Carregando reuniões…" : "Ver mais canceladas"}</button> : null}
-    </section>
+      <section aria-labelledby="selected-meetings-heading" id={listFilter === "upcoming" ? "proximas" : listFilter === "past" ? "historico" : "canceladas"}>
+        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="selected-meetings-heading" className="font-display text-type-section-title text-nite-text-primary">{activeHeading}</h2>
+        </div>
+        {listFilter === "cancelled" ? <CancelledIssue issue={activeIssue} /> : <PageIssue issue={activeIssue} />}
+        {activeIssue ? null : activeMeetings.length ? <ul id="meeting-list" className="mt-2 sm:mt-3">
+          {activeMeetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} viewerId={viewerId} previewMode={previewMode} graphConsentRequired={graphConsentRequired} onDetails={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} onRespond={(item) => setDetail({ meeting: item, cancelConfirm: false, busy: false, feedback: "" })} />)}
+        </ul> : <p className="py-2 text-type-body-compact text-nite-text-secondary">{listFilter === "upcoming" && pendingInvites.length ? "Os encontros que aguardam sua resposta estão listados acima." : activeEmptyMessage}</p>}
+        {activePage && (activePageNumber + 1) * activePage.size < activePage.total ? <button type="button" onClick={() => void loadMoreMeetings(listFilter)} disabled={loadingMore !== null || previewMode} aria-busy={loadingMore === listFilter} className="mt-3 inline-flex min-h-10 items-center rounded-control px-3 text-type-body-compact font-medium text-nite-text-secondary underline underline-offset-4 hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-wait disabled:text-nite-text-muted">{loadingMore === listFilter ? "Carregando reuniões…" : activeMoreLabel}</button> : null}
+      </section>
+    </div>
 
     {editor ? <MeetingEditorDialog key={editor.key} open mode={editor.mode} meetingMode={editor.meetingMode} meeting={editor.meeting} viewerId={viewerId} previewMode={previewMode} previewCandidates={previewCandidates} onOpenChange={(open) => { if (!open) setEditor(null); }} onSaved={handleEditorSaved} onAuthorizationRequired={() => router.push("/reunioes/erro-403")} /> : null}
 

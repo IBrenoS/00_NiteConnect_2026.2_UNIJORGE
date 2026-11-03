@@ -286,7 +286,7 @@ class MeetingCreationTest extends ProjectTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
         mvc.perform(get("/api/v1/meetings").with(token(MEMBER)).param("scope", "past"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
-        mvc.perform(get("/api/v1/meetings").with(token(MEMBER)).param("scope", "cancelled"))
+        mvc.perform(get("/api/v1/meetings").with(token(MEMBER)).param("scope", "cancelled").param("page", "0").param("size", "20"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].id").value(meetingId.toString()))
                 .andExpect(jsonPath("$.items[0].status").value("CANCELADA"));

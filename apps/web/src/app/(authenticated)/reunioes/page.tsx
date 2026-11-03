@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
 import { getMeetingNotifications, getMeetings } from "../../../lib/meetings/data";
 import { meetingGraphHelpHref } from "../../../lib/meetings/graph-help-link";
 import type { MeetingIssue } from "../../../lib/meetings/contracts";
-import { parseMeetingJoinFeedback } from "../../../lib/meetings/meeting-join-feedback";
+import { meetingJoinErrorHref, parseMeetingJoinFeedback } from "../../../lib/meetings/meeting-join-feedback";
 import { MeetingsWorkspace } from "../../../components/meetings/meetings-workspace";
 
 export const metadata: Metadata = { title: "Reuniões" };
@@ -22,6 +23,7 @@ function pageNumber(value: string | string[] | undefined): number {
 export default async function MeetingsPage({ searchParams }: { searchParams: SearchParams }) {
   const [session, params, requestHeaders] = await Promise.all([requireAuthenticatedNiteSession(), searchParams, headers()]);
   const joinFeedback = parseMeetingJoinFeedback(params.feedback);
+  if (joinFeedback) redirect(meetingJoinErrorHref(joinFeedback));
   const upcomingPage = pageNumber(params.upcomingPage);
   const pastPage = pageNumber(params.pastPage);
   const cancelledPage = pageNumber(params.cancelledPage);
