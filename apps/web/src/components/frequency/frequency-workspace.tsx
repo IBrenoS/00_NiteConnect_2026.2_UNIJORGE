@@ -196,7 +196,7 @@ function HistoryRows({ page, pageNumber, params, emptyLabel = "Nenhuma reunião 
   if (!page || page.items.length === 0) return <p className="py-5 text-type-body-compact text-nite-text-muted">{emptyLabel}</p>;
   const pageCount = Math.ceil(page.total / page.size);
   return <>
-    <ol className="divide-y divide-nite-border-soft border-y border-nite-border-soft" aria-label="Histórico de Frequência">
+    <ol className="grid min-w-0" aria-label="Histórico de Frequência">
       {page.items.map((item, index) => {
         const status = historyStatus(item);
         const presentation = personal ? historyPresentation(item) : null;

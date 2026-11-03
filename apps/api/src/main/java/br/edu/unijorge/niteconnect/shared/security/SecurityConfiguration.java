@@ -62,7 +62,7 @@ public class SecurityConfiguration {
                                 "/api/v1/me/frequency/summary", "/api/v1/me/frequency/history",
                                 "/api/v1/me/frequency/open-lists").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/agenda/events", "/api/v1/agenda/events/*/session", "/api/v1/agenda/events/*/close", "/api/v1/agenda/events/*/cancel",
-                                "/api/v1/meetings", "/api/v1/meetings/*/cancel", "/api/v1/me/notifications/*/read",
+                                "/api/v1/meetings", "/api/v1/meetings/*/cancel", "/api/v1/meetings/*/teams-link", "/api/v1/me/notifications/*/read",
                                 "/api/v1/me/attendance/check-in", "/api/v1/me/attendance/check-out", "/api/v1/me/attendance/*/return",
                                 "/api/v1/attendance/lists", "/api/v1/attendance/lists/*/qr/renew",
                                 "/api/v1/attendance/lists/*/finalize", "/api/v1/attendance/lists/*/cancel",

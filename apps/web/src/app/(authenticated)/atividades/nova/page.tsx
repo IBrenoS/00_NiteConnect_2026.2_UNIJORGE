@@ -15,7 +15,7 @@ export default async function NewActivityPage() {
   const capability = await getMyActivityCapabilities(session.bearer);
 
   return <main className="mx-auto w-full max-w-3xl min-w-0 space-y-7 px-4 py-7 sm:px-7 sm:py-10 lg:px-9">
-    <Link href="/atividades" className="text-type-body-compact font-medium text-nite-brand-primary underline underline-offset-4 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Voltar para minhas atividades</Link>
+    <Link href="/atividades" className="relative -top-2 text-type-body-compact font-medium text-nite-brand-primary underline underline-offset-4 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Voltar para minhas atividades</Link>
     <header className="space-y-2">
       <h1 className="font-display text-type-page-title text-nite-text-primary">Nova atividade</h1>
       <p className="max-w-prose text-type-body-compact text-nite-text-secondary">Crie uma atividade independente para acompanhar seu próprio trabalho.</p>

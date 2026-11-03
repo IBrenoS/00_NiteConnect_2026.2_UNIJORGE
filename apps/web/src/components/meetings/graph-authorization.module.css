@@ -1,0 +1,282 @@
+.page {
+  --canvas: #070d17;
+  --surface: #0c1422;
+  --text: #f4f7fc;
+  --muted: #d0d9e8;
+  --subtle: #94a6bf;
+  --blue: #1682ff;
+  --line: rgba(112, 145, 190, .7);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse at 51% 48%, rgba(16, 30, 49, .32), transparent 57%),
+    radial-gradient(ellipse at 13% 14%, rgba(15, 67, 132, .18), transparent 34%),
+    linear-gradient(126deg, #080f1a 0%, #070d17 48%, #090f19 100%);
+  font-family: var(--font-sora), var(--font-geist), sans-serif;
+}
+
+.page::before,
+.page::after {
+  position: absolute;
+  z-index: -1;
+  width: min(52vw, 800px);
+  height: 300px;
+  border: 1px solid rgba(34, 112, 223, .29);
+  content: "";
+  pointer-events: none;
+}
+
+.page::before {
+  top: -178px;
+  left: -185px;
+  border-radius: 0 0 88% 0 / 0 0 76% 0;
+  background: linear-gradient(158deg, rgba(13, 34, 64, .72), rgba(11, 27, 49, .22) 68%, transparent 69%);
+  box-shadow: 0 12px 38px rgba(0, 57, 142, .1);
+  transform: rotate(-7deg);
+}
+
+.page::after {
+  right: -190px;
+  bottom: -198px;
+  border-radius: 88% 0 0 0 / 78% 0 0 0;
+  background: linear-gradient(325deg, rgba(11, 39, 75, .2), transparent 67%);
+  box-shadow: 0 -10px 40px rgba(0, 57, 142, .08);
+  transform: rotate(-5deg);
+}
+
+.header {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  padding: 18px clamp(22px, 3vw, 50px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 17px;
+  white-space: nowrap;
+}
+
+.brandIcon { width: 54px; height: 42px; flex: none; }
+.brandDivider { width: 1px; height: 34px; background: rgba(205, 220, 240, .62); }
+.brandName { color: var(--text); font-family: var(--font-geist), sans-serif; font-size: 26px; letter-spacing: -.04em; }
+.brandName strong { font-weight: 750; }
+
+.content {
+  display: flex;
+  width: 100%;
+  max-width: 1500px;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  align-self: center;
+  padding: clamp(18px, 3.2vh, 34px) 24px clamp(36px, 6vh, 62px);
+  text-align: center;
+}
+
+.illustration {
+  display: block;
+  width: min(100%, 1000px);
+  height: auto;
+  flex: none;
+  margin: 0 auto clamp(10px, 1.5vh, 16px);
+  overflow: visible;
+}
+
+.errorPill {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 22px;
+  border: 1px solid rgba(67, 145, 245, .55);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(20, 42, 70, .72), rgba(10, 21, 36, .42));
+  box-shadow: inset 0 1px rgba(160, 204, 255, .14), 0 0 24px rgba(20, 106, 228, .08);
+  color: #63adff;
+  font-family: var(--font-geist), sans-serif;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.title {
+  max-width: 1260px;
+  margin: 20px 0 18px;
+  color: var(--text);
+  font-family: var(--font-sora), sans-serif;
+  font-size: clamp(30px, 3.3vw, 42px);
+  font-weight: 720;
+  letter-spacing: -.035em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.description {
+  max-width: 1240px;
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-geist), sans-serif;
+  font-size: clamp(16px, 1.65vw, 23px);
+  font-weight: 400;
+  letter-spacing: -.015em;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.technicalCode {
+  margin: 20px 0 0;
+  color: var(--subtle);
+  font-family: var(--font-geist), sans-serif;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  margin-top: clamp(30px, 4.6vh, 46px);
+}
+
+.button {
+  display: inline-flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 30px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-geist), sans-serif;
+  font-size: 19px;
+  font-weight: 620;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.button:focus-visible {
+  outline: 3px solid #a9d2ff;
+  outline-offset: 4px;
+}
+
+.primaryButton {
+  min-width: 344px;
+  background: linear-gradient(112deg, #218aff, #0765ef);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .2), 0 8px 22px rgba(0, 94, 238, .14);
+}
+
+.primaryButton:hover { background: linear-gradient(112deg, #3797ff, #1374ff); }
+.primaryButton:active { transform: translateY(1px); background: #075bd4; }
+
+.secondaryButton {
+  min-width: 326px;
+  border-color: var(--line);
+  background: rgba(8, 15, 25, .34);
+  box-shadow: inset 0 1px rgba(235, 243, 255, .04);
+}
+
+.secondaryButton:hover:not(:disabled) { border-color: #8bbcf3; background: rgba(31, 53, 82, .55); }
+.secondaryButton:active:not(:disabled) { transform: translateY(1px); background: rgba(21, 39, 63, .75); }
+.secondaryButton:disabled { cursor: progress; opacity: .8; }
+.buttonIcon { width: 29px; height: 29px; flex: none; color: #b9d7ff; }
+.spinning { animation: rotate 1.2s linear infinite; }
+
+.statusMessage {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+  color: #8ebfff;
+  font-family: var(--font-geist), sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.note {
+  max-width: 1040px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-family: var(--font-geist), sans-serif;
+  font-size: 18px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+@keyframes rotate { to { transform: rotate(360deg); } }
+
+:global(html[data-theme="light"]) .page {
+  --canvas: #eff5fd;
+  --surface: #f8fbff;
+  --text: #102039;
+  --muted: #3d4e66;
+  --subtle: #657892;
+  --line: rgba(77, 108, 149, .72);
+  background:
+    radial-gradient(ellipse at 52% 46%, rgba(181, 211, 248, .5), transparent 56%),
+    radial-gradient(ellipse at 12% 12%, rgba(186, 218, 255, .65), transparent 38%),
+    linear-gradient(126deg, #f4f8fe 0%, #edf4fc 50%, #f8fbff 100%);
+}
+
+:global(html[data-theme="light"]) .page::before {
+  border-color: rgba(38, 116, 222, .2);
+  background: linear-gradient(158deg, rgba(211, 231, 255, .9), rgba(220, 237, 255, .2) 68%, transparent 69%);
+}
+
+:global(html[data-theme="light"]) .page::after {
+  border-color: rgba(38, 116, 222, .18);
+  background: linear-gradient(325deg, rgba(207, 228, 255, .45), transparent 67%);
+}
+
+:global(html[data-theme="light"]) .errorPill {
+  border-color: rgba(38, 116, 222, .4);
+  background: linear-gradient(180deg, rgba(226, 239, 255, .92), rgba(242, 248, 255, .8));
+  color: #075ec7;
+}
+
+:global(html[data-theme="light"]) .secondaryButton { background: rgba(250, 252, 255, .48); }
+:global(html[data-theme="light"]) .secondaryButton:hover:not(:disabled) { background: #e4effd; }
+:global(html[data-theme="light"]) .buttonIcon { color: #1769ca; }
+:global(html[data-theme="light"]) .statusMessage { color: #185fae; }
+
+@media (max-width: 700px) {
+  .header { min-height: 76px; padding: 15px 21px; }
+  .brand { gap: 12px; }
+  .brandIcon { width: 42px; height: 34px; }
+  .brandDivider { height: 29px; }
+  .brandName { font-size: 21px; }
+  .content { padding: 16px 20px 38px; }
+  .illustration { width: 100%; max-width: 540px; margin-bottom: 8px; }
+  .errorPill { min-height: 40px; padding-inline: 18px; font-size: 18px; }
+  .title { max-width: 560px; margin: 18px 0 14px; font-size: clamp(29px, 7.5vw, 37px); line-height: 1.19; }
+  .description { max-width: 560px; font-size: 16px; line-height: 1.58; }
+  .technicalCode { margin-top: 16px; font-size: 15px; overflow-wrap: anywhere; }
+  .actions { max-width: 460px; flex-direction: column; gap: 12px; margin-top: 27px; }
+  .button { width: 100%; min-width: 0; min-height: 56px; border-radius: 12px; padding-inline: 20px; font-size: 17px; }
+  .statusMessage { margin-top: 12px; font-size: 14px; }
+  .note { max-width: 540px; margin-top: 14px; font-size: 15px; line-height: 1.55; }
+}
+
+@media (max-width: 360px) {
+  .header { padding-inline: 17px; }
+  .content { padding-inline: 17px; }
+  .brandName { font-size: 19px; }
+  .brand { gap: 10px; }
+  .illustration { margin-top: 7px; }
+  .title { font-size: 29px; }
+  .actions { margin-top: 23px; }
+  .button { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button { transition: none; }
+  .spinning { animation: none; }
+}

@@ -3,6 +3,8 @@ package br.edu.unijorge.niteconnect.meetings.api;
 import br.edu.unijorge.niteconnect.meetings.domain.CalendarResponseStatus;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingInviteStatus;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingMode;
+import br.edu.unijorge.niteconnect.meetings.domain.MeetingProviderKind;
+import br.edu.unijorge.niteconnect.meetings.domain.MeetingProviderState;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,7 +23,8 @@ public final class MeetingContracts {
                          @NotBlank @Size(max = 200) String title,
                          OffsetDateTime startsAt,
                          @Positive Integer plannedDurationMinutes,
-                         @NotNull List<UUID> inviteeIds) { }
+                         @NotNull List<UUID> inviteeIds,
+                         MeetingProviderKind provider) { }
 
     public record Update(@Positive long expectedVersion,
                          @NotBlank @Size(max = 200) String title,
@@ -36,7 +39,8 @@ public final class MeetingContracts {
     public record Invitee(UUID memberId, String name, MeetingInviteStatus internalStatus,
                           CalendarResponseStatus calendarResponseStatus, Instant respondedAt, long version) { }
 
-    public record MeetingView(UUID id, MeetingMode mode, MeetingStatus status, String title,
+    public record MeetingView(UUID id, MeetingMode mode, MeetingStatus status, MeetingProviderKind provider,
+                              MeetingProviderState providerState, String title,
                               Instant startsAt, int plannedDurationMinutes, Instant plannedEndsAt,
                               Instant actualStartsAt, Instant actualEndsAt, Long actualDurationSeconds,
                               UUID organizerMemberId, String organizerName, List<Invitee> invitees,
@@ -62,4 +66,18 @@ public final class MeetingContracts {
     public record AttendanceParticipant(UUID memberId, String name, Long attendanceSeconds) { }
 
     public record ShareLink(String path, String text) { }
+
+    public record LinkTeamsMeeting(@Positive long expectedVersion,
+                                   @NotBlank @Size(max = 2048) String joinUrl) { }
+
+    public record TeamsContinuation(String action, String actionUrl, List<String> instructions,
+                                    String timeZone, Instant startsAt, Instant endsAt) {
+        public TeamsContinuation { instructions = List.copyOf(instructions); }
+    }
+
+    public record CalendarCapabilities(List<String> allowedOnlineMeetingProviders,
+                                       String defaultOnlineMeetingProvider,
+                                       boolean supportsTeamsForBusiness) {
+        public CalendarCapabilities { allowedOnlineMeetingProviders = List.copyOf(allowedOnlineMeetingProviders); }
+    }
 }

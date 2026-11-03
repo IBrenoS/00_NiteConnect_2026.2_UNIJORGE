@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isAuthConfigured } from "./config";
+import { isAuthConfigured, meetingsGraphConsentScope } from "./config";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -29,4 +29,21 @@ describe("isAuthConfigured", () => {
 
     expect(isAuthConfigured()).toBe(false);
   });
+});
+
+describe("meetingsGraphConsentScope", () => {
+  it("converte o escopo delegado da API para o recurso /.default", () => {
+    expect(meetingsGraphConsentScope("api://22222222-2222-4222-8222-222222222222/access_as_user"))
+      .toBe("api://22222222-2222-4222-8222-222222222222/.default");
+  });
+
+  it("preserva URIs de recurso com caminho e remove somente o escopo final", () => {
+    expect(meetingsGraphConsentScope("https://api.example.edu/nite/access_as_user"))
+      .toBe("https://api.example.edu/nite/.default");
+  });
+
+  it.each([undefined, "", "not-a-scope", "api://resource/access_as_user?next=evil", "api://resource/"])(
+    "rejeita configuração inválida (%s)",
+    (scope) => expect(meetingsGraphConsentScope(scope)).toBeNull(),
+  );
 });

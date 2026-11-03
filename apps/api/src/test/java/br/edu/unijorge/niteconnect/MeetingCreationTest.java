@@ -22,9 +22,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Import(MeetingCreationTest.ProviderConfig.class)
@@ -38,6 +40,29 @@ class MeetingCreationTest extends ProjectTestSupport {
     @jakarta.annotation.Resource FakeMeetingProvider provider;
 
     @BeforeEach void resetProvider() { provider.reset(); }
+
+    @Test void activeMemberCanCheckCalendarCapabilitiesWithoutCreatingMeeting() throws Exception {
+        mvc.perform(get("/api/v1/meetings/calendar/capabilities").with(token(MEMBER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowedOnlineMeetingProviders[0]").value("teamsForBusiness"))
+                .andExpect(jsonPath("$.defaultOnlineMeetingProvider").value("teamsForBusiness"))
+                .andExpect(jsonPath("$.supportsTeamsForBusiness").value(true))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")));
+
+        assertThat(provider.capabilitiesCalls).isEqualTo(1);
+        assertThat(provider.capabilitiesAssertion).isNotBlank();
+        assertThat(provider.createCalls).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.meetings", Integer.class)).isZero();
+    }
+
+    @Test void inactiveMemberCannotCheckCalendarCapabilities() throws Exception {
+        jdbc.update("update nite_connect.members set status='DESLIGADO' where id=?", MEMBER);
+
+        mvc.perform(get("/api/v1/meetings/calendar/capabilities").with(token(MEMBER)))
+                .andExpect(status().isForbidden());
+
+        assertThat(provider.capabilitiesCalls).isZero();
+    }
 
     @Test void activeMemberCreatesImmediateMeetingWithSixtyMinuteEstimate() throws Exception {
         mvc.perform(post("/api/v1/meetings").with(token(MEMBER))
@@ -55,6 +80,152 @@ class MeetingCreationTest extends ProjectTestSupport {
         assertThat(jdbc.queryForObject("select planned_ends_at - starts_at = interval '60 minutes' from nite_connect.meetings where organizer_member_id=?", Boolean.class, MEMBER)).isTrue();
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_invites where meeting_id=(select id from nite_connect.meetings where organizer_member_id=?) and internal_status='PENDENTE'", Integer.class, MEMBER)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_notifications where recipient_member_id=? and notification_type='CONVITE_RECEBIDO'", Integer.class, OTHER)).isEqualTo(1);
+    }
+
+    @Test void teamsLinkCreationIsInternalAndIdempotentUntilOrganizerLinksARealUrl() throws Exception {
+        String body = """
+                {"mode":"IMMEDIATE","provider":"TEAMS_LINK","title":"Conversa imediata",
+                 "startsAt":null,"plannedDurationMinutes":null,"inviteeIds":["%s"]}
+                """.formatted(OTHER);
+
+        var first = mvc.perform(post("/api/v1/meetings").with(token(MEMBER)).header("Idempotency-Key", "teams-link-create-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.provider").value("TEAMS_LINK"))
+                .andExpect(jsonPath("$.providerState").value("AGUARDANDO_CRIACAO_NO_TEAMS"))
+                .andExpect(jsonPath("$.status").value("AGUARDANDO_TEAMS"))
+                .andExpect(jsonPath("$.joinUrl").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        mvc.perform(post("/api/v1/meetings").with(token(MEMBER)).header("Idempotency-Key", "teams-link-create-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(first.split("\"id\":\"")[1].split("\"")[0]));
+
+        assertThat(provider.createCalls).isZero();
+        assertThat(jdbc.queryForObject("select graph_transaction_id is null from nite_connect.meeting_provider_operations where idempotency_key='teams-link-create-1'", Boolean.class)).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_notifications where recipient_member_id=?", Integer.class, OTHER)).isZero();
+    }
+
+    @Test void concurrentTeamsLinkCreationWithSameKeyPersistsOneInternalMeeting() throws Exception {
+        String body = """
+                {"mode":"SCHEDULED","provider":"TEAMS_LINK","title":"Agendamento manual",
+                 "startsAt":"2030-01-01T09:00:00-03:00","plannedDurationMinutes":30,"inviteeIds":[]}
+                """;
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            var request = (java.util.concurrent.Callable<Integer>) () -> {
+                ready.countDown();
+                start.await();
+                return mvc.perform(post("/api/v1/meetings").with(token(MEMBER)).header("Idempotency-Key", "teams-link-concurrent")
+                                .contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andReturn().getResponse().getStatus();
+            };
+            var first = executor.submit(request);
+            var second = executor.submit(request);
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(List.of(first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(200, 201);
+            assertThat(jdbc.queryForObject("select count(*) from nite_connect.meetings where provider='TEAMS_LINK'", Integer.class)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_provider_operations where operation_type='CREATE' and idempotency_key='teams-link-concurrent'", Integer.class)).isEqualTo(1);
+            assertThat(provider.createCalls).isZero();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test void scheduledContinuationUsesEncodedOfficialTeamsLinkAndActiveInvitees() throws Exception {
+        String body = """
+                {"mode":"SCHEDULED","provider":"TEAMS_LINK","title":"Plano semanal NITE",
+                 "startsAt":"2026-11-05T10:00:00-03:00","plannedDurationMinutes":30,"inviteeIds":["%s"]}
+                """.formatted(OTHER);
+        mvc.perform(post("/api/v1/meetings").with(token(MEMBER)).header("Idempotency-Key", "teams-link-scheduled-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+        UUID meetingId = meetingId();
+
+        mvc.perform(get("/api/v1/meetings/" + meetingId + "/teams-continuation").with(token(MEMBER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.action").value("PREENCHER_AGENDAMENTO_NO_TEAMS"))
+                .andExpect(jsonPath("$.actionUrl").value(org.hamcrest.Matchers.containsString("https://teams.microsoft.com/l/meeting/new?subject=Plano%20semanal%20NITE")))
+                .andExpect(jsonPath("$.actionUrl").value(org.hamcrest.Matchers.containsString("startTime=2026-11-05T10%3A00%3A00-03%3A00")))
+                .andExpect(jsonPath("$.actionUrl").value(org.hamcrest.Matchers.containsString("attendees=" + OTHER + "%40unijorge.com.br")))
+                .andExpect(jsonPath("$.timeZone").value("America/Bahia"));
+        mvc.perform(get("/api/v1/meetings/" + meetingId + "/teams-continuation").with(token(OTHER)))
+                .andExpect(status().isNotFound());
+        assertThat(provider.createCalls).isZero();
+    }
+
+    @Test void teamsLinkRequiresOfficialUrlAndEnablesJoinOnlyAfterOrganizerConfirmsIt() throws Exception {
+        createTeamsLinkImmediate("teams-link-attach-1");
+        UUID meetingId = meetingId();
+        String validJoinUrl = "https://teams.microsoft.com/meet/123456789?p=sampleToken";
+
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/teams-link").with(token(OTHER))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1,\"joinUrl\":\"" + validJoinUrl + "\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/teams-link").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1,\"joinUrl\":\"https://teams.microsoft.com.evil.example/meet/123?p=x\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/meetings/" + meetingId + "/join").with(token(OTHER)))
+                .andExpect(status().isConflict());
+
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/teams-link").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1,\"joinUrl\":\"" + validJoinUrl + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AGENDADA"))
+                .andExpect(jsonPath("$.providerState").value("LINK_CONFIRMADO_PELO_ORGANIZADOR"))
+                .andExpect(jsonPath("$.joinUrl").doesNotExist());
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/teams-link").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1,\"joinUrl\":\"" + validJoinUrl + "\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/meetings/" + meetingId + "/join").with(token(OTHER)))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string("Location", validJoinUrl));
+
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_notifications where recipient_member_id=? and notification_type='CONVITE_RECEBIDO'", Integer.class, OTHER)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_history where meeting_id=? and action='LINK_TEAMS_VINCULADO'", Integer.class, meetingId)).isEqualTo(1);
+        assertThat(provider.createCalls).isZero();
+    }
+
+    @Test void teamsLinkUpdateAndCancellationAreLocalAndExplicitlyUnsynchronized() throws Exception {
+        createTeamsLinkImmediate("teams-link-mutation-1");
+        UUID meetingId = meetingId();
+        String link = "https://teams.microsoft.com/meet/123456789?p=sampleToken";
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/teams-link").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"joinUrl\":\"" + link + "\"}"))
+                .andExpect(status().isOk());
+        String updateBody = """
+                {"expectedVersion":2,"title":"Título alterado","startsAt":"2030-01-01T12:00:00-03:00",
+                 "plannedDurationMinutes":45,"inviteeIds":["%s"]}
+                """.formatted(OTHER);
+        mvc.perform(patch("/api/v1/meetings/" + meetingId).with(token(MEMBER)).header("Idempotency-Key", "teams-link-update-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(updateBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AGUARDANDO_TEAMS"))
+                .andExpect(jsonPath("$.providerState").value("ATUALIZACAO_PENDENTE_NO_TEAMS"))
+                .andExpect(jsonPath("$.version").value(3));
+        mvc.perform(patch("/api/v1/meetings/" + meetingId).with(token(MEMBER)).header("Idempotency-Key", "teams-link-update-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(updateBody))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(3));
+        mvc.perform(get("/api/v1/meetings/" + meetingId + "/join").with(token(OTHER)))
+                .andExpect(status().isConflict());
+        assertThat(provider.updateCalls).isZero();
+
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/teams-link").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":3,\"joinUrl\":\"" + link + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AGENDADA"));
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/cancel").with(token(MEMBER))
+                        .header("Idempotency-Key", "teams-link-cancel-1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":4,\"comment\":\"Encerramento de teste\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELADA"))
+                .andExpect(jsonPath("$.providerState").value("CANCELAMENTO_NAO_SINCRONIZADO"));
+        assertThat(provider.cancelCalls).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.meeting_history where meeting_id=? and action in ('REUNIAO_ALTERADA_LOCAL_TEAMS','REUNIAO_CANCELADA_LOCAL_TEAMS')", Integer.class, meetingId)).isEqualTo(2);
     }
 
     @Test void scheduledMeetingPersistsOffsetAsUtcAndUsesRequestedEstimate() throws Exception {
@@ -99,6 +270,26 @@ class MeetingCreationTest extends ProjectTestSupport {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/meetings/" + meetingId).with(token(OTHER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.invitees.length()").value(1))
                 .andExpect(jsonPath("$.invitees[0].memberId").value(OTHER.toString()));
+    }
+
+    @Test void cancelledMeetingIsSeparatedFromUpcomingAndPastLists() throws Exception {
+        createImmediate("meeting-cancelled-scope-create");
+        UUID meetingId = meetingId();
+
+        mvc.perform(post("/api/v1/meetings/" + meetingId + "/cancel").with(token(MEMBER))
+                        .header("Idempotency-Key", "meeting-cancelled-scope-cancel")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":1,\"comment\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELADA"));
+
+        mvc.perform(get("/api/v1/meetings").with(token(MEMBER)).param("scope", "upcoming"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/v1/meetings").with(token(MEMBER)).param("scope", "past"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/v1/meetings").with(token(MEMBER)).param("scope", "cancelled"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(meetingId.toString()))
+                .andExpect(jsonPath("$.items[0].status").value("CANCELADA"));
     }
 
     @Test void retryWithSameIdempotencyKeyDoesNotCreateAnotherGraphEvent() throws Exception {
@@ -318,6 +509,16 @@ class MeetingCreationTest extends ProjectTestSupport {
                 .andExpect(status().isCreated());
     }
 
+    private void createTeamsLinkImmediate(String key) throws Exception {
+        mvc.perform(post("/api/v1/meetings").with(token(MEMBER)).header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"mode":"IMMEDIATE","provider":"TEAMS_LINK","title":"Teste Teams Link",
+                                 "startsAt":null,"plannedDurationMinutes":null,"inviteeIds":["%s"]}
+                                """.formatted(OTHER)))
+                .andExpect(status().isCreated());
+    }
+
     private UUID meetingId() {
         return jdbc.queryForObject("select id from nite_connect.meetings where organizer_member_id=? order by created_at desc limit 1", UUID.class, MEMBER);
     }
@@ -328,6 +529,8 @@ class MeetingCreationTest extends ProjectTestSupport {
     }
 
     static class FakeMeetingProvider implements MeetingProvider {
+        int capabilitiesCalls;
+        String capabilitiesAssertion;
         int createCalls;
         int updateCalls;
         int cancelCalls;
@@ -335,9 +538,11 @@ class MeetingCreationTest extends ProjectTestSupport {
         MeetingProvider.AttendanceReport attendanceReport;
         final List<UUID> transactionIds = new CopyOnWriteArrayList<>();
 
-        void reset() { createCalls = 0; updateCalls = 0; cancelCalls = 0; failure = null; attendanceReport = null; transactionIds.clear(); }
+        void reset() { capabilitiesCalls = 0; capabilitiesAssertion = null; createCalls = 0; updateCalls = 0; cancelCalls = 0; failure = null; attendanceReport = null; transactionIds.clear(); }
 
         @Override public Capabilities capabilities(String userAssertion) {
+            capabilitiesCalls++;
+            capabilitiesAssertion = userAssertion;
             return new Capabilities(List.of("teamsForBusiness"), "teamsForBusiness");
         }
 

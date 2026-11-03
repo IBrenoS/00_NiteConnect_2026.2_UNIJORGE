@@ -4,11 +4,14 @@ import br.edu.unijorge.niteconnect.meetings.application.MeetingProviderException
 import com.microsoft.aad.msal4j.ConfidentialClientApplication;
 import com.microsoft.aad.msal4j.OnBehalfOfParameters;
 import com.microsoft.aad.msal4j.UserAssertion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Set;
 
 public final class MsalGraphTokenAcquirer implements GraphTokenAcquirer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MsalGraphTokenAcquirer.class);
     private final ConfidentialClientApplication application;
 
     public MsalGraphTokenAcquirer(ConfidentialClientApplication application) {
@@ -29,7 +32,12 @@ public final class MsalGraphTokenAcquirer implements GraphTokenAcquirer {
         } catch (MeetingProviderException exception) {
             throw exception;
         } catch (RuntimeException exception) {
-            throw new MeetingProviderException("OBO_AUTHORIZATION_REQUIRED", MeetingProviderException.FailureKind.FORBIDDEN, null);
+            MeetingProviderException classified = GraphTokenFailureClassifier.classify(exception);
+            GraphTokenFailureClassifier.Diagnostic diagnostic = GraphTokenFailureClassifier.diagnostic(exception);
+            LOGGER.warn("Graph OBO token acquisition failed: code={}, msalErrorCode={}, httpStatus={}, correlationId={}, exceptionType={}",
+                    classified.code(), diagnostic.msalErrorCode(), diagnostic.httpStatus(), diagnostic.correlationId(),
+                    diagnostic.exceptionType());
+            throw classified;
         }
     }
 }

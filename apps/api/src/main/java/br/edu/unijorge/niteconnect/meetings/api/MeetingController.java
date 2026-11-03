@@ -40,6 +40,11 @@ public class MeetingController {
         this.meetings = meetings;
     }
 
+    @GetMapping("/calendar/capabilities")
+    MeetingContracts.CalendarCapabilities calendarCapabilities(@AuthenticationPrincipal Jwt jwt) {
+        return meetings.calendarCapabilities(identities.member(jwt), jwt.getTokenValue());
+    }
+
     @GetMapping("/invitees")
     PageResult<MemberDirectory.Candidate> invitees(@AuthenticationPrincipal Jwt jwt,
                                                    @RequestParam String q,
@@ -60,6 +65,19 @@ public class MeetingController {
     @GetMapping("/{meetingId}")
     MeetingContracts.MeetingView get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID meetingId) {
         return meetings.get(identities.member(jwt), meetingId);
+    }
+
+    @GetMapping("/{meetingId}/teams-continuation")
+    MeetingContracts.TeamsContinuation teamsContinuation(@AuthenticationPrincipal Jwt jwt,
+                                                         @PathVariable UUID meetingId) {
+        return meetings.teamsContinuation(identities.member(jwt), meetingId);
+    }
+
+    @PostMapping("/{meetingId}/teams-link")
+    MeetingContracts.MeetingView linkTeamsMeeting(@AuthenticationPrincipal Jwt jwt,
+                                                   @PathVariable UUID meetingId,
+                                                   @Valid @RequestBody MeetingContracts.LinkTeamsMeeting input) {
+        return meetings.linkTeamsMeeting(identities.member(jwt), meetingId, input);
     }
 
     @PostMapping

@@ -4,6 +4,8 @@ import br.edu.unijorge.niteconnect.meetings.application.MeetingProvider;
 import br.edu.unijorge.niteconnect.meetings.domain.CalendarResponseStatus;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingInviteStatus;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingMode;
+import br.edu.unijorge.niteconnect.meetings.domain.MeetingProviderKind;
+import br.edu.unijorge.niteconnect.meetings.domain.MeetingProviderState;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingStatus;
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,6 +39,235 @@ public class MeetingRepository {
     public MeetingRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     @Transactional
+    public LocalCreateResult prepareTeamsLink(UUID organizerId, String idempotencyKey, String requestHash,
+                                              MeetingMode mode, String title, Instant startsAt,
+                                              int plannedDurationMinutes, List<UUID> inviteeIds,
+                                              String requestPayload, Instant now) {
+        String lockKey = organizerId + ":CREATE:" + idempotencyKey;
+        jdbc.query("select pg_advisory_xact_lock(hashtextextended(?, 0))", rs -> {
+            if (rs.next()) rs.getObject(1);
+            return null;
+        }, lockKey);
+        OperationReference reference = lockOperation(organizerId, "CREATE", idempotencyKey);
+        var existing = List.<ExistingCreate>of();
+        if (reference != null) {
+            lockMeeting(reference.meetingId());
+            existing = jdbc.query("""
+                select m.id,m.provider,o.request_hash,o.state
+                  from nite_connect.meeting_provider_operations o
+                  join nite_connect.meetings m on m.id=o.meeting_id
+                 where o.id=?
+                """, (rs, row) -> new ExistingCreate(rs.getObject("id", UUID.class),
+                MeetingProviderKind.valueOf(rs.getString("provider")), rs.getString("request_hash").trim(),
+                rs.getString("state")), reference.operationId());
+        }
+        if (!existing.isEmpty()) {
+            ExistingCreate prior = existing.getFirst();
+            if (!prior.requestHash().equals(requestHash) || prior.provider() != MeetingProviderKind.TEAMS_LINK) {
+                throw ApiException.conflict("Idempotency-Key já foi usado com outro conteúdo");
+            }
+            return new LocalCreateResult(prior.meetingId(), false);
+        }
+
+        UUID meetingId = UUID.randomUUID();
+        UUID operationId = UUID.randomUUID();
+        Instant plannedEndsAt = startsAt.plus(Duration.ofMinutes(plannedDurationMinutes));
+        jdbc.update("""
+                insert into nite_connect.meetings(id,organizer_member_id,mode,provider,provider_state,title,status,starts_at,
+                    planned_duration_minutes,planned_ends_at,created_at,updated_at)
+                values (?,?,?,'TEAMS_LINK','AGUARDANDO_CRIACAO_NO_TEAMS',?,'AGUARDANDO_TEAMS',?,?,?,?,?)
+                """, meetingId, organizerId, mode.name(), title, Timestamp.from(startsAt), plannedDurationMinutes,
+                Timestamp.from(plannedEndsAt), Timestamp.from(now), Timestamp.from(now));
+        jdbc.update("""
+                insert into nite_connect.meeting_provider_operations(id,meeting_id,organizer_member_id,operation_type,
+                    idempotency_key,request_hash,graph_transaction_id,state,request_payload,attempt_count,created_at,updated_at,completed_at)
+                values (?,?,?,'CREATE',?,?,null,'CONFIRMADA',?::jsonb,0,?,?,?)
+                """, operationId, meetingId, organizerId, idempotencyKey, requestHash, requestPayload,
+                Timestamp.from(now), Timestamp.from(now), Timestamp.from(now));
+        for (UUID inviteeId : inviteeIds) {
+            jdbc.update("insert into nite_connect.meeting_invites(id,meeting_id,member_id) values (?,?,?)",
+                    UUID.randomUUID(), meetingId, inviteeId);
+        }
+        jdbc.update("""
+                insert into nite_connect.meeting_history(id,meeting_id,actor_member_id,action,meeting_version,after_snapshot,occurred_at)
+                values (?,?,?,'REUNIAO_PREPARADA_TEAMS',1,
+                    jsonb_build_object('provider',?::text,'providerState',?::text,'title',?::text,
+                        'startsAt',?::timestamptz,'plannedDurationMinutes',?::integer),?)
+                """, UUID.randomUUID(), meetingId, organizerId, MeetingProviderKind.TEAMS_LINK.name(),
+                MeetingProviderState.AGUARDANDO_CRIACAO_NO_TEAMS.name(), title, Timestamp.from(startsAt),
+                plannedDurationMinutes, Timestamp.from(now));
+        return new LocalCreateResult(meetingId, true);
+    }
+
+    @Transactional
+    public MeetingRecord confirmTeamsLink(UUID organizerId, UUID meetingId, long expectedVersion,
+                                          String joinUrl, Instant now) {
+        MeetingRecord current = jdbc.query("select * from nite_connect.meetings where id=? and organizer_member_id=? for update",
+                MEETING, meetingId, organizerId).stream().findFirst().orElseThrow(ApiException::notFound);
+        if (current.provider() != MeetingProviderKind.TEAMS_LINK) throw ApiException.conflict("A reunião não usa vínculo manual do Teams");
+        if (current.status() == MeetingStatus.AGENDADA && joinUrl.equals(current.joinUrl())) return current;
+        if (current.status() != MeetingStatus.AGUARDANDO_TEAMS) throw ApiException.conflict("A reunião não está aguardando confirmação no Teams");
+        if (current.version() != expectedVersion) throw ApiException.conflict("Reunião alterada; consulte a versão atual");
+
+        int changed = jdbc.update("""
+                update nite_connect.meetings
+                   set status='AGENDADA',provider_state='LINK_CONFIRMADO_PELO_ORGANIZADOR',join_url=?,
+                       version=version+1,updated_at=?
+                 where id=? and organizer_member_id=? and version=? and status='AGUARDANDO_TEAMS'
+                """, joinUrl, Timestamp.from(now), meetingId, organizerId, expectedVersion);
+        if (changed != 1) throw ApiException.conflict("Reunião alterada; consulte a versão atual");
+        long nextVersion = expectedVersion + 1;
+        jdbc.update("""
+                insert into nite_connect.meeting_history(id,meeting_id,actor_member_id,action,meeting_version,
+                    before_snapshot,after_snapshot,occurred_at)
+                values (?,?,?,'LINK_TEAMS_VINCULADO',?,jsonb_build_object('providerState',?::text),
+                    jsonb_build_object('providerState',?::text),?)
+                """, UUID.randomUUID(), meetingId, organizerId, nextVersion, current.providerState().name(),
+                MeetingProviderState.LINK_CONFIRMADO_PELO_ORGANIZADOR.name(), Timestamp.from(now));
+        if (current.providerState() == MeetingProviderState.ATUALIZACAO_PENDENTE_NO_TEAMS) {
+            notifyInvitees(meetingId, "REUNIAO_ALTERADA", "teams-link-updated:" + meetingId + ":" + nextVersion, now);
+        } else {
+            notifyInvitees(meetingId, "CONVITE_RECEBIDO", "teams-link-invite:" + meetingId + ":" + nextVersion, now);
+        }
+        return requireMeetingForActor(meetingId, organizerId);
+    }
+
+    @Transactional
+    public MeetingRecord updateTeamsLinkLocally(UUID organizerId, UUID meetingId, String idempotencyKey,
+                                                String requestHash, String requestPayload, long expectedVersion,
+                                                String title, Instant startsAt, int duration, List<UUID> inviteeIds,
+                                                Instant now) {
+        String lockKey = organizerId + ":UPDATE:" + idempotencyKey;
+        advisoryLock(lockKey);
+        MeetingRecord replay = completedLocalMutation(organizerId, meetingId, "UPDATE", idempotencyKey, requestHash);
+        if (replay != null) return replay;
+        MeetingRecord current = jdbc.query("select * from nite_connect.meetings where id=? and organizer_member_id=? for update",
+                MEETING, meetingId, organizerId).stream().findFirst().orElseThrow(ApiException::notFound);
+        requireTeamsLinkMutation(current, expectedVersion);
+        long nextVersion = expectedVersion + 1;
+        persistLocalMutation(organizerId, meetingId, "UPDATE", idempotencyKey, requestHash, requestPayload, expectedVersion, now);
+        int changed = jdbc.update("""
+                update nite_connect.meetings set status='AGUARDANDO_TEAMS',
+                    provider_state='ATUALIZACAO_PENDENTE_NO_TEAMS',title=?,starts_at=?,planned_duration_minutes=?,
+                    planned_ends_at=?,join_url=null,version=version+1,updated_at=?
+                 where id=? and version=? and status in ('AGENDADA','AGUARDANDO_TEAMS')
+                """, title, Timestamp.from(startsAt), duration, Timestamp.from(startsAt.plus(Duration.ofMinutes(duration))),
+                Timestamp.from(now), meetingId, expectedVersion);
+        if (changed != 1) throw ApiException.conflict("Reunião alterada; consulte a versão atual");
+        synchronizeInvitees(meetingId, inviteeIds, now);
+        jdbc.update("""
+                insert into nite_connect.meeting_history(id,meeting_id,actor_member_id,action,meeting_version,
+                    before_snapshot,after_snapshot,occurred_at)
+                values (?,?,?,'REUNIAO_ALTERADA_LOCAL_TEAMS',?,
+                    jsonb_build_object('title',?::text,'startsAt',?::timestamptz,'plannedDurationMinutes',?::integer),
+                    jsonb_build_object('title',?::text,'startsAt',?::timestamptz,'plannedDurationMinutes',?::integer,
+                        'providerState',?::text),?)
+                """, UUID.randomUUID(), meetingId, organizerId, nextVersion, current.title(), Timestamp.from(current.startsAt()),
+                current.plannedDurationMinutes(), title, Timestamp.from(startsAt), duration,
+                MeetingProviderState.ATUALIZACAO_PENDENTE_NO_TEAMS.name(), Timestamp.from(now));
+        return requireMeetingForActor(meetingId, organizerId);
+    }
+
+    @Transactional
+    public MeetingRecord cancelTeamsLinkLocally(UUID organizerId, UUID meetingId, String idempotencyKey,
+                                                String requestHash, String requestPayload, long expectedVersion,
+                                                String comment, Instant now) {
+        String lockKey = organizerId + ":CANCEL:" + idempotencyKey;
+        advisoryLock(lockKey);
+        MeetingRecord replay = completedLocalMutation(organizerId, meetingId, "CANCEL", idempotencyKey, requestHash);
+        if (replay != null) return replay;
+        MeetingRecord current = jdbc.query("select * from nite_connect.meetings where id=? and organizer_member_id=? for update",
+                MEETING, meetingId, organizerId).stream().findFirst().orElseThrow(ApiException::notFound);
+        requireTeamsLinkMutation(current, expectedVersion);
+        long nextVersion = expectedVersion + 1;
+        persistLocalMutation(organizerId, meetingId, "CANCEL", idempotencyKey, requestHash, requestPayload, expectedVersion, now);
+        int changed = jdbc.update("""
+                update nite_connect.meetings set status='CANCELADA',provider_state='CANCELAMENTO_NAO_SINCRONIZADO',
+                    version=version+1,updated_at=? where id=? and version=? and status in ('AGENDADA','AGUARDANDO_TEAMS')
+                """, Timestamp.from(now), meetingId, expectedVersion);
+        if (changed != 1) throw ApiException.conflict("Reunião alterada; consulte a versão atual");
+        jdbc.update("""
+                insert into nite_connect.meeting_history(id,meeting_id,actor_member_id,action,meeting_version,after_snapshot,occurred_at)
+                values (?,?,?,'REUNIAO_CANCELADA_LOCAL_TEAMS',?,jsonb_build_object('comment',?::text,
+                    'providerState',?::text),?)
+                """, UUID.randomUUID(), meetingId, organizerId, nextVersion, comment,
+                MeetingProviderState.CANCELAMENTO_NAO_SINCRONIZADO.name(), Timestamp.from(now));
+        notifyInvitees(meetingId, "REUNIAO_CANCELADA", "teams-link-cancelled:" + meetingId + ":" + nextVersion, now);
+        return requireMeetingForActor(meetingId, organizerId);
+    }
+
+    private void advisoryLock(String lockKey) {
+        jdbc.query("select pg_advisory_xact_lock(hashtextextended(?, 0))", rs -> {
+            if (rs.next()) rs.getObject(1);
+            return null;
+        }, lockKey);
+    }
+
+    private OperationReference lockOperation(UUID organizerId, String operationType, String idempotencyKey) {
+        return jdbc.query("""
+                select id,meeting_id from nite_connect.meeting_provider_operations
+                 where organizer_member_id=? and operation_type=? and idempotency_key=?
+                 for update
+                """, (rs, row) -> new OperationReference(rs.getObject("id", UUID.class),
+                rs.getObject("meeting_id", UUID.class)), organizerId, operationType, idempotencyKey)
+                .stream().findFirst().orElse(null);
+    }
+
+    private void lockMeeting(UUID meetingId) {
+        if (jdbc.query("select id from nite_connect.meetings where id=? for update",
+                (rs, row) -> rs.getObject("id", UUID.class), meetingId).isEmpty()) {
+            throw ApiException.notFound();
+        }
+    }
+
+    private void lockOperationAndMeeting(UUID operationId, UUID meetingId) {
+        if (jdbc.query("select id from nite_connect.meeting_provider_operations where id=? for update",
+                (rs, row) -> rs.getObject("id", UUID.class), operationId).isEmpty()) {
+            throw ApiException.conflict("Operação da reunião indisponível");
+        }
+        lockMeeting(meetingId);
+    }
+
+    private MeetingRecord completedLocalMutation(UUID organizerId, UUID meetingId, String type, String key, String requestHash) {
+        OperationReference reference = lockOperation(organizerId, type, key);
+        if (reference == null) return null;
+        lockMeeting(reference.meetingId());
+        var rows = jdbc.query("""
+                select m.*,o.request_hash operation_request_hash,o.state operation_state
+                  from nite_connect.meeting_provider_operations o
+                  join nite_connect.meetings m on m.id=o.meeting_id
+                 where o.id=?
+                """, (rs, row) -> new LocalMutationReplay(MEETING.mapRow(rs, row),
+                rs.getString("operation_request_hash").trim(), rs.getString("operation_state")), reference.operationId());
+        if (rows.isEmpty()) return null;
+        LocalMutationReplay prior = rows.getFirst();
+        if (!prior.meeting().id().equals(meetingId) || !prior.requestHash().equals(requestHash)) {
+            throw ApiException.conflict("Idempotency-Key já foi usado com outro conteúdo");
+        }
+        if (!prior.operationState().equals("CONFIRMADA")) throw ApiException.conflict("Operação local anterior não foi confirmada");
+        return prior.meeting();
+    }
+
+    private void persistLocalMutation(UUID organizerId, UUID meetingId, String type, String key,
+                                      String requestHash, String payload, long expectedVersion, Instant now) {
+        jdbc.update("""
+                insert into nite_connect.meeting_provider_operations(id,meeting_id,organizer_member_id,operation_type,
+                    idempotency_key,request_hash,graph_transaction_id,state,expected_version,request_payload,
+                    attempt_count,created_at,updated_at,completed_at)
+                values (?,?,?,?,?,?,null,'CONFIRMADA',?,?::jsonb,0,?,?,?)
+                """, UUID.randomUUID(), meetingId, organizerId, type, key, requestHash, expectedVersion,
+                payload, Timestamp.from(now), Timestamp.from(now), Timestamp.from(now));
+    }
+
+    private void requireTeamsLinkMutation(MeetingRecord current, long expectedVersion) {
+        if (current.provider() != MeetingProviderKind.TEAMS_LINK) throw ApiException.conflict("A reunião não usa vínculo manual do Teams");
+        if (current.status() != MeetingStatus.AGENDADA && current.status() != MeetingStatus.AGUARDANDO_TEAMS) {
+            throw ApiException.conflict("Somente reuniões ativas podem ser alteradas");
+        }
+        if (current.version() != expectedVersion) throw ApiException.conflict("Reunião alterada; consulte a versão atual");
+    }
+
+    @Transactional
     public Reservation reserveCreate(UUID organizerId, String idempotencyKey, String requestHash,
                                      MeetingMode mode, String title, Instant startsAt,
                                      int plannedDurationMinutes,
@@ -46,15 +278,19 @@ public class MeetingRepository {
             return null;
         }, lockKey);
 
-        var existing = jdbc.query("""
+        OperationReference reference = lockOperation(organizerId, "CREATE", idempotencyKey);
+        var existing = List.<Reservation>of();
+        if (reference != null) {
+            lockMeeting(reference.meetingId());
+            existing = jdbc.query("""
                 select m.id meeting_id,m.organizer_member_id,o.id operation_id,o.graph_transaction_id,o.request_hash,o.state operation_state,
                        m.status meeting_status,m.mode,m.title,m.starts_at,m.planned_duration_minutes,m.planned_ends_at,
                        m.created_at,o.lease_until,o.retry_after
                   from nite_connect.meeting_provider_operations o
                   join nite_connect.meetings m on m.id=o.meeting_id
-                 where o.organizer_member_id=? and o.operation_type='CREATE' and o.idempotency_key=?
-                 for update of o,m
-                """, RESERVATION, organizerId, idempotencyKey);
+                 where o.id=?
+                """, RESERVATION, reference.operationId());
+        }
         if (!existing.isEmpty()) {
             Reservation prior = existing.getFirst();
             if (!prior.requestHash().equals(requestHash)) throw ApiException.conflict("Idempotency-Key já foi usado com outro conteúdo");
@@ -108,6 +344,7 @@ public class MeetingRepository {
 
     @Transactional
     public void confirmCreate(Reservation reservation, UUID organizerId, MeetingProvider.CreatedMeeting created, Instant now) {
+        lockOperationAndMeeting(reservation.operationId(), reservation.meetingId());
         int changed = jdbc.update("""
                 update nite_connect.meetings
                    set status='AGENDADA',graph_event_id=?,graph_online_meeting_id=?,join_url=?,graph_change_key=?,
@@ -189,14 +426,17 @@ public class MeetingRepository {
     public MutationReservation reserveMutation(UUID organizerId, UUID meetingId, String operationType,
                                                String idempotencyKey, String requestHash, String requestPayload,
                                                long expectedVersion, Instant now) {
-        var priorRows = jdbc.query("""
+        OperationReference reference = lockOperation(organizerId, operationType, idempotencyKey);
+        var priorRows = List.<MutationReservation>of();
+        if (reference != null) {
+            lockMeeting(reference.meetingId());
+            priorRows = jdbc.query("""
                 select o.id operation_id,o.meeting_id,o.organizer_member_id,o.graph_transaction_id,o.request_hash,o.state operation_state,
                        o.retry_after,o.lease_until,o.expected_version,m.status meeting_status,m.version,m.graph_event_id,
                        m.graph_change_key,m.join_url,m.title,m.starts_at,m.planned_duration_minutes,m.planned_ends_at,m.mode
                   from nite_connect.meeting_provider_operations o
                   join nite_connect.meetings m on m.id=o.meeting_id
-                 where o.organizer_member_id=? and o.operation_type=? and o.idempotency_key=?
-                 for update of o,m
+                 where o.id=?
                 """, (rs, row) -> new MutationReservation(
                 rs.getObject("meeting_id", UUID.class), rs.getObject("organizer_member_id", UUID.class),
                 rs.getObject("operation_id", UUID.class), rs.getObject("graph_transaction_id", UUID.class),
@@ -206,7 +446,8 @@ public class MeetingRepository {
                 rs.getString("title"), rs.getTimestamp("starts_at").toInstant(), rs.getInt("planned_duration_minutes"),
                 rs.getTimestamp("planned_ends_at").toInstant(), MeetingMode.valueOf(rs.getString("mode")),
                 instant(rs.getTimestamp("retry_after")), instant(rs.getTimestamp("lease_until")), false),
-                organizerId, operationType, idempotencyKey);
+                reference.operationId());
+        }
         if (!priorRows.isEmpty()) {
             MutationReservation prior = priorRows.getFirst();
             if (!prior.meetingId().equals(meetingId) || !prior.requestHash().equals(requestHash)) {
@@ -254,6 +495,7 @@ public class MeetingRepository {
     @Transactional
     public void completeUpdate(MutationReservation operation, String title, Instant startsAt, int duration,
                                List<UUID> inviteeIds, MeetingProvider.UpdatedMeeting updated, UUID actor, Instant now) {
+        lockOperationAndMeeting(operation.operationId(), operation.meetingId());
         Set<UUID> previouslyInvited = invitees(operation.meetingId()).stream()
                 .filter(invite -> invite.internalStatus() != MeetingInviteStatus.REVOGADO)
                 .map(InviteRecord::memberId).collect(java.util.stream.Collectors.toSet());
@@ -313,6 +555,7 @@ public class MeetingRepository {
 
     @Transactional
     public void completeCancel(MutationReservation operation, UUID actor, String comment, Instant now) {
+        lockOperationAndMeeting(operation.operationId(), operation.meetingId());
         int changed = jdbc.update("""
                 update nite_connect.meetings set status='CANCELADA',last_provider_error_code=null,version=version+1,updated_at=?
                  where id=? and organizer_member_id=? and version=? and status='SINCRONIZACAO_PENDENTE'
@@ -361,13 +604,17 @@ public class MeetingRepository {
     @Transactional
     public InviteRecord respond(UUID meetingId, UUID memberId, MeetingInviteStatus response,
                                 long expectedVersion, Instant now) {
+        var meetingRows = jdbc.query("""
+                select organizer_member_id,status,version from nite_connect.meetings where id=? for update
+                """, (rs, row) -> new MeetingContext(rs.getObject("organizer_member_id", UUID.class),
+                rs.getString("status"), rs.getLong("version")), meetingId);
+        MeetingContext meeting = meetingRows.stream().findFirst().orElseThrow(ApiException::notFound);
         var rows = jdbc.query("""
-                select i.internal_status,i.internal_responded_at,i.version,i.revoked_at,m.organizer_member_id,m.status meeting_status,m.version meeting_version
-                  from nite_connect.meeting_invites i join nite_connect.meetings m on m.id=i.meeting_id
-                 where i.meeting_id=? and i.member_id=? for update of i,m
+                select internal_status,internal_responded_at,version,revoked_at
+                  from nite_connect.meeting_invites where meeting_id=? and member_id=? for update
                 """, (rs, row) -> new InviteState(MeetingInviteStatus.valueOf(rs.getString("internal_status")),
                 instant(rs.getTimestamp("internal_responded_at")), rs.getLong("version"), rs.getObject("revoked_at") != null,
-                rs.getObject("organizer_member_id", UUID.class), rs.getString("meeting_status"), rs.getLong("meeting_version")), meetingId, memberId);
+                meeting.organizerId(), meeting.status(), meeting.version()), meetingId, memberId);
         InviteState current = rows.stream().findFirst().orElseThrow(ApiException::notFound);
         if (current.status() == response) return new InviteRecord(memberId, current.status(), CalendarResponseStatus.NAO_SINCRONIZADO,
                 current.respondedAt(), current.version());
@@ -394,12 +641,23 @@ public class MeetingRepository {
 
     public PageResult<UUID> listMeetingIds(UUID actor, String scope, Instant now, int page, int size) {
         PageResult.validate(page, size);
-        String dateFilter = scope.equals("upcoming") ? "m.planned_ends_at >= ?" : "m.planned_ends_at < ?";
+        String statusFilter = scope.equals("cancelled")
+                ? "m.status='CANCELADA'"
+                : "m.status in ('AGENDADA','AGUARDANDO_TEAMS','SINCRONIZACAO_PENDENTE')";
         String relation = "(m.organizer_member_id=? or exists(select 1 from nite_connect.meeting_invites i where i.meeting_id=m.id and i.member_id=? and i.internal_status<>'REVOGADO'))";
-        String where = " from nite_connect.meetings m where m.status in ('AGENDADA','CANCELADA','SINCRONIZACAO_PENDENTE') and " + relation + " and " + dateFilter;
-        long total = jdbc.queryForObject("select count(*)" + where, Long.class, actor, actor, Timestamp.from(now));
-        List<UUID> items = jdbc.query("select m.id" + where + " order by m.starts_at " + (scope.equals("upcoming") ? "asc" : "desc")
-                        + ",m.id limit ? offset ?", (rs, row) -> rs.getObject(1, UUID.class), actor, actor, Timestamp.from(now), size, (long) page * size);
+        String where = " from nite_connect.meetings m where " + statusFilter
+                + " and (m.status<>'AGUARDANDO_TEAMS' or m.organizer_member_id=?) and " + relation;
+        List<Object> parameters = new ArrayList<>(List.of(actor, actor, actor));
+        if (scope.equals("upcoming") || scope.equals("past")) {
+            where += scope.equals("upcoming") ? " and m.planned_ends_at >= ?" : " and m.planned_ends_at < ?";
+            parameters.add(Timestamp.from(now));
+        }
+        long total = jdbc.queryForObject("select count(*)" + where, Long.class, parameters.toArray());
+        String ordering = scope.equals("cancelled") ? "m.updated_at desc" : "m.starts_at " + (scope.equals("upcoming") ? "asc" : "desc");
+        parameters.add(size);
+        parameters.add((long) page * size);
+        List<UUID> items = jdbc.query("select m.id" + where + " order by " + ordering
+                         + ",m.id limit ? offset ?", (rs, row) -> rs.getObject(1, UUID.class), parameters.toArray());
         return new PageResult<>(items, page, size, total);
     }
 
@@ -520,12 +778,19 @@ public class MeetingRepository {
 
     private static Timestamp timestamp(Instant value) { return value == null ? null : Timestamp.from(value); }
 
+    public record LocalCreateResult(UUID meetingId, boolean created) { }
+    private record OperationReference(UUID operationId, UUID meetingId) { }
+    private record MeetingContext(UUID organizerId, String status, long version) { }
+    private record ExistingCreate(UUID meetingId, MeetingProviderKind provider, String requestHash, String operationState) { }
+    private record LocalMutationReplay(MeetingRecord meeting, String requestHash, String operationState) { }
+
     public record Reservation(UUID meetingId, UUID organizerMemberId, UUID operationId, UUID graphTransactionId, String requestHash,
                               String operationState, String meetingStatus, String mode, String title,
                               Instant startsAt, int plannedDurationMinutes, Instant plannedEndsAt,
                               Instant createdAt, Instant leaseUntil, Instant retryAfter, boolean execute) { }
 
     public record MeetingRecord(UUID id, UUID organizerMemberId, MeetingMode mode, MeetingStatus status,
+                                MeetingProviderKind provider, MeetingProviderState providerState,
                                 String title, Instant startsAt, int plannedDurationMinutes, Instant plannedEndsAt,
                                 Instant actualStartsAt, Instant actualEndsAt, Long actualDurationSeconds,
                                 String graphEventId, String graphOnlineMeetingId, String joinUrl, String graphChangeKey,
@@ -567,6 +832,7 @@ public class MeetingRepository {
     private static final RowMapper<MeetingRecord> MEETING = (rs, row) -> new MeetingRecord(
             rs.getObject("id", UUID.class), rs.getObject("organizer_member_id", UUID.class),
             MeetingMode.valueOf(rs.getString("mode")), MeetingStatus.valueOf(rs.getString("status")),
+            MeetingProviderKind.valueOf(rs.getString("provider")), providerState(rs.getString("provider_state")),
             rs.getString("title"), rs.getTimestamp("starts_at").toInstant(), rs.getInt("planned_duration_minutes"),
             rs.getTimestamp("planned_ends_at").toInstant(), instant(rs.getTimestamp("actual_starts_at")),
             instant(rs.getTimestamp("actual_ends_at")), (Long) rs.getObject("actual_duration_seconds"),
@@ -576,4 +842,7 @@ public class MeetingRepository {
 
     private static Instant instant(Timestamp value) { return value == null ? null : value.toInstant(); }
     private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
+    private static MeetingProviderState providerState(String value) {
+        return value == null ? null : MeetingProviderState.valueOf(value);
+    }
 }

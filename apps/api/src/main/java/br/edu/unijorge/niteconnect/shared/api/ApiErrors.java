@@ -24,7 +24,8 @@ public class ApiErrors {
     }
     @ExceptionHandler(MeetingProviderApiException.class)
     ProblemDetail meetingProvider(MeetingProviderApiException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+        HttpStatus status = ex.authorizationFailure() ? HttpStatus.FORBIDDEN : HttpStatus.SERVICE_UNAVAILABLE;
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status,
                 "A integração Microsoft Graph não concluiu a operação.");
         problem.setProperty("code", ex.code());
         if (ex.operationId() != null) problem.setProperty("operationId", ex.operationId());

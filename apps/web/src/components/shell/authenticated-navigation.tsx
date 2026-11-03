@@ -9,6 +9,7 @@ export type AuthenticatedNavigationIcon =
   | "clock"
   | "projects"
   | "calendar"
+  | "meeting"
   | "team"
   | "report"
   | "attendance"
@@ -56,7 +57,7 @@ export function buildAuthenticatedNavigationGroups(options: NavigationOptions): 
       items: [
         { label: "Minhas atividades", icon: "activity", href: "/atividades" },
         planned("Meus projetos", "projects"),
-        planned("Agenda", "calendar"),
+        { label: "Reuniões", icon: "meeting", href: "/reunioes" },
         { label: "Frequência", icon: "attendance", href: "/frequencia" },
       ],
     },
@@ -109,7 +110,7 @@ export function buildAuthenticatedNavigationGroups(options: NavigationOptions): 
   return groups;
 }
 
-type ResendNavigationGlyph = "audience" | "broadcasts" | "logs" | "metrics" | "settings" | "templates" | "workflow";
+type ResendNavigationGlyph = "audience" | "broadcasts" | "logs" | "metrics" | "settings" | "templates" | "workflow" | "video";
 
 const resendGlyphForNiteNavigation: Record<AuthenticatedNavigationIcon, ResendNavigationGlyph> = {
   home: "metrics",
@@ -117,6 +118,7 @@ const resendGlyphForNiteNavigation: Record<AuthenticatedNavigationIcon, ResendNa
   clock: "metrics",
   projects: "workflow",
   calendar: "broadcasts",
+  meeting: "video",
   team: "audience",
   report: "metrics",
   attendance: "logs",
@@ -134,6 +136,7 @@ const resendNavigationGlyphs: Record<ResendNavigationGlyph, ReactNode> = {
   settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8.1 8.1 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8.1 8.1 0 0 1-1.8-1l-1.7.6-1.4-2.4 1.4-1.1a7.7 7.7 0 0 1 0-2.1l-1.4-1.1 1.4-2.4 1.7.6a8.1 8.1 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8.1 8.1 0 0 1 1.8 1l1.7-.6 1.4 2.4-1.4 1.1a7.7 7.7 0 0 1 0 2.1Z" /></>,
   templates: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
   workflow: <><rect x="3" y="3" width="6" height="6" rx="1.5" /><rect x="15" y="15" width="6" height="6" rx="1.5" /><path d="M21 8V7a4 4 0 0 0-4-4h-1" /><path d="M3 9v1a5 5 0 0 0 5 5h6a5 5 0 0 1 5 5v1" /></>,
+  video: <><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" /></>,
 };
 
 function Icon({ name }: { name: AuthenticatedNavigationIcon }) {

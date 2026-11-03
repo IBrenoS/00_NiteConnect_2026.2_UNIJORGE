@@ -20,6 +20,13 @@ function isApiScope(value: string | undefined): boolean {
   return Boolean(value && /^(?:api:\/\/|https:\/\/)[^\s/]+\/[^\s]+$/.test(value));
 }
 
+export function meetingsGraphConsentScope(apiScope: string | undefined): string | null {
+  if (typeof apiScope !== "string" || !isApiScope(apiScope) || /[?#]/.test(apiScope)) return null;
+  const finalSlash = apiScope.lastIndexOf("/");
+  if (finalSlash <= 0 || finalSlash === apiScope.length - 1) return null;
+  return `${apiScope.slice(0, finalSlash)}/.default`;
+}
+
 export function isAuthConfigured(): boolean {
   const tenantId = process.env.ENTRA_TENANT_ID;
   const clientId = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;

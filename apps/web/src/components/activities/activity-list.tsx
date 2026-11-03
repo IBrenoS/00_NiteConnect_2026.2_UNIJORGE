@@ -15,8 +15,19 @@ const statusStyles: Record<ActivityStatus, string> = {
   CANCELADA: "border-status-cancelled-border bg-status-cancelled-soft text-status-cancelled",
 };
 
+const statusTextStyles: Record<ActivityStatus, string> = {
+  PLANEJADA: "text-status-draft",
+  EM_EXECUCAO: "text-status-progress",
+  CONCLUIDA: "text-status-done",
+  CANCELADA: "text-status-cancelled",
+};
+
 export function ActivityStatusBadge({ status }: { status: ActivityStatus }) {
   return <span className={`inline-flex min-h-6 shrink-0 items-center whitespace-nowrap rounded-pill border px-2.5 py-1 text-type-metadata font-medium ${statusStyles[status]}`}>{activityStatusLabel[status]}</span>;
+}
+
+function ActivityStatusText({ status }: { status: ActivityStatus }) {
+  return <span className={`shrink-0 whitespace-nowrap text-type-body-compact font-medium ${statusTextStyles[status]}`}>{activityStatusLabel[status]}</span>;
 }
 
 export function formatActivityDate(value: string): string {
@@ -56,8 +67,8 @@ export function ActivityRows({
           </Link>
           <p className="mt-1 break-words text-type-metadata text-nite-text-secondary">{projectTitle ?? (activity.projectId ? "Projeto associado" : "Atividade independente")}</p>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 lg:max-w-[min(42%,28rem)] lg:justify-end">
-          <ActivityStatusBadge status={activity.status} />
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 lg:max-w-[min(42%,28rem)] lg:justify-end lg:gap-x-[35px]">
+          <ActivityStatusText status={activity.status} />
           {activity.dueOn ? <time className="whitespace-nowrap text-type-metadata text-nite-text-secondary" dateTime={activity.dueOn}>Prazo {formatActivityDate(activity.dueOn)}</time> : <span className="whitespace-nowrap text-type-metadata text-nite-text-secondary">Sem prazo definido</span>}
           {activity.overdue ? <span className="whitespace-nowrap rounded-pill border border-status-warning-border bg-status-warning-soft px-2.5 py-1 text-type-metadata font-medium text-status-warning">Em atraso</span> : null}
         </div>

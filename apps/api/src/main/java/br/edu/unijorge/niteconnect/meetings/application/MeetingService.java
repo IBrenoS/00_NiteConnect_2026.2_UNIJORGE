@@ -5,6 +5,8 @@ import br.edu.unijorge.niteconnect.identity.application.IdentityDirectory;
 import br.edu.unijorge.niteconnect.meetings.api.MeetingContracts;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingMode;
 import br.edu.unijorge.niteconnect.meetings.domain.MeetingInviteStatus;
+import br.edu.unijorge.niteconnect.meetings.domain.MeetingProviderKind;
+import br.edu.unijorge.niteconnect.meetings.domain.MeetingProviderState;
 import br.edu.unijorge.niteconnect.meetings.infrastructure.MeetingRepository;
 import br.edu.unijorge.niteconnect.meetings.infrastructure.MeetingsGraphProperties;
 import br.edu.unijorge.niteconnect.members.application.MemberDirectory;
@@ -21,6 +23,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -54,6 +59,17 @@ public class MeetingService {
         this.graphProperties = graphProperties;
     }
 
+    public MeetingContracts.CalendarCapabilities calendarCapabilities(UUID actor, String apiAccessToken) {
+        access.requireActive(actor);
+        try {
+            var capabilities = provider.capabilities(apiAccessToken);
+            return new MeetingContracts.CalendarCapabilities(capabilities.allowedOnlineMeetingProviders(),
+                    capabilities.defaultOnlineMeetingProvider(), capabilities.supportsTeamsForBusiness());
+        } catch (MeetingProviderException exception) {
+            throw new MeetingProviderApiException(null, exception);
+        }
+    }
+
     public CreateResult create(UUID organizerId, String apiAccessToken, String idempotencyKey,
                                MeetingContracts.Create input) {
         Member organizer = access.requireActive(organizerId);
@@ -82,9 +98,15 @@ public class MeetingService {
         List<UUID> inviteeIds = normalizeInvitees(input.inviteeIds(), organizerId);
         List<Member> invitees = new ArrayList<>(inviteeIds.size());
         for (UUID inviteeId : inviteeIds) invitees.add(access.requireActive(inviteeId));
-        String payload = requestPayload(mode, title, mode == MeetingMode.IMMEDIATE ? null : startsAt, duration, inviteeIds);
+        MeetingProviderKind providerKind = input.provider() == null ? MeetingProviderKind.GRAPH : input.provider();
+        String payload = requestPayload(providerKind, mode, title, mode == MeetingMode.IMMEDIATE ? null : startsAt, duration, inviteeIds);
         String requestHash = hash(payload);
         Instant now = clock.instant();
+        if (providerKind == MeetingProviderKind.TEAMS_LINK) {
+            MeetingRepository.LocalCreateResult prepared = repository.prepareTeamsLink(organizerId, key, requestHash,
+                    mode, title, startsAt, duration, inviteeIds, payload, now);
+            return new CreateResult(prepared.created() ? 201 : 200, view(prepared.meetingId(), organizerId), null);
+        }
         MeetingRepository.Reservation operation = repository.reserveCreate(organizerId, key, requestHash, mode,
                 title, startsAt, duration, inviteeIds, payload, now);
 
@@ -117,7 +139,7 @@ public class MeetingService {
                 return pending(operation, "RESULTADO_INDETERMINADO", retryAt);
             }
             repository.markCreateFailed(operation, exception.code(), exception.providerHttpStatus(), clock.instant());
-            throw new MeetingProviderApiException(operation.operationId(), exception.code());
+            throw new MeetingProviderApiException(operation.operationId(), exception);
         }
     }
 
@@ -146,6 +168,13 @@ public class MeetingService {
         String payload = mutationPayload("UPDATE", meetingId, input.expectedVersion(), title, startsAt, duration, inviteeIds, null);
         String requestHash = hash(payload);
         Instant now = clock.instant();
+        MeetingRepository.MeetingRecord existing = repository.requireMeetingForActor(meetingId, organizerId);
+        if (!existing.organizerMemberId().equals(organizerId)) throw ApiException.notFound();
+        if (existing.provider() == MeetingProviderKind.TEAMS_LINK) {
+            MeetingRepository.MeetingRecord updated = repository.updateTeamsLinkLocally(organizerId, meetingId, key,
+                    requestHash, payload, input.expectedVersion(), title, startsAt, duration, inviteeIds, now);
+            return new MutationResult(200, view(updated.id(), organizerId), null);
+        }
         MeetingRepository.MutationReservation operation = repository.reserveMutation(organizerId, meetingId, "UPDATE", key,
                 requestHash, payload, input.expectedVersion(), now);
         if (!operation.execute()) {
@@ -175,6 +204,13 @@ public class MeetingService {
         String comment = input.comment() == null ? "" : input.comment().strip();
         String payload = mutationPayload("CANCEL", meetingId, input.expectedVersion(), null, null, 0, List.of(), comment);
         Instant now = clock.instant();
+        MeetingRepository.MeetingRecord existing = repository.requireMeetingForActor(meetingId, organizerId);
+        if (!existing.organizerMemberId().equals(organizerId)) throw ApiException.notFound();
+        if (existing.provider() == MeetingProviderKind.TEAMS_LINK) {
+            MeetingRepository.MeetingRecord cancelled = repository.cancelTeamsLinkLocally(organizerId, meetingId, key,
+                    hash(payload), payload, input.expectedVersion(), comment, now);
+            return new MutationResult(200, view(cancelled.id(), organizerId), null);
+        }
         MeetingRepository.MutationReservation operation = repository.reserveMutation(organizerId, meetingId, "CANCEL", key,
                 hash(payload), payload, input.expectedVersion(), now);
         if (!operation.execute()) {
@@ -203,7 +239,7 @@ public class MeetingService {
             return pendingMutation(operation, type, retryAt);
         }
         repository.markMutationFailed(operation, exception.code(), exception.providerHttpStatus(), clock.instant());
-        throw new MeetingProviderApiException(operation.operationId(), exception.code());
+        throw new MeetingProviderApiException(operation.operationId(), exception);
     }
 
     private MutationResult pendingMutation(MeetingRepository.MutationReservation operation, String type) {
@@ -226,7 +262,9 @@ public class MeetingService {
 
     public PageResult<MeetingContracts.MeetingView> list(UUID actor, String scope, int page, int size) {
         access.requireActive(actor);
-        if (!"upcoming".equals(scope) && !"past".equals(scope)) throw ApiException.invalid("scope deve ser upcoming ou past");
+        if (!"upcoming".equals(scope) && !"past".equals(scope) && !"cancelled".equals(scope)) {
+            throw ApiException.invalid("scope deve ser upcoming, past ou cancelled");
+        }
         PageResult<UUID> ids = repository.listMeetingIds(actor, scope, clock.instant(), page, size);
         return new PageResult<>(ids.items().stream().map(id -> view(id, actor)).toList(), page, size, ids.total());
     }
@@ -245,6 +283,53 @@ public class MeetingService {
     public String joinUrl(UUID actor, UUID meetingId) {
         access.requireActive(actor);
         return repository.requireJoinUrl(meetingId, actor);
+    }
+
+    public MeetingContracts.TeamsContinuation teamsContinuation(UUID actor, UUID meetingId) {
+        access.requireActive(actor);
+        MeetingRepository.MeetingRecord meeting = repository.requireMeetingForActor(meetingId, actor);
+        if (!meeting.organizerMemberId().equals(actor)) throw ApiException.notFound();
+        if (meeting.provider() != MeetingProviderKind.TEAMS_LINK || meeting.status() != br.edu.unijorge.niteconnect.meetings.domain.MeetingStatus.AGUARDANDO_TEAMS) {
+            throw ApiException.conflict("A reunião não está aguardando uma ação no Teams");
+        }
+        String teamsHome = "https://teams.microsoft.com/";
+        if (meeting.providerState() == MeetingProviderState.ATUALIZACAO_PENDENTE_NO_TEAMS) {
+            return new MeetingContracts.TeamsContinuation("EDITAR_REUNIAO_NO_TEAMS_E_VINCULAR_LINK", teamsHome,
+                    List.of("Edite a reunião já existente no Teams.",
+                            "Depois, copie o link oficial de participação e vincule-o novamente no NITE Connect."),
+                    "America/Bahia", meeting.startsAt(), meeting.plannedEndsAt());
+        }
+        if (meeting.mode() == MeetingMode.IMMEDIATE) {
+            return new MeetingContracts.TeamsContinuation("ABRIR_TEAMS_REUNIR_AGORA", teamsHome,
+                    List.of("No Teams, selecione Calendário > Reunir agora.",
+                            "Defina o nome, escolha Obter um link para compartilhar e copie o link.",
+                            "Volte ao NITE Connect para vincular o link oficial."),
+                    "America/Bahia", meeting.startsAt(), meeting.plannedEndsAt());
+        }
+        List<String> attendees = activeInvitees(repository.invitees(meetingId).stream()
+                .filter(invitee -> invitee.internalStatus() != MeetingInviteStatus.REVOGADO)
+                .map(MeetingRepository.InviteRecord::memberId).toList()).stream()
+                .map(Member::institutionalEmail).toList();
+        String startTime = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.startsAt().atZone(ZoneId.of("America/Bahia")));
+        String endTime = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(meeting.plannedEndsAt().atZone(ZoneId.of("America/Bahia")));
+        String actionUrl = "https://teams.microsoft.com/l/meeting/new?subject=" + encodeQuery(meeting.title())
+                + "&startTime=" + encodeQuery(startTime) + "&endTime=" + encodeQuery(endTime)
+                + (attendees.isEmpty() ? "" : "&attendees=" + encodeQuery(String.join(",", attendees)));
+        return new MeetingContracts.TeamsContinuation("PREENCHER_AGENDAMENTO_NO_TEAMS", actionUrl,
+                List.of("Confira os dados e convidados no Teams.",
+                        "Salve a reunião no calendário e copie o link oficial de participação.",
+                        "Volte ao NITE Connect para vincular o link. A abertura deste endereço não confirma o agendamento."),
+                "America/Bahia", meeting.startsAt(), meeting.plannedEndsAt());
+    }
+
+    public MeetingContracts.MeetingView linkTeamsMeeting(UUID organizerId, UUID meetingId,
+                                                          MeetingContracts.LinkTeamsMeeting input) {
+        access.requireActive(organizerId);
+        String joinUrl = input.joinUrl().strip();
+        if (!validTeamsJoinUrl(joinUrl)) throw ApiException.invalid("joinUrl deve ser um link oficial de participação do Microsoft Teams");
+        MeetingRepository.MeetingRecord linked = repository.confirmTeamsLink(organizerId, meetingId,
+                input.expectedVersion(), joinUrl, clock.instant());
+        return view(linked.id(), organizerId);
     }
 
     public MeetingContracts.ShareLink shareLink(UUID actor, UUID meetingId) {
@@ -365,7 +450,8 @@ public class MeetingService {
         List<MeetingContracts.Invitee> invitees = inviteRecords.stream().map(invite -> new MeetingContracts.Invitee(
                 invite.memberId(), names.getOrDefault(invite.memberId(), "Integrante"), invite.internalStatus(),
                 invite.calendarResponseStatus(), invite.respondedAt(), invite.version())).toList();
-        return new MeetingContracts.MeetingView(meeting.id(), meeting.mode(), meeting.status(), meeting.title(),
+        return new MeetingContracts.MeetingView(meeting.id(), meeting.mode(), meeting.status(), meeting.provider(),
+                meeting.providerState(), meeting.title(),
                 meeting.startsAt(), meeting.plannedDurationMinutes(), meeting.plannedEndsAt(),
                 meeting.actualStartsAt(), meeting.actualEndsAt(), meeting.actualDurationSeconds(),
                 meeting.organizerMemberId(), names.getOrDefault(meeting.organizerMemberId(), "Integrante"), invitees,
@@ -382,8 +468,10 @@ public class MeetingService {
         return unique.stream().sorted().toList();
     }
 
-    private String requestPayload(MeetingMode mode, String title, Instant startsAt, int duration, List<UUID> inviteeIds) {
+    private String requestPayload(MeetingProviderKind provider, MeetingMode mode, String title, Instant startsAt,
+                                  int duration, List<UUID> inviteeIds) {
         Map<String, Object> values = new LinkedHashMap<>();
+        values.put("provider", provider.name());
         values.put("mode", mode.name());
         values.put("title", title);
         values.put("startsAt", startsAt == null ? null : startsAt.toString());
@@ -413,6 +501,31 @@ public class MeetingService {
             var uri = java.net.URI.create(value);
             return "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null;
         } catch (IllegalArgumentException exception) { return false; }
+    }
+
+    private boolean validTeamsJoinUrl(String value) {
+        try {
+            var uri = java.net.URI.create(value);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || !"teams.microsoft.com".equalsIgnoreCase(uri.getHost())
+                    || uri.getPort() != -1 || uri.getUserInfo() != null || uri.getFragment() != null
+                    || uri.getRawQuery() == null) return false;
+            String path = uri.getPath();
+            if (path.matches("/meet/[0-9]+")) return hasQueryParameter(uri.getRawQuery(), "p");
+            return path.startsWith("/l/meetup-join/") && path.length() > "/l/meetup-join/".length()
+                    && hasQueryParameter(uri.getRawQuery(), "context");
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    private boolean hasQueryParameter(String query, String expectedName) {
+        return java.util.Arrays.stream(query.split("&"))
+                .map(parameter -> parameter.split("=", 2))
+                .anyMatch(pair -> pair.length == 2 && pair[0].equals(expectedName) && !pair[1].isBlank());
+    }
+
+    private String encodeQuery(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     public record CreateResult(int httpStatus, MeetingContracts.MeetingView meeting,
