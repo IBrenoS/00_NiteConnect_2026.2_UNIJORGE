@@ -54,6 +54,8 @@ export const invitedMeeting = meeting({
   invitees: [
     { memberId: previewViewerId, name: "Integrante NITE", internalStatus: "PENDENTE", calendarResponseStatus: "NAO_SINCRONIZADO", respondedAt: null, version: 0 },
     { memberId: thirdMemberId, name: "Caio Mendes", internalStatus: "ACEITO", calendarResponseStatus: "NAO_SINCRONIZADO", respondedAt: "2026-11-02T11:50:00Z", version: 1 },
+    { memberId: "87000000-0000-4000-8000-000000000005", name: "Ana Paula Santos", internalStatus: "RECUSADO", calendarResponseStatus: "NAO_SINCRONIZADO", respondedAt: "2026-11-02T12:00:00Z", version: 1 },
+    { memberId: "87000000-0000-4000-8000-000000000006", name: "João Lima", internalStatus: "REVOGADO", calendarResponseStatus: "NAO_SINCRONIZADO", respondedAt: null, version: 1 },
   ],
 });
 

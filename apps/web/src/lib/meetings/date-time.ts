@@ -29,6 +29,20 @@ export function formatMeetingTime(value: string): string {
   return Number.isNaN(date.getTime()) ? "Horário indisponível" : new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: institutionalTimeZone }).format(date);
 }
 
+export function formatMeetingTimeRange(startsAt: string, endsAt: string): string {
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "Horário indisponível";
+
+  const dayFormatter = new Intl.DateTimeFormat("en-US", { timeZone: institutionalTimeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  if (dayFormatter.format(start) === dayFormatter.format(end)) return `${formatMeetingTime(startsAt)}–${formatMeetingTime(endsAt)}`;
+
+  const startYear = new Intl.DateTimeFormat("en-US", { timeZone: institutionalTimeZone, year: "numeric" }).format(start);
+  const endYear = new Intl.DateTimeFormat("en-US", { timeZone: institutionalTimeZone, year: "numeric" }).format(end);
+  const endDate = formatMeetingDate(endsAt, { day: "numeric", month: "short", ...(startYear === endYear ? {} : { year: "numeric" }) });
+  return `${formatMeetingTime(startsAt)}–${formatMeetingTime(endsAt)} · termina em ${endDate}`;
+}
+
 export function formatMeetingDateTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Data e horário indisponíveis" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short", timeZone: institutionalTimeZone }).format(date);

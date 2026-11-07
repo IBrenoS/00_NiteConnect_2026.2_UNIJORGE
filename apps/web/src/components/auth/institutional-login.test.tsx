@@ -33,7 +33,15 @@ describe("InstitutionalLogin", () => {
     expect(html).not.toMatch(/<button[^>]*\sdisabled(?:=|>)/);
     expect(html).not.toContain("A entrada institucional ainda não está disponível nesta interface.");
     expect(html).not.toContain("integração Microsoft Entra ainda não está conectada");
-    expect(html).toContain("nite-connect-login-visual.png");
+    expect(html).toContain('autoPlay=""');
+    expect(html).toContain('muted=""');
+    expect(html).toContain('loop=""');
+    expect(html).toContain('playsInline=""');
+    expect(html).toContain('poster="/images/nite-connect-login-visual.png"');
+    expect(html).toContain('data-src="/videos/nite-connect-login.mp4"');
+    expect(html).toContain("min-[56rem]:grid-cols-[minmax(28rem,39%)_minmax(0,1fr)]");
+    expect(html).toContain("h-full min-h-svh w-full overflow-hidden");
+    expect(html).toContain("object-cover object-center");
     expect(html).toContain('alt=""');
     expect(html).not.toContain('type="email"');
     expect(html).not.toContain('type="password"');

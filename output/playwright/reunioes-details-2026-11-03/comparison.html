@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NITE Connect Reuniões | Comparação de detalhes</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px; background: #eef2f7; color: #0b1220; font: 16px/1.5 "Segoe UI", sans-serif; }
+  main { width: 2100px; max-width: 100%; margin: 0 auto; }
+  h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+  .intro { margin: 12px 0 28px; color: #475569; }
+  section { margin: 0 0 32px; padding: 0 0 28px; border-bottom: 1px solid #cbd5e1; }
+  h2 { margin: 0 0 14px; font-size: 20px; }
+  .pair { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; align-items: start; }
+  figure { margin: 0; min-width: 0; }
+  figcaption { margin-bottom: 8px; font-weight: 600; }
+  img { display: block; width: 100%; max-height: 740px; object-fit: contain; object-position: top center; background: #fff; border: 1px solid #cbd5e1; }
+  .mobile img { max-height: 760px; }
+  a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+  .take { margin: 10px 0 0; color: #475569; }
+  .before-after img { max-height: 690px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Reuniões: comparação dos detalhes</h1>
+  <p class="intro">Mobbin à esquerda e a implementação local à direita. As capturas locais usam dados sintéticos; ações de gravação, Teams e notificações permanecem desativadas na prévia.</p>
+  <section class="before-after">
+    <h2>Antes e depois da composição do modal</h2>
+    <div class="pair">
+      <figure><figcaption>Antes: detalhes anteriores</figcaption><img src="before-details-desktop-light.png" alt="Modal anterior de detalhes, Light, 1440 por 1000"></figure>
+      <figure><figcaption>Depois: detalhes anteriores</figcaption><img src="after-history-desktop-light.png" alt="Modal refinado de detalhes, Light, 1440 por 1000"></figure>
+    </div>
+  </section>
+  <section>
+    <h2>Amie: composição desktop e hierarquia dos dados</h2>
+    <div class="pair">
+      <figure><figcaption><a href="https://mobbin.com/screens/6a43b486-6bcb-40af-bedb-720fbcb44496">Amie</a> · detalhe do evento</figcaption><img src="ref-amie-desktop.png" alt="Referência Amie com popover de evento"></figure>
+      <figure><figcaption>NITE Connect · reunião anterior com link</figcaption><img src="after-history-desktop-light.png" alt="Detalhes da reunião histórica"></figure>
+    </div>
+    <p class="take">Título primeiro, contexto temporal compacto e informações do encontro agrupadas sob o cabeçalho.</p>
+  </section>
+  <section>
+    <h2>Luma: convidados e respostas</h2>
+    <div class="pair">
+      <figure><figcaption><a href="https://mobbin.com/screens/787e8052-f653-4151-9df7-924b5726d087">Luma</a> · lista de convidados</figcaption><img src="ref-luma-invitees.png" alt="Referência Luma com lista de participantes"></figure>
+      <figure><figcaption>NITE Connect · convite pendente</figcaption><img src="after-invite-desktop-light.png" alt="Detalhes do convite pendente"></figure>
+    </div>
+    <p class="take">Iniciais derivadas dos nomes, identificação da pessoa e estado da resposta interna na mesma linha.</p>
+  </section>
+  <section>
+    <h2>Zoom: ações contextuais</h2>
+    <div class="pair">
+      <figure><figcaption><a href="https://mobbin.com/screens/d71d875e-41ec-4c19-80da-231e17a72da8">Zoom</a> · convite e compartilhamento</figcaption><img src="ref-zoom-actions.png" alt="Referência Zoom para copiar convite"></figure>
+      <figure><figcaption>NITE Connect · reunião futura</figcaption><img src="after-future-desktop-light.png" alt="Ações de acesso e gestão de uma reunião futura"></figure>
+    </div>
+    <p class="take">Entrada em primeiro plano, compartilhamento em ações secundárias e gestão restrita ao organizador.</p>
+  </section>
+  <section>
+    <h2>Calendly: data, horário e duração prevista</h2>
+    <div class="pair">
+      <figure><figcaption><a href="https://mobbin.com/screens/2cd06396-7de2-4838-86e8-c57dd1ddbee9">Calendly</a> · resumo temporal</figcaption><img src="ref-calendly-time.png" alt="Referência Calendly com data e horário"></figure>
+      <figure><figcaption>NITE Connect · reunião futura em Light</figcaption><img src="after-future-desktop-light.png" alt="Cabeçalho temporal de reunião futura"></figure>
+    </div>
+    <p class="take">Data, intervalo e duração prevista aparecem juntos; nenhum valor é apresentado como duração efetiva.</p>
+  </section>
+  <section class="mobile">
+    <h2>Granola: adaptação mobile</h2>
+    <div class="pair">
+      <figure><figcaption><a href="https://mobbin.com/screens/57dab55d-86fc-4ec5-9015-6c2509c32c7b">Granola</a> · painel de participantes</figcaption><img src="ref-granola-mobile.png" alt="Referência mobile do Granola"></figure>
+      <figure><figcaption>NITE Connect · convite pendente em 360 px</figcaption><img src="after-invite-mobile-360-light.png" alt="Detalhes mobile do convite pendente"></figure>
+    </div>
+    <p class="take">A superfície vira folha inferior; conteúdo rola dentro do modal e ações ficam em alvos confortáveis ao toque.</p>
+  </section>
+  <section class="mobile">
+    <h2>Largura mínima verificada</h2>
+    <div class="pair">
+      <figure><figcaption>NITE Connect · 320 px</figcaption><img src="after-invite-mobile-320-light.png" alt="Detalhes do convite em viewport de 320 px"></figure>
+      <figure><figcaption>NITE Connect · 360 px</figcaption><img src="after-invite-mobile-360-light.png" alt="Detalhes do convite em viewport de 360 px"></figure>
+    </div>
+  </section>
+  <section>
+    <h2>Light e Dark</h2>
+    <div class="pair">
+      <figure><figcaption>Light · reunião futura</figcaption><img src="after-future-desktop-light.png" alt="Detalhes futuros em Light"></figure>
+      <figure><figcaption>Dark · reunião futura</figcaption><img src="after-future-desktop-dark.png" alt="Detalhes futuros em Dark"></figure>
+    </div>
+  </section>
+  <section>
+    <h2>Estados adicionais</h2>
+    <div class="pair">
+      <figure><figcaption>Reunião cancelada</figcaption><img src="after-cancelled-desktop-light.png" alt="Detalhes de reunião cancelada"></figure>
+      <figure><figcaption>Link Teams legado</figcaption><img src="after-history-desktop-light.png" alt="Detalhes de reunião histórica TEAMS_LINK"></figure>
+    </div>
+  </section>
+</main>
+</body>
+</html>
+
+

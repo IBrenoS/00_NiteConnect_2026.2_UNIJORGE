@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Comparação — Refinamento dos detalhes de Reuniões</title>
+    <style>
+      :root { color-scheme: light; font: 15px/1.45 system-ui, sans-serif; background: #f4f6f8; color: #17202a; }
+      body { margin: 0; padding: 28px; }
+      header { max-width: 1120px; margin: 0 auto 28px; }
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      h2 { margin: 28px 0 12px; font-size: 19px; }
+      p { margin: 0; color: #536170; }
+      .compare { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.4fr) minmax(0, 1.4fr); gap: 12px; max-width: 1440px; margin: 0 auto 24px; align-items: start; }
+      .compare figure { min-width: 0; margin: 0; padding: 10px; background: white; border: 1px solid #d8dee6; border-radius: 12px; }
+      .compare figcaption { margin: 0 0 8px; color: #283747; font-size: 13px; font-weight: 650; }
+      .compare img { display: block; width: 100%; height: auto; object-fit: contain; object-position: top; }
+      .compare .implementation img { max-height: 760px; }
+      .mobile { grid-template-columns: minmax(180px, .7fr) minmax(0, 1fr) minmax(0, 1fr); }
+      .mobile img { max-height: 820px; }
+      @media (max-width: 800px) {
+        body { padding: 16px; }
+        .compare { grid-template-columns: 1fr; }
+        .compare figure { max-width: 680px; margin: 0 auto; }
+        .compare img { max-height: 72vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Reuniões — refinamento dos detalhes</h1>
+      <p>Comparação entre capturas Mobbin aprovadas, a implementação anterior e a prévia atual. Os registros e integrantes mostrados nas capturas atuais são sintéticos; ações externas permanecem desativadas nessa prévia.</p>
+    </header>
+
+    <h2>Composição principal — Amie</h2>
+    <section class="compare">
+      <figure><figcaption>Referência aprovada</figcaption><img src="../reunioes-details-2026-11-03/ref-amie-desktop.png" alt="Captura da referência Amie"></figure>
+      <figure class="implementation"><figcaption>Antes — desktop claro</figcaption><img src="../reunioes-details-2026-11-03/after-future-desktop-light.png" alt="Versão anterior do detalhe de reunião"></figure>
+      <figure class="implementation"><figcaption>Depois — 1440 px, desktop claro</figcaption><img src="after-future-desktop-1440-light.png" alt="Versão refinada do detalhe de reunião"></figure>
+    </section>
+
+    <h2>Convidados e respostas — Luma</h2>
+    <section class="compare">
+      <figure><figcaption>Referência aprovada</figcaption><img src="../reunioes-details-2026-11-03/ref-luma-invitees.png" alt="Captura da referência Luma para convidados"></figure>
+      <figure class="implementation"><figcaption>Antes — dois convidados</figcaption><img src="../reunioes-details-2026-11-03/after-invite-desktop-light.png" alt="Versão anterior da lista de convidados"></figure>
+      <figure class="implementation"><figcaption>Depois — quatro respostas sintéticas</figcaption><img src="after-invite-desktop-1440-light.png" alt="Versão refinada com quatro respostas de convidados"></figure>
+    </section>
+
+    <h2>Ações contextuais — Zoom</h2>
+    <section class="compare">
+      <figure><figcaption>Referência aprovada</figcaption><img src="../reunioes-details-2026-11-03/ref-zoom-actions.png" alt="Captura da referência Zoom para ações"></figure>
+      <figure class="implementation"><figcaption>Antes — ações em duas linhas</figcaption><img src="../reunioes-details-2026-11-03/after-future-desktop-light.png" alt="Versão anterior das ações"></figure>
+      <figure class="implementation"><figcaption>Depois — grupo principal e secundário</figcaption><img src="after-future-desktop-1440-light.png" alt="Versão refinada das ações"></figure>
+    </section>
+
+    <h2>Data, horário e duração prevista — Calendly</h2>
+    <section class="compare">
+      <figure><figcaption>Referência aprovada</figcaption><img src="../reunioes-details-2026-11-03/ref-calendly-time.png" alt="Captura da referência Calendly para horário"></figure>
+      <figure class="implementation"><figcaption>Antes — data e faixa sem distinção</figcaption><img src="../reunioes-details-2026-11-03/after-history-desktop-light.png" alt="Versão anterior das informações de data e horário"></figure>
+      <figure class="implementation"><figcaption>Depois — horário e duração previstos</figcaption><img src="after-history-desktop-1440-light.png" alt="Versão refinada das informações de data e horário"></figure>
+    </section>
+
+    <h2>Experiência mobile — Granola</h2>
+    <section class="compare mobile">
+      <figure><figcaption>Referência aprovada</figcaption><img src="../reunioes-details-2026-11-03/ref-granola-mobile.png" alt="Captura da referência Granola mobile"></figure>
+      <figure class="implementation"><figcaption>Antes — 360 px, claro</figcaption><img src="../reunioes-details-2026-11-03/after-invite-mobile-360-light.png" alt="Versão anterior do modal em 360 pixels"></figure>
+      <figure class="implementation"><figcaption>Depois — 360 px, claro</figcaption><img src="after-invite-mobile-360-light.png" alt="Versão refinada do modal em 360 pixels"></figure>
+    </section>
+
+    <h2>Estados complementares</h2>
+    <section class="compare">
+      <figure><figcaption>Cancelada — claro</figcaption><img src="after-cancelled-desktop-1440-light.png" alt="Detalhe de reunião cancelada sem ação de entrada"></figure>
+      <figure><figcaption>Convite — escuro</figcaption><img src="after-invite-desktop-1440-dark.png" alt="Detalhe de reunião e convidados no tema escuro"></figure>
+      <figure><figcaption>Convite — 320 px, escuro, após rolagem interna</figcaption><img src="after-invite-mobile-320-dark-scrolled.png" alt="Detalhe mobile com conteúdo rolado dentro do diálogo"></figure>
+    </section>
+  </body>
+</html>

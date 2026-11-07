@@ -4,23 +4,7 @@ import { signOutOfNite } from "../../lib/auth/actions";
 import type { NiteMember } from "../../lib/auth/identity";
 import { LoginErrorNotice } from "./login-error-notice";
 import { MicrosoftSignInForm } from "./microsoft-sign-in-form";
-
-function InstitutionalVisualPanel() {
-  return (
-    <div className="hidden min-w-0 items-center p-4 lg:flex lg:p-6" aria-hidden="true">
-      <div className="relative h-[calc(100svh-3rem)] w-full overflow-hidden rounded-panel border border-nite-border-soft bg-nite-section">
-        <Image
-          src="/images/nite-connect-login-visual.png"
-          alt=""
-          fill
-          sizes="(min-width: 1024px) 55vw, 100vw"
-          loading="eager"
-          className="object-cover object-[center_52%]"
-        />
-      </div>
-    </div>
-  );
-}
+import { InstitutionalVisualPanel } from "./institutional-visual-panel";
 
 type LoginError = {
   title: string;
@@ -65,7 +49,7 @@ function InstitutionalLogin({ member = null, roles = [], error = null }: Institu
   const feedback = loginError(error);
 
   return (
-    <main className="min-h-svh bg-nite-background text-nite-text-primary lg:grid lg:grid-cols-[minmax(24rem,0.46fr)_minmax(0,0.54fr)]">
+    <main className="min-h-svh bg-nite-background text-nite-text-primary min-[56rem]:grid min-[56rem]:grid-cols-[minmax(28rem,39%)_minmax(0,1fr)]">
       <section
         aria-labelledby="institutional-login-heading"
         className="flex min-h-svh min-w-0 flex-col px-6 py-8 sm:px-10 lg:px-8 xl:px-12"

@@ -11,7 +11,7 @@ import {
   markMeetingNotificationReadAction,
   respondToMeetingInviteAction,
 } from "../../lib/meetings/actions";
-import { formatMeetingDate, formatMeetingDateTime, formatMeetingDuration, formatMeetingTime } from "../../lib/meetings/date-time";
+import { formatMeetingDate, formatMeetingDuration, formatMeetingTime, formatMeetingTimeRange } from "../../lib/meetings/date-time";
 import { appendMeetingPages, isMeetingGraphConsentRequired, type Meeting, type MeetingCandidate, type MeetingGraphAvailability, type MeetingGraphAvailabilityResult, type MeetingIssue, type MeetingNotification, type MeetingPage, type MeetingWriteResult } from "../../lib/meetings/contracts";
 import { readMeetingGraphAvailabilityCache, writeMeetingGraphAvailabilityCache } from "../../lib/meetings/graph-availability-cache";
 import { resolveCreateMeetingGate, shouldRouteMeetingLinkAction } from "../../lib/meetings/meeting-action-gate";
@@ -57,10 +57,10 @@ function statusText(meeting: Meeting): string {
 }
 
 const inviteStatusText: Record<Meeting["invitees"][number]["internalStatus"], string> = {
-  PENDENTE: "Aguardando resposta no NITE",
-  ACEITO: "Aceito no NITE",
-  RECUSADO: "Recusado no NITE",
-  REVOGADO: "Convite revogado",
+  PENDENTE: "Pendente",
+  ACEITO: "Aceito",
+  RECUSADO: "Recusado",
+  REVOGADO: "Revogado",
 };
 
 const notificationText: Record<string, string> = {
@@ -99,6 +99,17 @@ function issueMessage(issue: string): string {
 
 function isJoinable(meeting: Meeting): boolean {
   return meeting.status === "AGENDADA" && (meeting.provider === "GRAPH" || meeting.providerState === "LINK_CONFIRMADO_PELO_ORGANIZADOR");
+}
+
+function meetingInitials(name: string): string {
+  const value = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase("pt-BR") ?? "").join("");
+  return value || "NC";
+}
+
+function MemberAvatar({ name }: { name: string }) {
+  return <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-nite-surface-elevated text-type-metadata font-semibold text-nite-text-secondary">
+    {meetingInitials(name)}
+  </span>;
 }
 
 function meetingSummary(meeting: Meeting): string {
@@ -486,38 +497,71 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
 
     {editor ? <MeetingEditorDialog key={editor.key} open mode={editor.mode} meetingMode={editor.meetingMode} meeting={editor.meeting} viewerId={viewerId} previewMode={previewMode} previewCandidates={previewCandidates} onOpenChange={(open) => { if (!open) setEditor(null); }} onSaved={handleEditorSaved} onAuthorizationRequired={() => router.push("/reunioes/erro-403")} /> : null}
 
-    <DialogFrame open={detail !== null} onOpenChange={(open) => { if (!open) { setDetail(null); setCopyFeedback(""); } }} title={detail?.meeting.title ?? "Detalhes da reunião"} description={detail ? `${formatMeetingDateTime(detail.meeting.startsAt)} · duração prevista ${detail.meeting.plannedDurationMinutes} min` : undefined} className="max-w-2xl" footer={detail ? <><Button type="button" variant="secondary" onClick={() => setDetail(null)}>Fechar</Button>{detail.meeting.organizerMemberId === viewerId && detail.meeting.provider === "GRAPH" && detail.meeting.status !== "CANCELADA" ? <><Button type="button" variant="secondary" disabled={previewMode || graphAvailability !== "available"} onClick={() => openEditor("edit", detail.meeting.mode, detail.meeting)}>Editar</Button><Button type="button" variant="destructive" disabled={previewMode || graphAvailability !== "available"} onClick={() => setDetail((current) => current ? { ...current, cancelConfirm: true, feedback: "" } : current)}>Cancelar</Button></> : null}</> : null}>
-      {detail ? <div className="grid gap-5">
-        <section className="grid gap-2">
-          <p className="text-type-body-compact font-medium text-nite-text-primary">{statusText(detail.meeting)}</p>
-          <p className="text-type-body-compact text-nite-text-secondary">Organizador: {detail.meeting.organizerName}</p>
-          <p className="text-type-body-compact text-nite-text-secondary">Duração prevista: {detail.meeting.plannedDurationMinutes} minutos</p>
-          {detail.meeting.actualDurationSeconds !== null ? <p className="text-type-body-compact text-nite-text-secondary">Duração efetiva informada pelo Teams: {formatMeetingDuration(detail.meeting.actualDurationSeconds)}</p> : null}
-          {detail.meeting.provider === "TEAMS_LINK" && detail.meeting.status === "AGENDADA" ? <p className="text-type-metadata leading-relaxed text-nite-text-secondary">Este é um registro anterior à integração automática. A reunião possui um link de entrada já associado.</p> : null}
-          {detail.meeting.provider === "TEAMS_LINK" && detail.meeting.status === "CANCELADA" ? <InlineFeedback variant="warning" description="O registro foi cancelado no NITE Connect. O compromisso antigo do Teams não foi atualizado automaticamente." /> : null}
-          {detail.meeting.provider === "TEAMS_LINK" && detail.meeting.status === "AGUARDANDO_TEAMS" ? <p className="text-type-body-compact text-nite-text-secondary">Este registro antigo não possui um link de entrada disponível.</p> : null}
+    <DialogFrame
+      open={detail !== null}
+      onOpenChange={(open) => { if (!open) { setDetail(null); setCopyFeedback(""); } }}
+      title={detail ? <span className="flex min-w-0 items-center gap-3"><VideoMeetingIcon /><span className="min-w-0 break-words">{detail.meeting.title}</span></span> : "Detalhes da reunião"}
+      description={detail ? <div className="grid gap-1.5">
+          <p className="flex items-center gap-2">
+            {detail.meeting.status === "CANCELADA" ? <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="size-4 shrink-0 text-nite-text-secondary"><circle cx="10" cy="10" r="7.25" /><path d="m7.5 7.5 5 5m0-5-5 5" /></svg> : null}
+            <span className={detail.meeting.status === "CANCELADA" ? "font-semibold text-nite-text-primary" : "font-medium text-nite-text-primary"}>{statusText(detail.meeting)}</span>
+          </p>
+          <div className="grid gap-0.5 text-type-body-compact sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-2">
+            <time className="font-medium text-nite-text-primary" dateTime={detail.meeting.startsAt}>{formatMeetingDate(detail.meeting.startsAt, { day: "numeric", month: "short", year: "numeric" })}</time>
+            <span className="text-nite-text-secondary">Horário previsto: {formatMeetingTimeRange(detail.meeting.startsAt, detail.meeting.plannedEndsAt)}</span>
+          </div>
+          <p className="text-type-metadata text-nite-text-muted">{detail.meeting.plannedDurationMinutes} min de duração prevista</p>
+        </div>
+       : undefined}
+      variant="details"
+    >
+      {detail ? <div className="grid gap-5 sm:gap-6">
+        <section aria-label="Organizador" className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <MemberAvatar name={detail.meeting.organizerName} />
+            <div className="min-w-0">
+              <p className="text-type-metadata text-nite-text-muted">Organizador</p>
+              <p className="break-words text-type-body-compact font-medium text-nite-text-primary">{detail.meeting.organizerName}</p>
+            </div>
+          </div>
+          {detail.meeting.actualDurationSeconds !== null ? <p className="text-type-metadata text-nite-text-secondary">Duração efetiva: {formatMeetingDuration(detail.meeting.actualDurationSeconds)}</p> : null}
         </section>
 
-        {detail.cancelConfirm ? <InlineFeedback variant="warning" title="Cancelar reunião?" description="O evento será cancelado no calendário Microsoft e os convidados receberão uma atualização." action={<div className="flex gap-2"><Button type="button" variant="secondary" disabled={previewMode || detail.busy} onClick={() => setDetail((current) => current ? { ...current, cancelConfirm: false } : current)}>Voltar</Button><Button type="button" variant="destructive" loading={detail.busy} disabled={previewMode || graphAvailability !== "available"} onClick={() => void confirmCancel()}>Confirmar cancelamento</Button></div>} announcement="assertive" /> : null}
+        {detail.meeting.provider === "TEAMS_LINK" && detail.meeting.status === "CANCELADA" && detail.meeting.providerState === "CANCELAMENTO_NAO_SINCRONIZADO" ? <p role="note" className="text-type-metadata leading-relaxed text-nite-text-secondary">O cancelamento foi registrado no NITE Connect. Essa ação não altera o Teams; confira no calendário se o compromisso ainda estiver ativo.</p> : null}
+        {detail.meeting.provider === "TEAMS_LINK" && detail.meeting.status === "AGUARDANDO_TEAMS" ? <p className="text-type-body-compact text-nite-text-secondary">O link do Teams ainda não está disponível.</p> : null}
+
+        {detail.cancelConfirm ? <InlineFeedback variant="warning" title="Cancelar reunião?" description="O evento será cancelado no calendário Microsoft e os convidados receberão uma atualização." action={<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={previewMode || detail.busy} onClick={() => setDetail((current) => current ? { ...current, cancelConfirm: false } : current)}>Voltar</Button><Button type="button" variant="destructive" loading={detail.busy} disabled={previewMode || graphAvailability !== "available"} onClick={() => void confirmCancel()}>Confirmar cancelamento</Button></div>} announcement="assertive" /> : null}
 
         {detail.feedback ? <InlineFeedback variant={detail.feedback.includes("não") || detail.feedback.includes("indisponíveis") ? "warning" : "success"} description={detail.feedback} announcement="polite" /> : null}
 
         <section aria-labelledby="meeting-guests-heading" className="grid gap-2">
-          <h3 id="meeting-guests-heading" className="text-type-label font-semibold text-nite-text-primary">Convidados</h3>
-          {detail.meeting.invitees.length ? <ul className="divide-y divide-nite-border-soft border-y border-nite-border-soft">
-            {detail.meeting.invitees.map((invitee) => <li key={invitee.memberId} className="flex flex-wrap items-start justify-between gap-2 py-3 text-type-body-compact">
-              <span className="text-nite-text-primary">{invitee.name}</span>
-              <span className="text-right text-type-metadata text-nite-text-secondary">{inviteStatusText[invitee.internalStatus]}</span>
+          <div>
+            <h3 id="meeting-guests-heading" className="text-type-label font-semibold text-nite-text-primary">Convidados{detail.meeting.invitees.length ? <span className="font-normal text-nite-text-secondary"> ({detail.meeting.invitees.length})</span> : null}</h3>
+            {detail.meeting.invitees.length ? <p className="mt-0.5 text-type-metadata text-nite-text-muted">Respostas registradas no NITE Connect</p> : null}
+          </div>
+          {detail.meeting.invitees.length ? <ul className="divide-y divide-nite-border-soft">
+            {detail.meeting.invitees.map((invitee) => <li key={invitee.memberId} className="flex min-w-0 items-center gap-3 py-3">
+              <MemberAvatar name={invitee.name} />
+              <span className="min-w-0 flex-1 break-words text-type-body-compact font-medium text-nite-text-primary">{invitee.name}</span>
+              <span className="max-w-[42%] shrink-0 text-right text-type-metadata text-nite-text-secondary">{inviteStatusText[invitee.internalStatus]}</span>
             </li>)}
-          </ul> : <p className="text-type-body-compact text-nite-text-secondary">Nenhum integrante convidado.</p>}
-          {detail.meeting.organizerMemberId !== viewerId && detail.meeting.invitees.find((invitee) => invitee.memberId === viewerId)?.internalStatus === "PENDENTE" && detail.meeting.status !== "CANCELADA" ? <div className="flex flex-wrap gap-2 pt-2"><Button type="button" disabled={previewMode} onClick={() => void respond(detail.meeting, "ACEITO")}>Aceitar convite no NITE</Button><Button type="button" variant="secondary" disabled={previewMode} onClick={() => void respond(detail.meeting, "RECUSADO")}>Recusar</Button></div> : null}
+          </ul> : <p className="text-type-body-compact text-nite-text-secondary">Sem convidados.</p>}
+          {detail.meeting.organizerMemberId !== viewerId && detail.meeting.invitees.find((invitee) => invitee.memberId === viewerId)?.internalStatus === "PENDENTE" && detail.meeting.status !== "CANCELADA" ? <div aria-label="Responder ao convite" className="flex flex-wrap gap-2 pt-2"><Button type="button" disabled={previewMode} onClick={() => void respond(detail.meeting, "ACEITO")}>Aceitar convite</Button><Button type="button" variant="secondary" disabled={previewMode} onClick={() => void respond(detail.meeting, "RECUSADO")}>Recusar</Button></div> : null}
         </section>
 
-        {isJoinable(detail.meeting) ? <section className="grid gap-3 border-t border-nite-border-soft pt-4">
-          <h3 className="text-type-label font-semibold text-nite-text-primary">Acesso e compartilhamento</h3>
-          <p className="text-type-body-compact text-nite-text-secondary">O link passa pelo NITE Connect. O Teams controla o lobby e as regras de entrada.</p>
-          <div className="flex flex-wrap gap-2">{previewMode ? <Button type="button" disabled>Entrar no Teams</Button> : <Link href={shouldRouteMeetingLinkAction(graphResult) ? "/reunioes/erro-403" : `/reunioes/${encodeURIComponent(detail.meeting.id)}/entrar`} className="inline-flex min-h-11 items-center justify-center rounded-control border border-nite-brand-primary bg-nite-brand-primary px-4 py-2 text-type-label font-medium text-nite-action-text hover:bg-nite-brand-primary/90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Entrar no Teams</Link>}<Button type="button" variant="secondary" disabled={previewMode} loading={sharingId === detail.meeting.id} onClick={() => void copyMeetingLink(detail.meeting)}>Copiar link autorizado</Button><Button type="button" variant="quiet" disabled={previewMode} loading={sharingId === detail.meeting.id} onClick={() => void shareMeeting(detail.meeting)}>Compartilhar pelo WhatsApp</Button></div>
+        {isJoinable(detail.meeting) ? <section aria-label="Acesso e compartilhamento" className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
+            {previewMode ? <Button type="button" disabled className="col-span-2 w-full sm:col-span-1 sm:w-auto">Entrar no Teams</Button> : <Link href={shouldRouteMeetingLinkAction(graphResult) ? "/reunioes/erro-403" : `/reunioes/${encodeURIComponent(detail.meeting.id)}/entrar`} className="col-span-2 inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-control border border-nite-brand-primary bg-nite-brand-primary px-4 py-2 text-type-label font-medium text-nite-action-text hover:bg-nite-brand-primary/90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus sm:col-span-1">Entrar no Teams</Link>}
+            <Button type="button" variant="secondary" className="w-full whitespace-nowrap px-2 text-type-metadata sm:w-auto sm:px-3 sm:text-type-label" disabled={previewMode} loading={sharingId === detail.meeting.id} onClick={() => void copyMeetingLink(detail.meeting)}>Copiar link</Button>
+            <Button type="button" variant="secondary" className="w-full whitespace-normal px-2 text-type-metadata leading-tight sm:w-auto sm:whitespace-nowrap sm:px-3 sm:text-type-label sm:leading-normal" disabled={previewMode} loading={sharingId === detail.meeting.id} onClick={() => void shareMeeting(detail.meeting)}>Compartilhar pelo WhatsApp</Button>
+          </div>
+          <p className="text-type-metadata text-nite-text-muted">A entrada segue as regras e o lobby do Teams.</p>
           {copyFeedback ? <p role="status" className="text-type-body-compact text-nite-text-secondary">{copyFeedback}</p> : null}
+        </section> : null}
+
+        {!detail.cancelConfirm && detail.meeting.organizerMemberId === viewerId && detail.meeting.provider === "GRAPH" && detail.meeting.status !== "CANCELADA" && (previewMode || graphAvailability === "available") ? <section aria-label="Gerenciar reunião" className="flex flex-wrap justify-end gap-2 border-t border-nite-border-soft pt-4">
+          <Button type="button" variant="secondary" disabled={previewMode} onClick={() => openEditor("edit", detail.meeting.mode, detail.meeting)}>Editar</Button>
+          <Button type="button" variant="destructive" disabled={previewMode} onClick={() => setDetail((current) => current ? { ...current, cancelConfirm: true, feedback: "" } : current)}>Cancelar reunião</Button>
         </section> : null}
       </div> : null}
     </DialogFrame>

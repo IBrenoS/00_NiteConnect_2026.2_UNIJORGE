@@ -20,6 +20,7 @@ type DialogFrameProps = {
   description?: ReactNode;
   children?: ReactNode;
   footer?: ReactNode;
+  variant?: "default" | "details";
   initialFocusRef?: RefObject<HTMLElement | null>;
   showCloseButton?: boolean;
   closeOnBackdrop?: boolean;
@@ -34,16 +35,38 @@ function DialogFrame({
   description,
   children,
   footer,
+  variant = "default",
   initialFocusRef,
   showCloseButton = true,
   closeOnBackdrop = true,
   allowEscapeClose = true,
   className,
 }: DialogFrameProps) {
+  const detailsVariant = variant === "details";
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+
+  useEffect(() => {
+    if (!open || !detailsVariant) return;
+
+    const root = document.documentElement;
+    const previousOverflow = root.style.overflow;
+    const previousPaddingRight = root.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - root.clientWidth;
+    const paddingRight = Number.parseFloat(getComputedStyle(root).paddingRight) || 0;
+
+    root.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      root.style.paddingRight = `${paddingRight + scrollbarWidth}px`;
+    }
+
+    return () => {
+      root.style.overflow = previousOverflow;
+      root.style.paddingRight = previousPaddingRight;
+    };
+  }, [detailsVariant, open]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -119,25 +142,42 @@ function DialogFrame({
       }}
       onClick={handleBackdropClick}
       className={cx(
-        "m-auto max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl overflow-hidden rounded-dialog border border-nite-border-strong bg-nite-background p-0 text-nite-text-primary shadow-nite-modal backdrop:bg-black/60 sm:max-h-[calc(100dvh-4rem)]",
+        "overflow-hidden border border-nite-border-strong bg-nite-background p-0 text-nite-text-primary shadow-nite-modal backdrop:bg-black/60",
+        detailsVariant
+          ? "mx-1 mb-0 mt-auto max-h-[92dvh] w-[calc(100%-0.5rem)] max-w-none rounded-t-dialog rounded-b-none border-b-0 sm:m-auto sm:max-h-[calc(100dvh-4rem)] sm:w-[calc(100%-4rem)] sm:max-w-xl sm:rounded-dialog sm:border-b"
+          : "m-auto max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl rounded-dialog sm:max-h-[calc(100dvh-4rem)]",
         className,
       )}
     >
-      <div className="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col sm:max-h-[calc(100dvh-4rem)]">
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-nite-border-soft px-4 py-4 sm:px-6">
+      <div className={cx(
+        "flex min-h-0 flex-col",
+        detailsVariant ? "max-h-[92dvh] sm:max-h-[calc(100dvh-4rem)]" : "max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-4rem)]",
+      )}>
+        <header className={cx(
+          "flex shrink-0 items-start justify-between gap-4",
+          detailsVariant ? "px-5 pb-0 pt-5 sm:px-7 sm:pt-7" : "border-b border-nite-border-soft px-4 py-4 sm:px-6",
+        )}>
           <div className="min-w-0">
             <h2
               ref={headingRef}
               id={titleId}
               tabIndex={-1}
-              className="font-display text-type-component-title focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"
+              className={cx(
+                "font-display",
+                detailsVariant
+                  ? "text-type-section-title focus-visible:outline-none"
+                  : "text-type-component-title focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus",
+              )}
             >
               {title}
             </h2>
             {description ? (
               <div
                 id={descriptionId}
-                className="mt-1 break-words text-type-body-compact text-nite-text-secondary"
+                className={cx(
+                  "break-words text-type-body-compact text-nite-text-secondary",
+                  detailsVariant ? "mt-2" : "mt-1",
+                )}
               >
                 {description}
               </div>
@@ -147,14 +187,18 @@ function DialogFrame({
             <Button
               type="button"
               variant="quiet"
-              aria-label="Fechar diálogo"
+              aria-label={detailsVariant ? "Fechar detalhes da reunião" : "Fechar diálogo"}
+              className={detailsVariant ? "size-11 shrink-0 p-0 text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" : undefined}
               onClick={() => onOpenChange(false)}
             >
-              Fechar
+              {detailsVariant ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="size-5"><path d="m6 6 12 12M18 6 6 18" /></svg> : "Fechar"}
             </Button>
           ) : null}
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+        <div className={cx(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+          detailsVariant ? "px-5 pb-6 pt-4 sm:px-7 sm:pb-7 sm:pt-5" : "px-4 py-4 sm:px-6 sm:py-5",
+        )}>
           {children}
         </div>
         {footer ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMeetingDateTime, localDateTimeInputValues, toBahiaOffsetDateTime } from "./date-time";
+import { formatMeetingDateTime, formatMeetingTimeRange, localDateTimeInputValues, toBahiaOffsetDateTime } from "./date-time";
 
 describe("datas e horários de Reuniões", () => {
   it("converte horário institucional para OffsetDateTime sem depender do fuso do navegador", () => {
@@ -17,5 +17,14 @@ describe("datas e horários de Reuniões", () => {
   it("apresenta instantes no fuso institucional", () => {
     expect(formatMeetingDateTime("2026-11-05T13:00:00Z")).toBe("5 de nov. de 2026, 10:00");
     expect(localDateTimeInputValues("2026-11-05T13:00:00Z")).toEqual({ date: "2026-11-05", time: "10:00" });
+  });
+
+  it("explicita quando o horário previsto termina no dia seguinte", () => {
+    expect(formatMeetingTimeRange("2026-11-03T02:49:00Z", "2026-11-03T03:49:00Z")).toBe("23:49–00:49 · termina em 3 de nov.");
+  });
+
+  it("inclui o ano quando o horário previsto termina em outro ano", () => {
+    expect(formatMeetingTimeRange("2027-01-01T01:30:00Z", "2027-01-01T02:30:00Z")).toBe("22:30–23:30");
+    expect(formatMeetingTimeRange("2027-01-01T02:30:00Z", "2027-01-01T04:00:00Z")).toBe("23:30–01:00 · termina em 1 de jan. de 2027");
   });
 });
