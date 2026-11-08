@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,6 +21,22 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 public class SecurityConfiguration {
 
     @Bean
+    @Order(1)
+    SecurityFilterChain wopiSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/wopi/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .requestCache(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // WOPI tokens are validated by the document service, not decoded as Entra JWTs.
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> decoders) throws Exception {
         JwtDecoder decoder = decoders.getIfAvailable();
         AuthorizationManager<RequestAuthorizationContext> authenticatedJwt = (authentication, context) ->
@@ -33,9 +50,6 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
-                        // WOPI is capability-token authenticated by the document service, not an Entra endpoint.
-                        .requestMatchers(HttpMethod.GET, "/wopi/files/*", "/wopi/files/*/contents").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/wopi/files/*", "/wopi/files/*/contents").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/frequency/qr/handoffs").permitAll()

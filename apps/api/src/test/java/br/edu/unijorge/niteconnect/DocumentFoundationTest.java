@@ -88,6 +88,15 @@ class DocumentFoundationTest extends ProjectTestSupport {
         mvc.perform(get("/wopi/files/"+doc).queryParam("access_token",token))
                 .andExpect(status().isNotFound());
     }
+    @Test void wopiCapabilityBearerHeaderIsValidatedByDocumentServiceNotEntra() throws Exception {
+        UUID doc=upload(MEMBER,DocxIntegrityTest.docx("Sessão WOPI"));
+        String access=session(MEMBER,doc);
+
+        mvc.perform(get("/wopi/files/"+doc).queryParam("access_token",access)
+                        .header("Authorization","Bearer "+access))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.UserCanWrite").value(true));
+    }
     @Test void locksProtectWritesAndPersistAcrossReopenWithoutFalseVersions() throws Exception {
         byte[] first=DocxIntegrityTest.docx("Original");
         byte[] changed=DocxIntegrityTest.docx("Tabela alterada");

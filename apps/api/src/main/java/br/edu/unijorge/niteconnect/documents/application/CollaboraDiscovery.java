@@ -46,11 +46,11 @@ public class CollaboraDiscovery {
             var apps=xml.getElementsByTagName("app");
             for(int i=0;i<apps.getLength();i++) {
                 Element app=(Element)apps.item(i);
-                if(!"docx".equalsIgnoreCase(app.getAttribute("name"))) continue;
                 var actions=app.getElementsByTagName("action");
                 for(int j=0;j<actions.getLength();j++) {
                     Element action=(Element)actions.item(j);
-                    if("edit".equals(action.getAttribute("name"))) {
+                    if("edit".equals(action.getAttribute("name"))
+                            && "docx".equalsIgnoreCase(action.getAttribute("ext"))) {
                         String url=action.getAttribute("urlsrc");
                         URI uri=URI.create(url);
                         if(discovery.getHost().equalsIgnoreCase(uri.getHost()) && uri.getPort()==discovery.getPort()
