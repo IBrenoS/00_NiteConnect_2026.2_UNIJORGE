@@ -31,6 +31,8 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V26 | [`V26__meeting_teams_link_provider.sql`](V26__meeting_teams_link_provider.sql) | Reuniões: provedor `TEAMS_LINK`, preparação aguardando ação no Teams, vínculo manual do link oficial e estado explícito de sincronização local. |
 | V24 | [`V24__meetings_module.sql`](V24__meetings_module.sql) | Novo domínio de reuniões Teams: calendário Microsoft, convites internos, operações idempotentes, notificações, histórico e preparação para relatórios de participação; não altera Agenda/B04/B06. |
 
+| V27 | [`V27__document_wopi_foundation.sql`](V27__document_wopi_foundation.sql) | B05.1: sessões de acesso WOPI temporárias (hash do token) e bloqueios concorrentes por documento, preservando as versões históricas de V6/V7/V10. |
+
 ## Aplicação
 
 O Spring Boot executa essas versões pelo Flyway. Os testes de upgrade configuram a mesma localização explicitamente. Não execute os arquivos manualmente em bancos já gerenciados pelo Flyway nem renumere versões aplicadas.

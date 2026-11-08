@@ -65,3 +65,17 @@ nite:
         dry-run: ${JUSTIFICATION_ATTACHMENT_RETENTION_PURGE_DRY_RUN:true}
         cron: ${JUSTIFICATION_ATTACHMENT_RETENTION_PURGE_CRON:0 15 2 * * *}
         zone: ${JUSTIFICATION_ATTACHMENT_RETENTION_PURGE_ZONE:UTC}
+  documents:
+    enabled: ${DOCUMENTS_ENABLED:false}
+    # Enable only for the local development environment; require HTTPS for actual deployment.
+    allow-insecure-dev: ${DOCUMENTS_ALLOW_INSECURE_DEV:false}
+    wopi-public-base-url: ${DOCUMENTS_WOPI_PUBLIC_BASE_URL:https://wopi.invalid}
+    collabora:
+      discovery-url: ${COLLABORA_DISCOVERY_URL:https://collabora.invalid/hosting/discovery}
+    storage:
+      provider: ${DOCUMENT_STORAGE_PROVIDER:disabled}
+      endpoint: ${DOCUMENT_S3_ENDPOINT:http://127.0.0.1:8333}
+      bucket: ${DOCUMENT_S3_BUCKET:nite-connect-documents}
+      region: ${DOCUMENT_S3_REGION:us-east-1}
+      access-key: ${DOCUMENT_S3_ACCESS_KEY:}
+      secret-key: ${DOCUMENT_S3_SECRET_KEY:}

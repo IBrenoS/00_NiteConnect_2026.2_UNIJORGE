@@ -66,6 +66,7 @@ class BootstrapProcessTest {
                 "--nite.entra.tenant-id=11111111-1111-4111-8111-111111111111",
                 "--nite.entra.audience=22222222-2222-4222-8222-222222222222",
                 "--nite.entra.required-scope=access_as_user",
+                "--nite.documents.enabled=false",
                 "--nite.bootstrap.enabled=true",
                 "--nite.bootstrap.role=GESTOR_GERAL",
                 "--nite.bootstrap.object-id=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",

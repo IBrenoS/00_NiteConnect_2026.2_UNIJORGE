@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @AutoConfigureMockMvc
 @SpringBootTest(properties = {
+        "nite.documents.enabled=false",
         "nite.entra.enabled=true",
         "nite.entra.tenant-id=11111111-1111-4111-8111-111111111111",
         "nite.entra.audience=22222222-2222-4222-8222-222222222222",
