@@ -33,6 +33,11 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
+                        // WOPI is capability-token authenticated by the document service, not an Entra endpoint.
+                        .requestMatchers(HttpMethod.GET, "/wopi/files/*", "/wopi/files/*/contents").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/wopi/files/*", "/wopi/files/*/contents").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/frequency/qr/handoffs").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/academic/enrollments/*/homologation", "/api/v1/academic/enrollments/*/reviews", "/api/v1/me/academic/enrollments/*/reviews", "/api/v1/academic/enrollments/*/history", "/api/v1/academic/homologations/*/forwardings").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/dashboard", "/api/v1/projects/*/dashboard", "/api/v1/analytics/dashboard",

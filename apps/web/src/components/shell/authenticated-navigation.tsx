@@ -59,6 +59,7 @@ export function buildAuthenticatedNavigationGroups(options: NavigationOptions): 
         planned("Meus projetos", "projects"),
         { label: "Reuniões", icon: "meeting", href: "/reunioes" },
         { label: "Frequência", icon: "attendance", href: "/frequencia" },
+        { label: "Meus documentos", icon: "report", href: "/documentos" },
       ],
     },
   ];

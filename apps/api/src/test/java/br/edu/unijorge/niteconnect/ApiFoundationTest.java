@@ -20,7 +20,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @Testcontainers
 @AutoConfigureMockMvc
-@SpringBootTest(properties = "nite.entra.enabled=false")
+@SpringBootTest(properties = {
+        "nite.entra.enabled=false",
+        "nite.documents.enabled=false"
+})
 class ApiFoundationTest {
 
     @Container

@@ -1,0 +1,26 @@
+# Desenvolvimento local de B05.1. Não expor estas portas na internet.
+name: nite-connect-documents-dev
+services:
+  document-storage:
+    image: chrislusf/seaweedfs:latest
+    environment:
+      AWS_ACCESS_KEY_ID: ${DOCUMENT_S3_ACCESS_KEY:?Defina DOCUMENT_S3_ACCESS_KEY no ambiente}
+      AWS_SECRET_ACCESS_KEY: ${DOCUMENT_S3_SECRET_KEY:?Defina DOCUMENT_S3_SECRET_KEY no ambiente}
+      S3_BUCKET: ${DOCUMENT_S3_BUCKET:-nite-connect-documents}
+    volumes:
+      - document_storage:/data
+    ports:
+      - '127.0.0.1:8333:8333'
+    restart: unless-stopped
+  collabora:
+    image: collabora/code:latest
+    environment:
+      aliasgroup1: 'http://host.docker.internal:8080'
+      extra_params: '--o:ssl.enable=false --o:ssl.termination=false --o:net.frame_ancestors=http://localhost:3000'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '127.0.0.1:9980:9980'
+    restart: unless-stopped
+volumes:
+  document_storage:
