@@ -2,6 +2,7 @@ package br.edu.unijorge.niteconnect.documents.application;
 
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -20,14 +21,25 @@ import java.time.Duration;
 @ConditionalOnProperty(prefix="nite.documents", name="enabled", havingValue="true")
 public class CollaboraDiscovery {
     private final URI discovery;
+    private final URI browserOrigin;
     private final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(4))
             .followRedirects(HttpClient.Redirect.NEVER).build();
 
-    public CollaboraDiscovery(@Value("${nite.documents.collabora.discovery-url}") String url) {
+    @Autowired
+    public CollaboraDiscovery(@Value("${nite.documents.collabora.discovery-url}") String url,
+                              @Value("${nite.documents.collabora.browser-origin:}") String browserOrigin) {
         this.discovery=URI.create(url);
+        this.browserOrigin=browserOrigin.isBlank() ? this.discovery : URI.create(browserOrigin);
         if(!"https".equals(discovery.getScheme()) && !"http".equals(discovery.getScheme())) {
             throw new IllegalArgumentException("URL de discovery inválida");
         }
+        if(this.browserOrigin.getHost()==null || (!"https".equals(this.browserOrigin.getScheme())
+                && !"http".equals(this.browserOrigin.getScheme()))) {
+            throw new IllegalArgumentException("Origem do navegador Collabora inválida");
+        }
+    }
+    public CollaboraDiscovery(String url) {
+        this(url, url);
     }
     public String editUrl() {
         try {
@@ -53,8 +65,8 @@ public class CollaboraDiscovery {
                             && "docx".equalsIgnoreCase(action.getAttribute("ext"))) {
                         String url=action.getAttribute("urlsrc");
                         URI uri=URI.create(url);
-                        if(discovery.getHost().equalsIgnoreCase(uri.getHost()) && uri.getPort()==discovery.getPort()
-                                && discovery.getScheme().equals(uri.getScheme()))
+                        if(browserOrigin.getHost().equalsIgnoreCase(uri.getHost()) && uri.getPort()==browserOrigin.getPort()
+                                && browserOrigin.getScheme().equals(uri.getScheme()))
                             return url;
                     }
                 }

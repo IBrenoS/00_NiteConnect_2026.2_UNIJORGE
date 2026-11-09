@@ -16,7 +16,7 @@ services:
     image: collabora/code:latest
     environment:
       aliasgroup1: 'http://host.docker.internal:8080'
-      extra_params: '--o:ssl.enable=false --o:ssl.termination=false --o:net.frame_ancestors=http://localhost:3000'
+      extra_params: '--o:ssl.enable=false --o:ssl.termination=false --o:server_name=localhost:9980 --o:net.frame_ancestors=http://localhost:3000'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     ports:

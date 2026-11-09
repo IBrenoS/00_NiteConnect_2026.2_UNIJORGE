@@ -25,6 +25,12 @@ services:
       - ../.env
     environment:
       DB_URL: "jdbc:postgresql://db:5432/${DB_NAME:-niteconnect}"
+      # The API runs in a container; loopback endpoints in .env are for host-run API.
+      DOCUMENT_S3_ENDPOINT: http://host.docker.internal:8333
+      COLLABORA_DISCOVERY_URL: http://host.docker.internal:9980/hosting/discovery
+      COLLABORA_BROWSER_ORIGIN: ${COLLABORA_BROWSER_ORIGIN:-http://localhost:9980}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

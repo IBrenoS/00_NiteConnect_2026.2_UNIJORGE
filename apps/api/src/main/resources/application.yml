@@ -72,6 +72,7 @@ nite:
     wopi-public-base-url: ${DOCUMENTS_WOPI_PUBLIC_BASE_URL:https://wopi.invalid}
     collabora:
       discovery-url: ${COLLABORA_DISCOVERY_URL:https://collabora.invalid/hosting/discovery}
+      browser-origin: ${COLLABORA_BROWSER_ORIGIN:}
     storage:
       provider: ${DOCUMENT_STORAGE_PROVIDER:disabled}
       endpoint: ${DOCUMENT_S3_ENDPOINT:http://127.0.0.1:8333}
