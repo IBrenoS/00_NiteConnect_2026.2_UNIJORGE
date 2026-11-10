@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
 import { getMyDocuments } from "../../../lib/documents/data";
-import { importPersonalDocx } from "../../../lib/documents/actions";
+import { DocumentImportForm } from "../../../components/documents/document-import-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Meus documentos" };
@@ -15,15 +15,7 @@ export default async function PersonalDocumentsPage({searchParams}:Props) {
       <p className="text-type-body-compact text-nite-text-secondary">Fundação documental: importe uma cópia DOCX de teste para editar no Collabora Online.</p></header>
     {params.uploaded==="1" && <p role="status" className="text-nite-text-primary">Documento importado com sucesso.</p>}
     {params.error && <p role="alert" className="text-nite-text-primary">Não foi possível importar o documento ({params.error}).</p>}
-    <form action={importPersonalDocx} className="grid gap-4 rounded-control border border-nite-border-soft p-5">
-      <label className="grid gap-2 text-type-body-compact text-nite-text-primary">Nome do documento
-        <input name="title" maxLength={190} placeholder="Relatório Individual" className="min-h-11 rounded-control border border-nite-border-control bg-nite-surface px-3" />
-      </label>
-      <label className="grid gap-2 text-type-body-compact text-nite-text-primary">Arquivo DOCX (até 8 MiB)
-        <input name="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required className="min-h-11" />
-      </label>
-      <div><button type="submit" className="min-h-11 rounded-control bg-nite-brand-primary px-4 font-medium text-white">Importar DOCX</button></div>
-    </form>
+    <DocumentImportForm />
     <section aria-label="Documentos pessoais" className="space-y-3">
       <h2 className="font-medium text-nite-text-primary">Documentos disponíveis</h2>
       {docs.issue ? <p className="text-type-body-compact text-nite-text-secondary">A gestão documental está indisponível ou ainda não foi ativada neste ambiente.</p>
