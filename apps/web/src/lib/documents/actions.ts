@@ -3,15 +3,18 @@
 import { redirect } from "next/navigation";
 import { requireAuthenticatedNiteSession } from "../auth/server-session";
 import { resolveApiUrl } from "../api/server";
+import { documentTitleFromFilename } from "./title";
 
 export async function importPersonalDocx(form: FormData): Promise<void> {
   const session = await requireAuthenticatedNiteSession();
   const document = form.get("file");
-  const title = form.get("title");
+  const submittedTitle = form.get("title");
   if (!(document instanceof File) || document.size===0 || document.size>8*1024*1024
-      || !document.name.toLowerCase().endsWith(".docx") || typeof title !== "string" || title.length>190) {
+      || !document.name.toLowerCase().endsWith(".docx") || typeof submittedTitle !== "string" || submittedTitle.length>190) {
     redirect("/documentos?error=invalid");
   }
+  const title = submittedTitle.trim() || documentTitleFromFilename(document.name);
+  if (title.length>190) redirect("/documentos?error=invalid");
   const url=resolveApiUrl("/api/v1/me/documents");
   if (!url) redirect("/documentos?error=unavailable");
   const body=new FormData();
