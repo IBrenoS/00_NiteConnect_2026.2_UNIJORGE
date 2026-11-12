@@ -45,69 +45,27 @@ function planned(label: string, icon: AuthenticatedNavigationIcon): Authenticate
 
 export function buildAuthenticatedNavigationGroups(options: NavigationOptions): AuthenticatedNavigationGroup[] {
   const groups: AuthenticatedNavigationGroup[] = [
-    {
-      label: "Início",
-      defaultOpen: true,
-      collapsible: false,
-      items: [{ label: "Visão geral", icon: "home", href: "/dashboard" }],
-    },
-    {
-      label: "Meu espaço",
-      defaultOpen: true,
-      items: [
-        { label: "Minhas atividades", icon: "activity", href: "/atividades" },
-        planned("Meus projetos", "projects"),
-        { label: "Reuniões", icon: "meeting", href: "/reunioes" },
-        { label: "Frequência", icon: "attendance", href: "/frequencia" },
-        { label: "Meus documentos", icon: "report", href: "/documentos" },
-      ],
-    },
+    {label:"Início",defaultOpen:true,collapsible:false,
+      items:[{label:"Visão geral",icon:"home",href:"/dashboard"}]},
+    {label:"Meu espaço",defaultOpen:true,items:[
+      {label:"Minhas atividades",icon:"activity",href:"/atividades"},
+      {label:"Meus projetos",icon:"projects",href:"/meus-projetos"},
+      {label:"Reuniões",icon:"meeting",href:"/reunioes"},
+      {label:"Frequência",icon:"attendance",href:"/frequencia"},
+      {label:"Meus arquivos",icon:"projects",href:"/documentos"},
+    ]},
+    {label:"Núcleo",defaultOpen:true,items:[planned("Projetos","projects")]},
   ];
-
-  if (options.projects.length > 0) {
-    groups.push({
-      label: "Projetos que lidero",
-      defaultOpen: false,
-      note: "Selecione uma visão no painel para acompanhar um projeto.",
-      items: [
-        planned("Atividades do projeto", "activity"),
-        planned("Equipe e responsabilidades", "team"),
-        planned("Relatórios do projeto", "report"),
-      ],
-    });
-  }
-
-  if (options.canAdminister) {
-    groups.push(
-      {
-        label: "Acompanhamento do NITE",
-        defaultOpen: false,
-        items: [
-          planned("Projetos", "projects"),
-          planned("Atividades e entregas", "activity"),
-          planned("Relatórios", "report"),
-        ],
-      },
-      {
-        label: "Administração",
-        defaultOpen: false,
-        items: [
-          planned("Integrantes", "team"),
-          planned("Acessos e convites", "access"),
-          planned("Regras e parâmetros", "settings"),
-        ],
-      },
-    );
-  }
-
-  if (options.canCoordinate) {
-    groups.push({
-      label: "Acompanhamento acadêmico",
-      defaultOpen: false,
-      items: [planned("Avaliações", "academic"), planned("Revisões e homologações", "review")],
-    });
-  }
-
+  if(options.canAdminister) groups.push({label:"Gestão do NITE",defaultOpen:true,items:[
+    planned("Atividades e entregas","activity"),
+    planned("Relatórios","report"),
+    {label:"Biblioteca do NITE",icon:"projects",href:"/biblioteca"},
+    planned("Integrantes","team"),
+    planned("Acessos e convites","access"),
+    planned("Regras e parâmetros","settings"),
+  ]});
+  if(options.canCoordinate)groups.push({label:"Acompanhamento acadêmico",defaultOpen:false,
+    items:[planned("Avaliações","academic"),planned("Revisões e homologações","review")]});
   return groups;
 }
 

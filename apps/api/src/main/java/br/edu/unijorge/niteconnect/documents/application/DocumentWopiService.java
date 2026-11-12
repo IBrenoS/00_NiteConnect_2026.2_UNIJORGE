@@ -55,13 +55,15 @@ public class DocumentWopiService {
     @Transactional
     public Launch launch(UUID actor, UUID id) {
         Document doc=core.require(actor,id);
+        if(!DocumentLibraryService.DOCX.equals(doc.mimeType())) throw ApiException.invalid("Edição WOPI disponível apenas para DOCX");
+        boolean writable=core.canWrite(actor,doc);
         // Discovery is checked before allocating an editor token (fail closed on misconfiguration).
         String action=discovery.editUrl();
         byte[] entropy=new byte[32];RANDOM.nextBytes(entropy);
         String token=Base64.getUrlEncoder().withoutPadding().encodeToString(entropy);
         Instant now=clock.instant();
         Instant expires=now.plus(SESSION_HOURS,ChronoUnit.HOURS);
-        repo.createSession(id,actor,doc.versionId(),DocxIntegrity.sha256(token.getBytes(StandardCharsets.UTF_8)),now,expires);
+        repo.createSession(id,actor,doc.versionId(),DocxIntegrity.sha256(token.getBytes(StandardCharsets.UTF_8)),writable,now,expires);
         String base=wopiBase.toString().replaceAll("/+$","");
         String wopiSrc=base+"/wopi/files/"+id;
         String delim=action.contains("?")?(action.endsWith("?")||action.endsWith("&")?"":"&"):"?";
@@ -82,14 +84,15 @@ public class DocumentWopiService {
         Document doc=auth.document();
         var info=new LinkedHashMap<String,Object>();
         info.put("BaseFileName",doc.title());
-        info.put("OwnerId",doc.ownerId().toString());
+        info.put("OwnerId",(doc.ownerId()!=null?doc.ownerId():doc.projectId()!=null?doc.projectId():doc.id()).toString());
         info.put("Size",doc.size());
         info.put("Version",Long.toString(doc.version()));
         info.put("LastModifiedTime",doc.versionAt().toString());
         info.put("UserId",auth.session().actorId().toString());
         info.put("UserFriendlyName",core.friendlyName(auth.session().actorId()));
-        info.put("UserCanWrite",auth.session().canWrite());
-        info.put("ReadOnly",!auth.session().canWrite());
+        boolean canWrite=auth.session().canWrite() && core.canWrite(auth.session().actorId(),doc);
+        info.put("UserCanWrite",canWrite);
+        info.put("ReadOnly",!canWrite);
         info.put("SupportsUpdate",true);
         info.put("SupportsLocks",true);
         info.put("SupportsGetLock",true);
@@ -97,15 +100,19 @@ public class DocumentWopiService {
         info.put("SupportsRename",false);
         return info;
     }
-    @Transactional(readOnly=true)
+    @Transactional
     public byte[] getFile(UUID id,String token) {
-        return core.readVerified(session(id,token).document());
+        Authenticated auth=session(id,token);
+        byte[] data=core.readVerified(auth.document());
+        repo.recordOpened(id,auth.session().actorId()); // Actual WOPI file read, not a launched-but-unused session.
+        return data;
     }
 
     @Transactional
     public Outcome lock(UUID id,String token,String operation,String lock,String oldLock) {
         Authenticated auth=session(id,token);
         if(!auth.session().canWrite()) throw ApiException.forbidden();
+        core.requireWrite(auth.session().actorId(),auth.document());
         repo.forUpdate(id);
         Instant now=clock.instant();
         WopiLock current=repo.lock(id,now);
@@ -128,6 +135,7 @@ public class DocumentWopiService {
     public Outcome putFile(UUID id,String token,String suppliedLock,byte[] bytes) {
         Authenticated auth=session(id,token);
         if(!auth.session().canWrite()) throw ApiException.forbidden();
+        core.requireWrite(auth.session().actorId(),auth.document());
         DocxIntegrity.validate(bytes);
         Document doc=repo.forUpdate(id);
         core.requireAccess(auth.session().actorId(),doc);

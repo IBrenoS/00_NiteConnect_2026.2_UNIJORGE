@@ -41,6 +41,25 @@ public final class S3DocumentObjectStore implements DocumentObjectStore {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "Não foi possível recuperar o documento");
         }
     }
+    /** Non-DOCX objects use a distinct private key prefix. Old DOCX keys remain unchanged. */
+    private String assetKey(UUID id) {return "assets/"+id+".bin";}
+    @Override public void putAsset(UUID id,byte[] contents,String mimeType) {
+        try {
+            client.putObject(PutObjectRequest.builder().bucket(bucket).key(assetKey(id))
+                    .contentType(mimeType).contentLength((long)contents.length).build(),RequestBody.fromBytes(contents));
+        } catch(RuntimeException ex) {throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"Armazenamento de arquivos indisponível");}
+    }
+    @Override public byte[] getAsset(UUID id) {
+        try {
+            byte[] bytes=client.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(assetKey(id)).build()).asByteArray();
+            if(bytes.length>DocxIntegrity.MAX_BYTES) throw new IllegalStateException("Arquivo excede 8 MiB");
+            return bytes;
+        } catch(RuntimeException ex) {throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"Arquivo indisponível");}
+    }
+    @Override public void deleteAssetOrphan(UUID id) {
+        try {client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(assetKey(id)).build());}
+        catch(RuntimeException ignored) { /* A recuperação posterior deve conciliar órfãos. */ }
+    }
     @Override public void deleteOrphan(UUID objectId) {
         try { client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key(objectId)).build()); }
         catch (RuntimeException ignored) { /* orphan reconciliation is documented, never delete a referenced version */ }

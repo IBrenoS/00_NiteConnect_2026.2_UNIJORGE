@@ -11,6 +11,8 @@ import br.edu.unijorge.niteconnect.shared.api.PageResult;
 import br.edu.unijorge.niteconnect.shared.security.AdministrativeTransactions;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.ObjectProvider;
+import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryService;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ public class InvitationService {
     private final EntraProperties entra;
     private final AuditTrail audit;
     private final AdministrativeTransactions transactions;
+    private final ObjectProvider<DocumentLibraryService> documentLibrary;
 
     private static final RowMapper<Invitation> MAPPER = (rs, row) -> new Invitation(rs.getObject("id", UUID.class),
             rs.getObject("member_id", UUID.class), rs.getObject("tenant_id", UUID.class), rs.getObject("object_id", UUID.class),
@@ -37,9 +40,10 @@ public class InvitationService {
             rs.getTimestamp("revoked_at") == null ? null : rs.getTimestamp("revoked_at").toInstant());
 
     public InvitationService(JdbcTemplate jdbc, MemberDirectory members, MemberAdministration administration,
-            AccessService access, IdentityDirectory identities, EntraProperties entra, AuditTrail audit, AdministrativeTransactions transactions) {
+            AccessService access, IdentityDirectory identities, EntraProperties entra, AuditTrail audit, AdministrativeTransactions transactions,
+            ObjectProvider<DocumentLibraryService> documentLibrary) {
         this.jdbc=jdbc; this.members=members; this.administration=administration; this.access=access;
-        this.identities=identities; this.entra=entra; this.audit=audit; this.transactions=transactions;
+        this.identities=identities; this.entra=entra; this.audit=audit; this.transactions=transactions;this.documentLibrary=documentLibrary;
     }
     @Transactional
     public Invitation create(UUID actor, UUID target, UUID object, Instant expiresAt, String reason) {
@@ -69,6 +73,8 @@ public class InvitationService {
         if (invitation.acceptedAt() != null) {
             // Replays never reactivate a suspended member or bind a different account.
             if (member.status() != MemberStatus.ATIVO) throw ApiException.forbidden();
+            DocumentLibraryService library=documentLibrary.getIfAvailable();
+            if(library!=null) library.provision(member.id());
             return member;
         }
         if (invitation.revokedAt() != null || !invitation.expiresAt().isAfter(Instant.now())) throw ApiException.conflict("Convite revogado ou expirado");
@@ -78,6 +84,8 @@ public class InvitationService {
         jdbc.update("update nite_connect.invitations set accepted_at=current_timestamp where id=?", id);
         administration.recordStatus(member.id(), member.id(), member.status(), MemberStatus.ATIVO, "Aceite de convite autorizado");
         audit.record(member.id(), member.id(), "INVITATION_ACCEPTED", member.status().name(), MemberStatus.ATIVO.name(), "Aceite de convite autorizado");
+        DocumentLibraryService library=documentLibrary.getIfAvailable();
+        if(library!=null) library.provision(activated.id());
         return activated;
     }
     @Transactional

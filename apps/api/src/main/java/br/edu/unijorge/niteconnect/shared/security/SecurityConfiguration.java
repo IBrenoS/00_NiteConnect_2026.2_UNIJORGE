@@ -50,8 +50,10 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download").access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download",
+                                "/api/v1/me/library", "/api/v1/library/**", "/api/v1/projects/*/library", "/api/v1/projects/*/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session",
+                                "/api/v1/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/frequency/qr/handoffs").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/academic/enrollments/*/homologation", "/api/v1/academic/enrollments/*/reviews", "/api/v1/me/academic/enrollments/*/reviews", "/api/v1/academic/enrollments/*/history", "/api/v1/academic/homologations/*/forwardings").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/dashboard", "/api/v1/projects/*/dashboard", "/api/v1/analytics/dashboard",
@@ -127,6 +129,9 @@ public class SecurityConfiguration {
                             .access(authenticatedJwt)
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/members/*/roles/*", "/api/v1/invitations/*")
                             .access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.PATCH,"/api/v1/library/**").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.PUT,"/api/v1/library/**").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.DELETE,"/api/v1/library/**").access(authenticatedJwt)
                         .anyRequest().denyAll());
         if (decoder != null) {
             http.oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.decoder(decoder)));
