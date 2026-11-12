@@ -27,10 +27,11 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.CREATED)
     DocumentCoreService.Summary create(@AuthenticationPrincipal Jwt jwt,
                                         @RequestParam(value="title",required=false) String title,
+                                        @RequestParam(value="folderId",required=false) UUID folderId,
                                         @RequestPart("file") MultipartFile file) throws IOException {
         if(file.getSize()>br.edu.unijorge.niteconnect.documents.domain.DocxIntegrity.MAX_BYTES)
             throw ApiException.invalid("DOCX excede 8 MiB");
-        return service.create(identities.member(jwt),title,file.getBytes());
+        return service.create(identities.member(jwt),title,file.getBytes(),folderId);
     }
     @GetMapping("/api/v1/me/documents")
     List<DocumentCoreService.Summary> own(@AuthenticationPrincipal Jwt jwt) {
@@ -44,7 +45,7 @@ public class DocumentController {
     @GetMapping("/api/v1/documents/{id}/download")
     ResponseEntity<byte[]> download(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
         var doc=service.require(identities.member(jwt),id);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(doc.mimeType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(doc.title(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(service.readVerified(doc));
     }

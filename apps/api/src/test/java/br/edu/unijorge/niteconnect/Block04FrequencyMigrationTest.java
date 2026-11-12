@@ -42,10 +42,10 @@ class Block04FrequencyMigrationTest {
 
         Flyway upgraded = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:Migrations").load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(7);
         upgraded.validate();
 
-        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("27");
+        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("28");
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.attendance_records where id=?", Long.class, attendance)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.attendance_segments where id=?", Long.class, segment)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select qr_hash is null and qr_expires_at is null from nite_connect.calendar_events where id=?", Boolean.class, event)).isTrue();
