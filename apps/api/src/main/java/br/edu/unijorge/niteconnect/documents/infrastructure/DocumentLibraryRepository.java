@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -16,20 +17,35 @@ public class DocumentLibraryRepository {
     public DocumentLibraryRepository(JdbcTemplate jdbc) { this.jdbc=jdbc; }
 
     public record Folder(UUID id,UUID parentId,String name,String color,String kind,String systemKey,
-                         UUID ownerId,UUID projectId,Instant modifiedAt) {}
+                         UUID ownerId,String ownerName,UUID projectId,String projectTitle,
+                         UUID createdBy,String createdByName,Instant createdAt,UUID modifiedBy,String modifiedByName,Instant modifiedAt) {}
     public record FileEntry(UUID id,UUID folderId,String title,String context,UUID ownerId,UUID projectId,
                             String mimeType,long revision,long size,String ownerName,String createdByName,
-                            String modifiedByName,Instant modifiedAt,String sharedByName,Instant sharedAt,
-                            String lastOpenedByName,Instant lastOpenedAt) {}
+                            UUID createdBy,Instant createdAt,String modifiedByName,UUID modifiedBy,Instant modifiedAt,
+                            String folderName,String sharedByName,Instant sharedAt,long sharedWithCount,
+                            String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt) {}
+    public record FilePage(List<FileEntry> items,long total,String nextCursor,boolean hasMore) {}
+    public record Activity(UUID id,String action,String reason,UUID actorId,String actorName,Instant occurredAt) {}
+    public record ActivityPage(List<Activity> items,boolean hasMore) {}
     public record Template(UUID id,String title,boolean autoAssign,boolean retired,UUID currentVersionId,int revision) {}
     public record Distribution(UUID memberId,UUID documentId,boolean created) {}
 
+    private static final String FOLDER_COLUMNS="""
+            select f.*,o.name owner_name,p.title project_title,c.name created_by_name,m.name modified_by_name
+            from nite_connect.document_folders f
+            left join nite_connect.members o on o.id=f.owner_id
+            left join nite_connect.projects p on p.id=f.project_id
+            left join nite_connect.members c on c.id=f.created_by
+            left join nite_connect.members m on m.id=f.modified_by
+            """;
     private static Folder folder(ResultSet rs,int row) throws SQLException {
         return new Folder(rs.getObject("id",UUID.class),rs.getObject("parent_id",UUID.class),rs.getString("name"),
                 rs.getString("color"),rs.getString("kind"),rs.getString("system_key"),
-                rs.getObject("owner_id",UUID.class),rs.getObject("project_id",UUID.class),rs.getTimestamp("modified_at").toInstant());
+                rs.getObject("owner_id",UUID.class),rs.getString("owner_name"),rs.getObject("project_id",UUID.class),rs.getString("project_title"),
+                rs.getObject("created_by",UUID.class),rs.getString("created_by_name"),rs.getTimestamp("created_at").toInstant(),
+                rs.getObject("modified_by",UUID.class),rs.getString("modified_by_name"),rs.getTimestamp("modified_at").toInstant());
     }
-    private static final String FOLDER_SQL="select * from nite_connect.document_folders where id=? and archived_at is null";
+    private static final String FOLDER_SQL=FOLDER_COLUMNS+" where f.id=? and f.archived_at is null";
     public Folder folder(UUID id) {
         return jdbc.query(FOLDER_SQL,DocumentLibraryRepository::folder,id).stream().findFirst().orElseThrow(ApiException::notFound);
     }
@@ -42,30 +58,34 @@ public class DocumentLibraryRepository {
             case "MODELOS" -> "Modelos oficiais";
             default -> throw ApiException.invalid("Raiz institucional desconhecida");
         };
-        var found=jdbc.query("select * from nite_connect.document_folders where system_key=? and archived_at is null",DocumentLibraryRepository::folder,key);
+        var found=jdbc.query(FOLDER_COLUMNS+" where f.system_key=? and f.archived_at is null",DocumentLibraryRepository::folder,key);
         if(!found.isEmpty()) return found.getFirst();
         jdbc.update("insert into nite_connect.document_folders(id,name,kind,system_key) values (?,?,'ROOT',?) on conflict do nothing",
                 UUID.randomUUID(),title,key);
-        return jdbc.query("select * from nite_connect.document_folders where system_key=? and archived_at is null",DocumentLibraryRepository::folder,key)
+        return jdbc.query(FOLDER_COLUMNS+" where f.system_key=? and f.archived_at is null",DocumentLibraryRepository::folder,key)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
     public List<Folder> roots() {
         for(String key:List.of("INTEGRANTES","PROJETOS","MATERIAIS","MODELOS")) root(key);
-        return jdbc.query("select * from nite_connect.document_folders where parent_id is null and archived_at is null order by name,id",DocumentLibraryRepository::folder);
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id is null and f.archived_at is null order by f.name,f.id",DocumentLibraryRepository::folder);
     }
     public List<Folder> children(UUID parent) {
-        return jdbc.query("select * from nite_connect.document_folders where parent_id=? and archived_at is null order by lower(name),id",DocumentLibraryRepository::folder,parent);
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null order by lower(f.name),f.id",DocumentLibraryRepository::folder,parent);
+    }
+    public Folder child(UUID parent,String name) {
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and lower(btrim(f.name))=lower(btrim(?)) and f.archived_at is null",
+                DocumentLibraryRepository::folder,parent,name).stream().findFirst().orElse(null);
     }
     public Folder personal(UUID member) {
-        return jdbc.query("select * from nite_connect.document_folders where owner_id=? and kind='PERSONAL' and archived_at is null",DocumentLibraryRepository::folder,member)
+        return jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null",DocumentLibraryRepository::folder,member)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
     public Folder project(UUID project) {
-        return jdbc.query("select * from nite_connect.document_folders where project_id=? and kind='PROJECT' and archived_at is null",DocumentLibraryRepository::folder,project)
+        return jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null",DocumentLibraryRepository::folder,project)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
     public Folder ensurePersonal(UUID member) {
-        var existing=jdbc.query("select * from nite_connect.document_folders where owner_id=? and kind='PERSONAL' and archived_at is null",
+        var existing=jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null",
                 DocumentLibraryRepository::folder,member);
         if(!existing.isEmpty()) return existing.getFirst();
         String name=jdbc.query("select name from nite_connect.members where id=? and status='ATIVO'",(rs,row)->rs.getString(1),member)
@@ -77,7 +97,7 @@ public class DocumentLibraryRepository {
         return personal(member);
     }
     public Folder ensureProject(UUID project) {
-        var existing=jdbc.query("select * from nite_connect.document_folders where project_id=? and kind='PROJECT' and archived_at is null",
+        var existing=jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null",
                 DocumentLibraryRepository::folder,project);
         if(!existing.isEmpty()) return existing.getFirst();
         String title=jdbc.query("select title from nite_connect.projects where id=?",(rs,row)->rs.getString(1),project)
@@ -190,10 +210,14 @@ public class DocumentLibraryRepository {
     }
     private static final String FILE_COLUMNS="""
             select d.id,d.folder_id,d.title,d.context,d.owner_id,d.project_id,d.mime_type,d.version,v.size,
-                   o.name owner_name,c.name creator_name,m.name modifier_name,d.modified_at,sh.name shared_by_name,
-                   td.created_at shared_at,op.name last_opened_by_name,d.last_opened_at
+                   o.name owner_name,c.name creator_name,d.created_by,d.created_at,m.name modifier_name,d.modified_by,d.modified_at,
+                   f.name folder_name,sh.name shared_by_name,td.created_at shared_at,
+                   (select count(*) from nite_connect.document_grants g where g.document_id=d.id and g.revoked_at is null) +
+                   case when td.document_id is null then 0 else 1 end shared_with_count,
+                   op.name last_opened_by_name,d.last_opened_by,d.last_opened_at
             from nite_connect.documents d
             join nite_connect.document_versions v on v.id=d.current_version_id
+            join nite_connect.document_folders f on f.id=d.folder_id
             left join nite_connect.members o on o.id=d.owner_id
             join nite_connect.members c on c.id=d.created_by
             left join nite_connect.members m on m.id=d.modified_by
@@ -205,17 +229,128 @@ public class DocumentLibraryRepository {
         return new FileEntry(rs.getObject("id",UUID.class),rs.getObject("folder_id",UUID.class),rs.getString("title"),
                 rs.getString("context"),rs.getObject("owner_id",UUID.class),rs.getObject("project_id",UUID.class),
                 rs.getString("mime_type"),rs.getLong("version"),rs.getLong("size"),rs.getString("owner_name"),
-                rs.getString("creator_name"),rs.getString("modifier_name"),rs.getTimestamp("modified_at").toInstant(),
-                rs.getString("shared_by_name"),rs.getTimestamp("shared_at")==null?null:rs.getTimestamp("shared_at").toInstant(),
-                rs.getString("last_opened_by_name"),rs.getTimestamp("last_opened_at")==null?null:rs.getTimestamp("last_opened_at").toInstant());
+                rs.getString("creator_name"),rs.getObject("created_by",UUID.class),rs.getTimestamp("created_at").toInstant(),
+                rs.getString("modifier_name"),rs.getObject("modified_by",UUID.class),rs.getTimestamp("modified_at").toInstant(),
+                rs.getString("folder_name"),rs.getString("shared_by_name"),
+                rs.getTimestamp("shared_at")==null?null:rs.getTimestamp("shared_at").toInstant(),rs.getLong("shared_with_count"),
+                rs.getString("last_opened_by_name"),rs.getObject("last_opened_by",UUID.class),
+                rs.getTimestamp("last_opened_at")==null?null:rs.getTimestamp("last_opened_at").toInstant());
     }
     public List<FileEntry> files(UUID folder) {
         return jdbc.query(FILE_COLUMNS+" where d.folder_id=? and d.archived_at is null order by lower(d.title),d.id limit 500",
                 DocumentLibraryRepository::file,folder);
     }
+    public FilePage filePage(UUID folder,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
+        String key=switch(sortBy) {
+            case "modifiedAt" -> "d.modified_at";
+            case "createdAt" -> "d.created_at";
+            case "size" -> "v.size";
+            default -> "lower(d.title)";
+        };
+        String order="desc".equals(direction)?"desc":"asc";
+        String sign="desc".equals(order)?"<":">";
+        var params=new java.util.ArrayList<Object>();
+        StringBuilder sql=new StringBuilder(FILE_COLUMNS).append(" where d.folder_id=? and d.archived_at is null");
+        params.add(folder);
+        if(search!=null&&!search.isBlank()) {
+            sql.append(" and lower(d.title) like ? escape E'\\\\'");
+            String escaped=search.toLowerCase(java.util.Locale.ROOT).replace("\\","\\\\").replace("%","\\%").replace("_","\\_");
+            params.add("%"+escaped+"%");
+        }
+        if(mimeType!=null&&!mimeType.isBlank()) {sql.append(" and d.mime_type=?");params.add(mimeType);}
+        if(cursor!=null) {
+            String[] parts=cursor.split("\\n",-1);
+            String value=parts[4];
+            UUID id=UUID.fromString(parts[5]);
+            if("createdAt".equals(sortBy)||"modifiedAt".equals(sortBy)) {
+                sql.append(" and ("+key+sign+"cast(? as timestamptz) or ("+key+"=cast(? as timestamptz) and d.id"+sign+"?))");
+                params.add(value);params.add(value);params.add(id);
+            } else if("size".equals(sortBy)) {
+                sql.append(" and ("+key+sign+"?::bigint or ("+key+"=?::bigint and d.id"+sign+"?))");
+                params.add(Long.parseLong(value));params.add(Long.parseLong(value));params.add(id);
+            } else {
+                sql.append(" and ("+key+sign+"? or ("+key+"=? and d.id"+sign+"?))");
+                params.add(value);params.add(value);params.add(id);
+            }
+        }
+        long total=jdbc.queryForObject("select count(*) from nite_connect.documents d where d.folder_id=? and d.archived_at is null"+
+                (search==null||search.isBlank()?"":" and lower(d.title) like ? escape E'\\\\'")+
+                (mimeType==null||mimeType.isBlank()?"":" and d.mime_type=?"),Long.class,
+                pageCountArgs(folder,search,mimeType));
+        sql.append(" order by ").append(key).append(' ').append(order).append(",d.id ").append(order).append(" limit ?");
+        params.add(limit+1);
+        var rows=jdbc.query(sql.toString(),DocumentLibraryRepository::file,params.toArray());
+        boolean more=rows.size()>limit;
+        List<FileEntry> items=more?List.copyOf(rows.subList(0,limit)):List.copyOf(rows);
+        String next=null;
+        if(more&&!items.isEmpty()) {
+            FileEntry last=items.getLast();
+            String value=switch(sortBy) {
+                case "createdAt" -> last.createdAt().toString();
+                case "modifiedAt" -> last.modifiedAt().toString();
+                case "size" -> Long.toString(last.size());
+                default -> last.title().toLowerCase(java.util.Locale.ROOT);
+            };
+            next=String.join("\n",sortBy,direction,search==null?"":search,mimeType==null?"":mimeType,value,last.id().toString());
+        }
+        return new FilePage(items,total,next,more);
+    }
+    private static Object[] pageCountArgs(UUID folder,String search,String mimeType) {
+        var args=new java.util.ArrayList<Object>();args.add(folder);
+        if(search!=null&&!search.isBlank()) {
+            String escaped=search.toLowerCase(java.util.Locale.ROOT).replace("\\","\\\\").replace("%","\\%").replace("_","\\_");
+            args.add("%"+escaped+"%");
+        }
+        if(mimeType!=null&&!mimeType.isBlank()) args.add(mimeType);
+        return args.toArray();
+    }
     public FileEntry file(UUID id) {
         return jdbc.query(FILE_COLUMNS+" where d.id=? and d.archived_at is null",DocumentLibraryRepository::file,id)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
+    }
+    public boolean fileNameExists(UUID folder,String title,UUID excluded) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.documents where folder_id=? and lower(btrim(title))=lower(btrim(?)) and archived_at is null and id<>?)",
+                Boolean.class,folder,title,excluded));
+    }
+    public ActivityPage documentActivity(UUID id,Instant before,UUID beforeId,int limit) {
+        String sql="""
+                with recursive ancestors(id,parent_id) as (
+                  select f.id,f.parent_id from nite_connect.documents d join nite_connect.document_folders f on f.id=d.folder_id where d.id=?
+                  union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id
+                ), events as (
+                  select e.id,e.action,e.reason,e.actor_id,m.name actor_name,e.occurred_at
+                  from nite_connect.document_events e join nite_connect.members m on m.id=e.actor_id where e.document_id=?
+                  union all
+                  select e.id,e.action,'Compartilhamento '||e.permission||' com '||r.name,e.actor_id,a.name,e.occurred_at
+                  from nite_connect.document_share_events e join nite_connect.members a on a.id=e.actor_id
+                    join nite_connect.members r on r.id=e.recipient_id
+                  where e.document_id=? or e.folder_id in (select id from ancestors)
+                ) select id,action,reason,actor_id,actor_name,occurred_at from events
+                """+(before==null?"":" where (occurred_at,id)<(?,?)")+" order by occurred_at desc,id desc limit ?";
+        var mapper=(org.springframework.jdbc.core.RowMapper<Activity>)(rs,row)->new Activity(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),
+                rs.getObject(4,UUID.class),rs.getString(5),rs.getTimestamp(6).toInstant());
+        List<Activity> rows=before==null?jdbc.query(sql,mapper,id,id,id,limit+1):jdbc.query(sql,mapper,id,id,id,Timestamp.from(before),beforeId,limit+1);
+        return activityPage(rows,limit);
+    }
+    public ActivityPage folderActivity(UUID id,Instant before,UUID beforeId,int limit) {
+        String sql="""
+                select * from (
+                  select e.id,e.action,e.reason,e.actor_id,m.name actor_name,e.occurred_at
+                  from nite_connect.document_folder_events e join nite_connect.members m on m.id=e.actor_id where e.folder_id=?
+                  union all
+                  select e.id,e.action,'Compartilhamento '||e.permission||' com '||r.name,e.actor_id,a.name,e.occurred_at
+                  from nite_connect.document_share_events e join nite_connect.members a on a.id=e.actor_id
+                    join nite_connect.members r on r.id=e.recipient_id where e.folder_id=?
+                ) events
+                """+(before==null?"":" where (occurred_at,id)<(?,?)")+" order by occurred_at desc,id desc limit ?";
+        var mapper=(org.springframework.jdbc.core.RowMapper<Activity>)(rs,row)->new Activity(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),
+                rs.getObject(4,UUID.class),rs.getString(5),rs.getTimestamp(6).toInstant());
+        List<Activity> rows=before==null?jdbc.query(sql,mapper,id,id,limit+1):jdbc.query(sql,mapper,id,id,Timestamp.from(before),beforeId,limit+1);
+        return activityPage(rows,limit);
+    }
+    private static ActivityPage activityPage(List<Activity> rows,int limit) {
+        boolean more=rows.size()>limit;
+        return new ActivityPage(more?List.copyOf(rows.subList(0,limit)):List.copyOf(rows),more);
     }
     public record ArchivedItem(UUID id,String name,String type,UUID folderId,Instant archivedAt) {}
     /** Present top-level archived folders and standalone archived files to administrators. */
@@ -319,7 +454,7 @@ public class DocumentLibraryRepository {
     }
     public void giveEdit(UUID document,UUID member,UUID actor,boolean edit) {
         jdbc.update("update nite_connect.document_grants set revoked_at=clock_timestamp() where document_id=? and member_id=? and revoked_at is null",document,member);
-        if(edit) jdbc.update("insert into nite_connect.document_grants(id,document_id,member_id,can_edit,granted_by) values (?,?,?,true,?)",
+        if(edit) jdbc.update("insert into nite_connect.document_grants(id,document_id,member_id,permission,can_edit,granted_by) values (?,?,?,'EDIT',true,?)",
                 UUID.randomUUID(),document,member,actor);
         event(document,actor,edit?"EDIT_GRANTED":"EDIT_REVOKED","Permissão de projeto alterada");
         jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and actor_id=? and revoked_at is null",document,member);
@@ -337,19 +472,26 @@ public class DocumentLibraryRepository {
                 with recursive selected(id) as (
                   select id from nite_connect.document_folders where id=? and archived_at is null
                   union all select f.id from nite_connect.document_folders f join selected s on f.parent_id=s.id where f.archived_at is null
-                ) select f.* from nite_connect.document_folders f join selected s on s.id=f.id order by lower(f.name),f.id
+                ) select f.*,o.name owner_name,p.title project_title,c.name created_by_name,m.name modified_by_name
+                  from nite_connect.document_folders f join selected s on s.id=f.id
+                  left join nite_connect.members o on o.id=f.owner_id left join nite_connect.projects p on p.id=f.project_id
+                  left join nite_connect.members c on c.id=f.created_by left join nite_connect.members m on m.id=f.modified_by
+                  order by lower(f.name),f.id
                 """,DocumentLibraryRepository::folder,root);
     }
     public List<Folder> folderTree() {
-        return jdbc.query("select * from nite_connect.document_folders where archived_at is null order by name,id",DocumentLibraryRepository::folder);
+        return jdbc.query(FOLDER_COLUMNS+" where f.archived_at is null order by f.name,f.id",DocumentLibraryRepository::folder);
     }
-    public List<UUID> activeMembers() {
-        return jdbc.query("select id from nite_connect.members where status='ATIVO' order by id",
-                (rs,row)->rs.getObject(1,UUID.class));
+    public List<UUID> activeMembers(UUID after,int limit) {
+        String sql="select id from nite_connect.members where status='ATIVO'"+(after==null?"":" and id>?")+" order by id limit ?";
+        return after==null?jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),limit)
+                :jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),after,limit);
     }
-    public List<UUID> projectsNeedingFolder() {
-        return jdbc.query("select p.id from nite_connect.projects p where not exists(select 1 from nite_connect.document_folders f where f.project_id=p.id and f.archived_at is null)",
-                (rs,row)->rs.getObject(1,UUID.class));
+    public List<UUID> projectsNeedingFolder(UUID after,int limit) {
+        String sql="select p.id from nite_connect.projects p where not exists(select 1 from nite_connect.document_folders f where f.project_id=p.id and f.archived_at is null)"+
+                (after==null?"":" and p.id>?")+" order by p.id limit ?";
+        return after==null?jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),limit)
+                :jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),after,limit);
     }
 
 }

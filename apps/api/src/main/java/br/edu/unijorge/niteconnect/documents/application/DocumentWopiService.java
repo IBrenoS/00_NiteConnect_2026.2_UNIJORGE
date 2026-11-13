@@ -84,7 +84,8 @@ public class DocumentWopiService {
         Document doc=auth.document();
         var info=new LinkedHashMap<String,Object>();
         info.put("BaseFileName",doc.title());
-        info.put("OwnerId",(doc.ownerId()!=null?doc.ownerId():doc.projectId()!=null?doc.projectId():doc.id()).toString());
+        UUID owner=doc.ownerId()!=null?doc.ownerId():doc.projectId()!=null&&core.canReadProjectContext(auth.session().actorId(),doc.projectId())?doc.projectId():doc.id();
+        info.put("OwnerId",owner.toString());
         info.put("Size",doc.size());
         info.put("Version",Long.toString(doc.version()));
         info.put("LastModifiedTime",doc.versionAt().toString());
@@ -113,7 +114,8 @@ public class DocumentWopiService {
         Authenticated auth=session(id,token);
         if(!auth.session().canWrite()) throw ApiException.forbidden();
         core.requireWrite(auth.session().actorId(),auth.document());
-        repo.forUpdate(id);
+        Document locked=repo.forUpdate(id);
+        core.requireWrite(auth.session().actorId(),locked);
         Instant now=clock.instant();
         WopiLock current=repo.lock(id,now);
         if("GET_LOCK".equals(operation)) return new Outcome(200,current==null?"":current.value(),null);
@@ -138,7 +140,7 @@ public class DocumentWopiService {
         core.requireWrite(auth.session().actorId(),auth.document());
         DocxIntegrity.validate(bytes);
         Document doc=repo.forUpdate(id);
-        core.requireAccess(auth.session().actorId(),doc);
+        core.requireWrite(auth.session().actorId(),doc);
         WopiLock current=repo.lock(id,clock.instant());
         if(current!=null && !current.value().equals(suppliedLock)) {
             return new Outcome(409,current.value(),null);

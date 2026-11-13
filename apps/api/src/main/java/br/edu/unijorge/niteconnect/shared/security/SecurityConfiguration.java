@@ -51,7 +51,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download",
-                                "/api/v1/me/library", "/api/v1/library/**", "/api/v1/projects/*/library", "/api/v1/projects/*/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
+                                "/api/v1/me/library", "/api/v1/me/shared-with-me", "/api/v1/library/**", "/api/v1/projects/*/library", "/api/v1/projects/*/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session",
                                 "/api/v1/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/frequency/qr/handoffs").permitAll()

@@ -3,6 +3,7 @@ package br.edu.unijorge.niteconnect.documents.application;
 import br.edu.unijorge.niteconnect.access.application.AccessService;
 import br.edu.unijorge.niteconnect.access.application.ProjectAccess;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentLibraryRepository;
+import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentSharingRepository;
 import br.edu.unijorge.niteconnect.documents.domain.DocxIntegrity;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentRepository;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentRepository.Document;
@@ -22,9 +23,10 @@ public class DocumentCoreService {
     private final AccessService access;
     private final ProjectAccess projects;
     private final DocumentLibraryRepository library;
+    private final DocumentSharingRepository sharing;
 
-    public DocumentCoreService(DocumentRepository repository,DocumentObjectStore store,AccessService access,ProjectAccess projects,DocumentLibraryRepository library) {
-        this.repository=repository;this.store=store;this.access=access;this.projects=projects;this.library=library;
+    public DocumentCoreService(DocumentRepository repository,DocumentObjectStore store,AccessService access,ProjectAccess projects,DocumentLibraryRepository library,DocumentSharingRepository sharing) {
+        this.repository=repository;this.store=store;this.access=access;this.projects=projects;this.library=library;this.sharing=sharing;
     }
     public record Summary(UUID id,String title,long revision,long size,String sha256) {
         static Summary of(Document d) {return new Summary(d.id(),d.title(),d.version(),d.size(),d.sha256());}
@@ -33,25 +35,35 @@ public class DocumentCoreService {
         access.requireActive(actor);
         if(access.isAdministrator(actor)) return;
         switch(document.context()) {
-            case "PERSONAL" -> {if(!actor.equals(document.ownerId())) throw ApiException.notFound();}
-            case "PROJECT" -> projects.requireRead(actor,document.projectId());
-            default -> throw ApiException.notFound();
+            case "PERSONAL" -> {if(!actor.equals(document.ownerId())&&sharing.documentPermission(document.id(),actor)==null) throw ApiException.notFound();}
+            case "PROJECT" -> {
+                try {projects.requireRead(actor,document.projectId());}
+                catch(ApiException ex) {if(sharing.documentPermission(document.id(),actor)==null) throw ex;}
+            }
+            default -> {if(sharing.documentPermission(document.id(),actor)==null) throw ApiException.notFound();}
         }
     }
     public boolean canWrite(UUID actor,Document document) {
         requireAccess(actor,document);
         if(access.isAdministrator(actor)) return true;
+        String permission=sharing.documentPermission(document.id(),actor);
         return switch(document.context()) {
-            case "PERSONAL" -> actor.equals(document.ownerId());
+            case "PERSONAL" -> actor.equals(document.ownerId())||"EDIT".equals(permission);
             case "PROJECT" -> {
                 try {projects.requireManage(actor,document.projectId());yield true;}
-                catch(ApiException ex) {yield library.canEdit(document.id(),actor);}
+                catch(ApiException ex) {yield "EDIT".equals(permission)||library.canEdit(document.id(),actor);}
             }
-            default -> false;
+            default -> "EDIT".equals(permission);
         };
     }
     public void requireWrite(UUID actor,Document document) {
         if(!canWrite(actor,document)) throw ApiException.forbidden();
+    }
+    public boolean canReadProjectContext(UUID actor,UUID projectId) {
+        access.requireActive(actor);
+        if(access.isAdministrator(actor)) return true;
+        try {projects.requireRead(actor,projectId);return true;}
+        catch(ApiException ex) {return false;}
     }
     public String friendlyName(UUID actor) {
         return access.requireActive(actor).name();

@@ -1,71 +1,49 @@
 import "server-only";
 import { getApiJson } from "../api/server";
+import { parseActivityListing,parseArray,parseLibraryFile,parseLibraryFolder,parseLibraryListing,parseSharedListing,validUuid } from "./library-contracts";
+import type { LibraryArchivedItem,LibraryRecipient,LibraryTemplate } from "./library-contracts";
+export * from "./library-contracts";
 
-export type LibraryFolder = {
-  id: string; parentId: string|null; name: string; color: string;
-  kind: "ROOT"|"PERSONAL"|"PROJECT"|"CUSTOM";
-  systemKey: string|null; ownerId: string|null; projectId: string|null; modifiedAt: string;
-};
-export type LibraryFile = {
-  id: string; folderId: string; title: string; context: string; ownerId: string|null;
-  projectId: string|null; mimeType: string; revision: number; size: number;
-  ownerName: string|null; createdByName: string; modifiedByName: string|null; modifiedAt: string; sharedByName:string|null; sharedAt:string|null; lastOpenedByName:string|null; lastOpenedAt:string|null;
-};
-export type LibraryListing = { folder: LibraryFolder; folders: LibraryFolder[]; files: LibraryFile[] };
-export type LibraryTemplate = { id:string; title:string; autoAssign:boolean; retired:boolean; currentVersionId:string|null; revision:number };
-export type LibraryRecipient = { id:string; name:string };
-export type LibraryArchivedItem = {id:string;name:string;type:"FOLDER"|"DOCUMENT";folderId:string|null;archivedAt:string};
-const object=(v:unknown):v is Record<string,unknown>=>typeof v==="object"&&v!==null&&!Array.isArray(v);
-const str=(v:unknown):v is string=>typeof v==="string";
-const optionalStr=(v:unknown):v is string|null=>v===null||str(v);
-const uuid=(v:unknown):v is string=>str(v)&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(v);
-export const validUuid=uuid;
-function folder(v:unknown):LibraryFolder|null {
-  if(!object(v)||!uuid(v.id)||!str(v.name)||!str(v.color)||!str(v.kind)||!optionalStr(v.parentId)
-      ||!optionalStr(v.ownerId)||!optionalStr(v.projectId)||!optionalStr(v.systemKey)||!str(v.modifiedAt)) return null;
-  if(!["ROOT","PERSONAL","PROJECT","CUSTOM"].includes(v.kind)) return null;
-  return v as LibraryFolder;
-}
-function file(v:unknown):LibraryFile|null {
-  if(!object(v)||!uuid(v.id)||!uuid(v.folderId)||!str(v.title)||!str(v.context)||!str(v.mimeType)
-      ||typeof v.revision!=="number"||typeof v.size!=="number"||!optionalStr(v.ownerId)
-      ||!optionalStr(v.projectId)||!optionalStr(v.ownerName)||!str(v.createdByName)||!optionalStr(v.modifiedByName)||!str(v.modifiedAt)||!optionalStr(v.sharedByName)||!optionalStr(v.sharedAt)||!optionalStr(v.lastOpenedByName)||!optionalStr(v.lastOpenedAt))return null;
-  return v as LibraryFile;
-}
-function parseList<T>(v:unknown,parser:(x:unknown)=>T|null):T[]|null {
-  if(!Array.isArray(v))return null;
-  const items=v.map(parser);
-  return items.every((x)=>x!==null)?items as T[]:null;
-}
-function listing(v:unknown):LibraryListing|null {
-  if(!object(v))return null;
-  const f=folder(v.folder),fs=parseList(v.folders,folder),files=parseList(v.files,file);
-  return f&&fs&&files?{folder:f,folders:fs,files}:null;
-}
-export const getPersonalLibrary=(bearer:string,folderId?:string)=>getApiJson(
-  `/api/v1/me/library${folderId?`?folderId=${encodeURIComponent(folderId)}`:""}`,bearer,listing);
-export const getAdminRoots=(bearer:string)=>getApiJson("/api/v1/library/roots",bearer,v=>parseList(v,folder));
-export const getAdminTree=(bearer:string)=>getApiJson("/api/v1/library/tree",bearer,v=>parseList(v,folder));
-export const getAdminFolder=(bearer:string,id:string)=>getApiJson(`/api/v1/library/folders/${encodeURIComponent(id)}`,bearer,listing);
+const query=(values:Record<string,string|undefined>)=>{const params=new URLSearchParams();for(const [key,value] of Object.entries(values))if(value)params.set(key,value);return params.toString();};
+type ListingOptions={search?:string;mimeType?:string;sortBy?:string;direction?:string;cursor?:string;limit?:number};
+const listingQuery=(options:ListingOptions)=>query({...options,limit:options.limit?String(options.limit):undefined});
+export const getPersonalLibrary=(bearer:string,folderId?:string,options:ListingOptions={})=>getApiJson(
+  `/api/v1/me/library?${query({folderId,...options,limit:String(options.limit??100)})}`,bearer,parseLibraryListing);
+export const getAdminRoots=(bearer:string)=>getApiJson("/api/v1/library/roots",bearer,value=>parseArray(value,parseLibraryFolder));
+export const getAdminTree=(bearer:string)=>getApiJson("/api/v1/library/tree",bearer,value=>parseArray(value,parseLibraryFolder));
+export const getAdminFolder=(bearer:string,id:string,options:ListingOptions={})=>getApiJson(
+  `/api/v1/library/folders/${encodeURIComponent(id)}?${listingQuery(options)}`,bearer,parseLibraryListing);
 export const getProjectFolderTree=(bearer:string,project:string)=>getApiJson(
-  `/api/v1/projects/${encodeURIComponent(project)}/library/tree`,bearer,v=>parseList(v,folder));
+  `/api/v1/projects/${encodeURIComponent(project)}/library/tree`,bearer,value=>parseArray(value,parseLibraryFolder));
 export const getProjectLibrary=(bearer:string,project:string,folderId?:string)=>getApiJson(
-  `/api/v1/projects/${encodeURIComponent(project)}/library${folderId?`?folderId=${encodeURIComponent(folderId)}`:""}`,bearer,listing);
-function template(v:unknown):LibraryTemplate|null {
-  if(!object(v)||!uuid(v.id)||!str(v.title)||typeof v.autoAssign!=="boolean"||typeof v.retired!=="boolean"
-      ||!optionalStr(v.currentVersionId)||typeof v.revision!=="number")return null;
-  return v as LibraryTemplate;
-}
-function recipient(v:unknown):LibraryRecipient|null {
-  if(!object(v)||!uuid(v.id)||!str(v.name))return null;
-  return v as LibraryRecipient;
-}
-export const getTemplates=(bearer:string)=>getApiJson("/api/v1/library/templates",bearer,v=>parseList(v,template));
-export const getRecipients=(bearer:string)=>getApiJson("/api/v1/library/recipients",bearer,v=>parseList(v,recipient));
-
-function archivedItem(v:unknown):LibraryArchivedItem|null {
-  if(!object(v)||!uuid(v.id)||!str(v.name)||!optionalStr(v.folderId)||!str(v.archivedAt)
-      ||(v.type!=="FOLDER"&&v.type!=="DOCUMENT"))return null;
-  return v as LibraryArchivedItem;
-}
-export const getArchivedItems=(bearer:string)=>getApiJson("/api/v1/library/archived",bearer,v=>parseList(v,archivedItem));
+  `/api/v1/projects/${encodeURIComponent(project)}/library${folderId?`?folderId=${encodeURIComponent(folderId)}`:""}`,bearer,parseLibraryListing);
+export const getSharedListing=(bearer:string,cursor?:string)=>getApiJson(
+  `/api/v1/me/shared-with-me?${query({cursor,limit:"50"})}`,bearer,parseSharedListing);
+export const getSharedFolder=(bearer:string,id:string,options:ListingOptions={})=>getApiJson(
+  `/api/v1/library/folders/${encodeURIComponent(id)}?${query({...options,limit:String(options.limit??100)})}`,bearer,parseLibraryListing);
+export const getDocumentDetails=(bearer:string,id:string)=>getApiJson(`/api/v1/library/documents/${encodeURIComponent(id)}`,bearer,parseLibraryFile);
+export const getDocumentActivity=(bearer:string,id:string)=>getApiJson(`/api/v1/library/documents/${encodeURIComponent(id)}/activity?limit=50`,bearer,parseActivityListing);
+export const getFolderActivity=(bearer:string,id:string)=>getApiJson(`/api/v1/library/folders/${encodeURIComponent(id)}/activity?limit=50`,bearer,parseActivityListing);
+const template=(value:unknown):LibraryTemplate|null=>{
+  if(typeof value!=="object"||value===null||Array.isArray(value))return null;
+  const item=value as Record<string,unknown>;
+  if(!validUuid(item.id)||typeof item.title!=="string"||typeof item.autoAssign!=="boolean"||typeof item.retired!=="boolean"
+      ||!(item.currentVersionId===null||validUuid(item.currentVersionId))||typeof item.revision!=="number")return null;
+  return item as LibraryTemplate;
+};
+export const getTemplates=(bearer:string)=>getApiJson("/api/v1/library/templates",bearer,value=>parseArray(value,template));
+const recipient=(value:unknown):LibraryRecipient|null=>{
+  if(typeof value!=="object"||value===null||Array.isArray(value))return null;
+  const item=value as Record<string,unknown>;
+  if(!validUuid(item.id)||typeof item.name!=="string")return null;
+  return item as LibraryRecipient;
+};
+export const getRecipients=(bearer:string)=>getApiJson("/api/v1/library/recipients",bearer,value=>parseArray(value,recipient));
+const archivedItem=(value:unknown):LibraryArchivedItem|null=>{
+  if(typeof value!=="object"||value===null||Array.isArray(value))return null;
+  const item=value as Record<string,unknown>;
+  if(!validUuid(item.id)||typeof item.name!=="string"||!(item.folderId===null||validUuid(item.folderId))||typeof item.archivedAt!=="string"
+      ||(item.type!=="FOLDER"&&item.type!=="DOCUMENT"))return null;
+  return item as LibraryArchivedItem;
+};
+export const getArchivedItems=(bearer:string)=>getApiJson("/api/v1/library/archived",bearer,value=>parseArray(value,archivedItem));

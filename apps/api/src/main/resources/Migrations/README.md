@@ -32,6 +32,9 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V24 | [`V24__meetings_module.sql`](V24__meetings_module.sql) | Novo domínio de reuniões Teams: calendário Microsoft, convites internos, operações idempotentes, notificações, histórico e preparação para relatórios de participação; não altera Agenda/B04/B06. |
 
 | V27 | [`V27__document_wopi_foundation.sql`](V27__document_wopi_foundation.sql) | B05.1: sessões de acesso WOPI temporárias (hash do token) e bloqueios concorrentes por documento, preservando as versões históricas de V6/V7/V10. |
+| V28 | [`V28__document_library.sql`](V28__document_library.sql) | B05.2: pastas, biblioteca única e metadados documentais, preservando UUIDs e versões históricas. |
+| V29 | [`V29__preserve_historical_personal_documents.sql`](V29__preserve_historical_personal_documents.sql) | B05.3: provisiona pastas para integrantes inativos que possuem documentos pessoais legados e associa registros sem pasta, sem reescrever IDs/versões/objetos. |
+| V30 | [`V30__document_sharing.sql`](V30__document_sharing.sql) | B05.4: estende grants existentes para arquivos e pastas com `VIEW`/`EDIT`, preserva o campo legado e registra eventos imutáveis de compartilhamento. |
 
 ## Aplicação
 
