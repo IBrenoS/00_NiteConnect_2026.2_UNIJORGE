@@ -126,7 +126,7 @@ export function AuthenticatedShell({ children, member, roles, projects, leadersh
   const renderSidebar = (mobile: boolean) => {
     return (
       <>
-        <div className="flex h-16 shrink-0 items-center border-b border-nite-border-soft px-4">
+        <div className="flex h-16 shrink-0 items-center px-4">
           <Link href="/dashboard" className="flex min-w-0 items-center gap-3 rounded-control focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" onClick={closeMobileNavigation}>
             <span className="grid size-8 shrink-0 place-items-center rounded-control bg-nite-brand-primary font-display text-type-label font-semibold text-nite-action-text">N</span>
             <span className="truncate font-display text-type-label font-semibold leading-tight text-nite-text-primary">NITE Connect</span>
@@ -158,7 +158,7 @@ export function AuthenticatedShell({ children, member, roles, projects, leadersh
       </div>
 
       <div className="min-w-0 md:pl-[250px]">
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-nite-border-soft bg-nite-background/95 px-3 backdrop-blur sm:px-5 lg:px-7">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 bg-nite-background/95 px-3 backdrop-blur sm:px-5 lg:px-7">
           <button type="button" aria-label="Abrir navegação" aria-expanded={mobileNavigationOpen} aria-controls="authenticated-mobile-sidebar" className="grid size-11 shrink-0 place-items-center rounded-control border border-nite-border-soft text-nite-text-secondary transition-colors hover:bg-nite-surface-subtle motion-reduce:transition-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus md:hidden" onClick={openMobileNavigation}>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-[18px]"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
