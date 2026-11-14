@@ -111,9 +111,9 @@ class Block04RetirementMigrationTest {
 
         Flyway upgraded = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:Migrations").load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(10);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(11);
         upgraded.validate();
-        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("30");
+        assertThat(upgraded.info().current().getVersion().getVersion()).isEqualTo("31");
 
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.calendar_events where id=?", Long.class, event)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.event_participants where event_id=? and member_id=?", Long.class, event, member)).isEqualTo(1);

@@ -9,7 +9,7 @@ function isRecord(value:unknown):value is Record<string,unknown> {return typeof 
 function allowed(path:string,method:string):boolean {
   if(method==="GET")return new RegExp(`^/api/v1/library/(?:documents/${uuid}(?:/(?:activity|shares))?|folders/${uuid}(?:/(?:activity|shares))?|share-recipients)$`).test(path);
   if(method==="POST")return new RegExp(`^/api/v1/library/(?:documents|folders)/${uuid}/shares$`).test(path);
-  if(method==="PATCH")return new RegExp(`^/api/v1/library/shares/${uuid}$`).test(path);
+  if(method==="PATCH")return new RegExp(`^/api/v1/library/(?:shares/${uuid}|folders/${uuid})$`).test(path);
   return method==="DELETE"&&new RegExp(`^/api/v1/library/shares/${uuid}$`).test(path);
 }
 export async function GET(request:Request) {return proxy(request,"GET");}
@@ -30,7 +30,13 @@ async function proxy(request:Request,method:string) {
     if(!isRecord(value))return NextResponse.json({message:"Dados inválidos."},{status:400});
     const record=value;
     if(method==="POST"&&(!validUuid(record.memberId)||!(["VIEW","EDIT"].includes(String(record.permission)))))return NextResponse.json({message:"Concessão inválida."},{status:400});
-    if(method==="PATCH"&&!(["VIEW","EDIT"].includes(String(record.permission))))return NextResponse.json({message:"Permissão inválida."},{status:400});
+    if(method==="PATCH"&&path.startsWith("/api/v1/library/shares/")&&!(["VIEW","EDIT"].includes(String(record.permission))))return NextResponse.json({message:"Permissão inválida."},{status:400});
+    if(method==="PATCH"&&path.startsWith("/api/v1/library/folders/")&&(
+      !(value.name===null||(typeof value.name==="string"&&value.name.length<=190))
+      ||!(value.color===null||(typeof value.color==="string"&&/^#[\da-fA-F]{6}$/.test(value.color)))
+      ||!(value.parentId===null||validUuid(value.parentId))
+      ||typeof value.moveToRoot!=="boolean"
+    ))return NextResponse.json({message:"Alteração de pasta inválida."},{status:400});
     body=JSON.stringify(value);
   }
   try {

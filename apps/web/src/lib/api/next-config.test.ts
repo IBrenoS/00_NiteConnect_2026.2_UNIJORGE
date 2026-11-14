@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "../../../next.config";
 
 describe("limite de Server Actions do Next.js", () => {
-  it("permite upload de evidência de 10 MiB com margem multipart limitada", () => {
-    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe("11mb");
+  it("permite requisições multipart de até 32 MiB com margem para o envelope", () => {
+    expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe("35mb");
   });
 });

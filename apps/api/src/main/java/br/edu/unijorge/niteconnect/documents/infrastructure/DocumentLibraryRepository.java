@@ -18,12 +18,29 @@ public class DocumentLibraryRepository {
 
     public record Folder(UUID id,UUID parentId,String name,String color,String kind,String systemKey,
                          UUID ownerId,String ownerName,UUID projectId,String projectTitle,
-                         UUID createdBy,String createdByName,Instant createdAt,UUID modifiedBy,String modifiedByName,Instant modifiedAt) {}
+                         UUID createdBy,String createdByName,Instant createdAt,UUID modifiedBy,String modifiedByName,Instant modifiedAt,
+                         String effectivePermission) {
+        public Folder(UUID id,UUID parentId,String name,String color,String kind,String systemKey,UUID ownerId,String ownerName,
+                      UUID projectId,String projectTitle,UUID createdBy,String createdByName,Instant createdAt,
+                      UUID modifiedBy,String modifiedByName,Instant modifiedAt) {
+            this(id,parentId,name,color,kind,systemKey,ownerId,ownerName,projectId,projectTitle,createdBy,createdByName,createdAt,
+                    modifiedBy,modifiedByName,modifiedAt,null);
+        }
+    }
     public record FileEntry(UUID id,UUID folderId,String title,String context,UUID ownerId,UUID projectId,
                             String mimeType,long revision,long size,String ownerName,String createdByName,
                             UUID createdBy,Instant createdAt,String modifiedByName,UUID modifiedBy,Instant modifiedAt,
                             String folderName,String sharedByName,Instant sharedAt,long sharedWithCount,
-                            String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt) {}
+                            String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt,String effectivePermission) {
+        public FileEntry(UUID id,UUID folderId,String title,String context,UUID ownerId,UUID projectId,String mimeType,long revision,
+                         long size,String ownerName,String createdByName,UUID createdBy,Instant createdAt,String modifiedByName,
+                         UUID modifiedBy,Instant modifiedAt,String folderName,String sharedByName,Instant sharedAt,long sharedWithCount,
+                         String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt) {
+            this(id,folderId,title,context,ownerId,projectId,mimeType,revision,size,ownerName,createdByName,createdBy,createdAt,
+                    modifiedByName,modifiedBy,modifiedAt,folderName,sharedByName,sharedAt,sharedWithCount,lastOpenedByName,lastOpenedBy,
+                    lastOpenedAt,null);
+        }
+    }
     public record FilePage(List<FileEntry> items,long total,String nextCursor,boolean hasMore) {}
     public record Activity(UUID id,String action,String reason,UUID actorId,String actorName,Instant occurredAt) {}
     public record ActivityPage(List<Activity> items,boolean hasMore) {}
@@ -71,6 +88,13 @@ public class DocumentLibraryRepository {
     }
     public List<Folder> children(UUID parent) {
         return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null order by lower(f.name),f.id",DocumentLibraryRepository::folder,parent);
+    }
+    public List<Folder> children(UUID parent,String search,String sortBy,String direction) {
+        String order=switch(sortBy) {case "createdAt" -> "f.created_at";case "modifiedAt" -> "f.modified_at";default -> "lower(f.name)";};
+        String searchPattern=search==null||search.isEmpty()?"":"%"+search.toLowerCase(java.util.Locale.ROOT)
+                .replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null and (?='' or lower(f.name) like ? escape E'\\\\') order by "+order+" "+direction+",f.id "+direction,
+                DocumentLibraryRepository::folder,parent,search==null?"":search,searchPattern);
     }
     public Folder child(UUID parent,String name) {
         return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and lower(btrim(f.name))=lower(btrim(?)) and f.archived_at is null",

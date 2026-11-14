@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import java.util.UUID;
+import java.util.List;
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class DocumentLibraryTest extends ProjectTestSupport {
     @Autowired DocumentFoundationTest.InMemoryStore store;
+    @Autowired br.edu.unijorge.niteconnect.documents.infrastructure.DocumentSharingRepository sharing;
     private String file(){return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";}
     private MockMultipartFile docx() throws Exception {return new MockMultipartFile("file","Modelo.docx",file(),DocxIntegrityTest.docx("Conteúdo de teste"));}
     private UUID root(String key) throws Exception {
@@ -305,9 +307,12 @@ class DocumentLibraryTest extends ProjectTestSupport {
                         """.formatted(OTHER)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         UUID folderGrant=UUID.fromString(com.jayway.jsonpath.JsonPath.read(grant,"$.id"));
+        assertThat(sharing.folderPermissions(List.of(shared),OTHER)).containsEntry(shared,"EDIT");
 
         mvc.perform(get("/api/v1/library/folders/"+shared).with(token(OTHER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.folder.parentId").doesNotExist())
+                .andExpect(jsonPath("$.folder.effectivePermission").value("EDIT"))
+                .andExpect(jsonPath("$.files[0].effectivePermission").value("EDIT"))
                 .andExpect(jsonPath("$.files.length()").value(1)).andExpect(jsonPath("$.files[0].id").value(document.toString()));
         mvc.perform(get("/api/v1/library/folders/"+home).with(token(OTHER))).andExpect(status().isNotFound());
         mvc.perform(get("/api/v1/documents/"+document).with(token(OTHER))).andExpect(status().isOk());
@@ -362,6 +367,58 @@ class DocumentLibraryTest extends ProjectTestSupport {
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_wopi_locks where document_id=?",Integer.class,document)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_share_events where document_id=? and action='SHARE_CHANGED'",Integer.class,document)).isEqualTo(1);
     }
+    @Test void sharedRootsConsolidateInheritedItemsAndKeepFilteredKeysetPagesStable() throws Exception {
+        UUID home=personal(MEMBER);
+        String outerJson=mvc.perform(post("/api/v1/library/folders").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"parentId":"%s","name":"Equipe","color":"#D6A432"}
+                        """.formatted(home)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID outer=UUID.fromString(com.jayway.jsonpath.JsonPath.read(outerJson,"$.id"));
+        String nestedJson=mvc.perform(post("/api/v1/library/folders").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"parentId":"%s","name":"Privado","color":"#D6A432"}
+                        """.formatted(outer)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID nested=UUID.fromString(com.jayway.jsonpath.JsonPath.read(nestedJson,"$.id"));
+        UUID nestedFile=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,nested),"$.id"));
+        UUID rootFile=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,home),"$.id"));
+        mvc.perform(post("/api/v1/library/folders/"+outer+"/shares").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"memberId":"%s","permission":"VIEW"}
+                        """.formatted(OTHER))).andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/library/folders/"+nested+"/shares").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"memberId":"%s","permission":"EDIT"}
+                        """.formatted(OTHER))).andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/library/documents/"+nestedFile+"/shares").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"memberId":"%s","permission":"VIEW"}
+                        """.formatted(OTHER))).andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/library/documents/"+rootFile+"/shares").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"memberId":"%s","permission":"VIEW"}
+                        """.formatted(OTHER))).andExpect(status().isCreated());
+
+        var first=mvc.perform(get("/api/v1/me/shared-with-me").queryParam("sortBy","name").queryParam("direction","asc")
+                        .queryParam("limit","1").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(outer.toString())).andExpect(jsonPath("$.hasMore").value(true))
+                .andReturn().getResponse().getContentAsString();
+        String cursor=com.jayway.jsonpath.JsonPath.read(first,"$.nextCursor");
+        mvc.perform(get("/api/v1/me/shared-with-me").queryParam("sortBy","name").queryParam("direction","asc")
+                        .queryParam("limit","1").queryParam("cursor",cursor).with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(rootFile.toString())).andExpect(jsonPath("$.hasMore").value(false));
+        mvc.perform(get("/api/v1/me/shared-with-me").queryParam("search","Equipe").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(outer.toString()));
+        mvc.perform(get("/api/v1/me/shared-with-me").queryParam("search","sem correspondência").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(get("/api/v1/library/folders/"+nested).with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.folder.effectivePermission").value("EDIT"))
+                .andExpect(jsonPath("$.files[0].effectivePermission").value("EDIT"));
+    }
     @Test void projectDocumentCanBeSharedOutsideTeamWithoutExposingProjectLocation() throws Exception {
         UUID project=project();join(project,LEADER);transfer(project,LEADER);
         String result=mvc.perform(get("/api/v1/projects/"+project+"/library").with(token(LEADER)))
@@ -387,6 +444,27 @@ class DocumentLibraryTest extends ProjectTestSupport {
                         .contentType(MediaType.APPLICATION_JSON).content("""
                         {"memberId":"%s","permission":"VIEW"}
                         """.formatted(OTHER))).andExpect(status().isNotFound());
+    }
+    @Test void revokingAnotherEditorsGrantPreservesTheActiveEditorsWopiLock() throws Exception {
+        UUID folder=personal(MEMBER);
+        UUID document=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,folder),"$.id"));
+        String launch=mvc.perform(post("/api/v1/documents/"+document+"/editor-session").with(token(MEMBER)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String ownerToken=com.jayway.jsonpath.JsonPath.read(launch,"$.accessToken");
+        mvc.perform(post("/wopi/files/"+document).param("access_token",ownerToken)
+                        .header("X-WOPI-Override","LOCK").header("X-WOPI-Lock","owner-lock"))
+                .andExpect(status().isOk());
+        String grant=mvc.perform(post("/api/v1/library/documents/"+document+"/shares").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"memberId":"%s","permission":"VIEW"}
+                        """.formatted(OTHER)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID grantId=UUID.fromString(com.jayway.jsonpath.JsonPath.read(grant,"$.id"));
+        mvc.perform(delete("/api/v1/library/shares/"+grantId).with(token(MEMBER))).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select actor_id from nite_connect.document_wopi_locks where document_id=?",UUID.class,document)).isEqualTo(MEMBER);
+        mvc.perform(post("/wopi/files/"+document).param("access_token",ownerToken)
+                        .header("X-WOPI-Override","REFRESH_LOCK").header("X-WOPI-Lock","owner-lock"))
+                .andExpect(status().isOk());
     }
     @Test void shareRecipientSearchOnlyReturnsOtherActiveMembers() throws Exception {
         String response=mvc.perform(get("/api/v1/library/share-recipients").param("search","Tes").with(token(MEMBER)))
@@ -433,6 +511,19 @@ class DocumentLibraryTest extends ProjectTestSupport {
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_template_distributions where template_version_id in (select id from nite_connect.document_template_versions where template_id=?)",Integer.class,UUID.fromString(templateId)))
                 .isEqualTo(2);
     }
+    @Test void personalFolderSearchAndSortingAreAppliedByTheServer() throws Exception {
+        UUID home=personal(MEMBER);
+        for(String name:List.of("Beta","Alpha")) mvc.perform(post("/api/v1/library/folders").with(token(MEMBER))
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                {"parentId":"%s","name":"%s","color":"#D6A432"}
+                """.formatted(home,name))).andExpect(status().isCreated());
+        mvc.perform(get("/api/v1/me/library").queryParam("search","Alp").with(token(MEMBER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.folders.length()").value(1))
+                .andExpect(jsonPath("$.folders[0].name").value("Alpha"));
+        mvc.perform(get("/api/v1/me/library").queryParam("sortBy","name").queryParam("direction","desc").with(token(MEMBER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.folders[0].name").value("Beta"))
+                .andExpect(jsonPath("$.folders[1].name").value("Alpha"));
+    }
     @Test void attachedPdfIsDownloadOnlyAndCannotLaunchWopiEditor() throws Exception {
         UUID folder=personal(MEMBER);
         byte[] pdf="%PDF-1.7\nconteudo de teste\n%%EOF".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
@@ -464,6 +555,25 @@ class DocumentLibraryTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/me/library").with(token(MEMBER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.files[?(@.id=='"+id+"')].id").exists());
+    }
+
+    @Test void anActiveMemberCannotArchivePersonalFilesOrFolders() throws Exception {
+        UUID home=personal(MEMBER);
+        String created=mvc.perform(post("/api/v1/library/folders").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"parentId":"%s","name":"Pasta protegida","color":"#D6A432"}
+                        """.formatted(home)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID folder=UUID.fromString(com.jayway.jsonpath.JsonPath.read(created,"$.id"));
+        String uploaded=upload(MEMBER,folder);
+        UUID file=UUID.fromString(com.jayway.jsonpath.JsonPath.read(uploaded,"$.id"));
+
+        mvc.perform(delete("/api/v1/library/documents/"+file).with(token(MEMBER)))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/library/folders/"+folder).queryParam("recursive","true").with(token(MEMBER)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/library/folders/"+folder).with(token(MEMBER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.files[0].id").value(file.toString()));
     }
 
     @Test void recursiveArchiveCanBeRestoredWithoutLosingTheDocxOrItsRevision() throws Exception {

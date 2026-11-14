@@ -13,7 +13,7 @@ export async function GET(request:Request) {
     sortBy:params.get("sort")??undefined,direction:params.get("direction")??undefined,
     cursor:params.get("cursor")??undefined,limit:100};
   const result=view==="shared"
-    ?folder?await getSharedFolder(session.bearer,folder,options):await getSharedListing(session.bearer,options.cursor)
+    ?folder?await getSharedFolder(session.bearer,folder,options):await getSharedListing(session.bearer,options)
     :await getPersonalLibrary(session.bearer,folder,options);
   if(!result.data)return NextResponse.json({message:result.issue==="access"?"Acesso negado.":"Não foi possível carregar os arquivos."},{status:result.issue==="access"?403:result.issue==="not-found"?404:502});
   return NextResponse.json(result.data,{headers:{"Cache-Control":"no-store"}});

@@ -1,7 +1,7 @@
 import "server-only";
 import { getApiJson } from "../api/server";
 import { parseActivityListing,parseArray,parseLibraryFile,parseLibraryFolder,parseLibraryListing,parseSharedListing,validUuid } from "./library-contracts";
-import type { LibraryArchivedItem,LibraryRecipient,LibraryTemplate } from "./library-contracts";
+import type { LibraryArchivedItem,LibraryFolder,LibraryRecipient,LibraryTemplate } from "./library-contracts";
 export * from "./library-contracts";
 
 const query=(values:Record<string,string|undefined>)=>{const params=new URLSearchParams();for(const [key,value] of Object.entries(values))if(value)params.set(key,value);return params.toString();};
@@ -17,10 +17,21 @@ export const getProjectFolderTree=(bearer:string,project:string)=>getApiJson(
   `/api/v1/projects/${encodeURIComponent(project)}/library/tree`,bearer,value=>parseArray(value,parseLibraryFolder));
 export const getProjectLibrary=(bearer:string,project:string,folderId?:string)=>getApiJson(
   `/api/v1/projects/${encodeURIComponent(project)}/library${folderId?`?folderId=${encodeURIComponent(folderId)}`:""}`,bearer,parseLibraryListing);
-export const getSharedListing=(bearer:string,cursor?:string)=>getApiJson(
-  `/api/v1/me/shared-with-me?${query({cursor,limit:"50"})}`,bearer,parseSharedListing);
+export const getSharedListing=(bearer:string,options:ListingOptions={})=>getApiJson(
+  `/api/v1/me/shared-with-me?${listingQuery({...options,limit:options.limit??50})}`,bearer,parseSharedListing);
 export const getSharedFolder=(bearer:string,id:string,options:ListingOptions={})=>getApiJson(
   `/api/v1/library/folders/${encodeURIComponent(id)}?${query({...options,limit:String(options.limit??100)})}`,bearer,parseLibraryListing);
+export async function getFolderAncestors(bearer:string,folder:LibraryFolder):Promise<LibraryFolder[]> {
+  const ancestors:LibraryFolder[]=[];let parentId=folder.parentId,childKind=folder.kind;
+  for(let depth=0;parentId&&childKind!=="PERSONAL"&&depth<64;depth++) {
+    const response=await getSharedFolder(bearer,parentId,{limit:1});
+    const parent=response.data?.folder;if(!parent)break;
+    if(parent.kind!=="PERSONAL")ancestors.push(parent);
+    if(parent.kind==="PERSONAL")break;
+    childKind=parent.kind;parentId=parent.parentId;
+  }
+  return ancestors.reverse();
+}
 export const getDocumentDetails=(bearer:string,id:string)=>getApiJson(`/api/v1/library/documents/${encodeURIComponent(id)}`,bearer,parseLibraryFile);
 export const getDocumentActivity=(bearer:string,id:string)=>getApiJson(`/api/v1/library/documents/${encodeURIComponent(id)}/activity?limit=50`,bearer,parseActivityListing);
 export const getFolderActivity=(bearer:string,id:string)=>getApiJson(`/api/v1/library/folders/${encodeURIComponent(id)}/activity?limit=50`,bearer,parseActivityListing);

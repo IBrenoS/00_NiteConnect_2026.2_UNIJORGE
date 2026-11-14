@@ -11,8 +11,10 @@ const file={id:"33333333-3333-4333-8333-333333333333",folderId:folder.id,title:"
 
 describe("contratos da biblioteca documental",()=>{
   it("preserva metadados e cursor da listagem",()=>{
-    const result=parseLibraryListing({folder,folders:[],files:[file],totalFiles:11,nextCursor:"cursor-opaco",hasMore:true});
+    const result=parseLibraryListing({folder:{...folder,effectivePermission:"EDIT"},folders:[{...folder,effectivePermission:"VIEW"}],files:[{...file,effectivePermission:"EDIT"}],totalFiles:11,nextCursor:"cursor-opaco",hasMore:true});
     expect(result?.files[0]?.sharedWithCount).toBe(1);
+    expect(result?.files[0]?.effectivePermission).toBe("EDIT");
+    expect(result?.folders[0]?.effectivePermission).toBe("VIEW");
     expect(result?.totalFiles).toBe(11);
     expect(result?.nextCursor).toBe("cursor-opaco");
     expect(result?.hasMore).toBe(true);

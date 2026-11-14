@@ -36,7 +36,7 @@ describe("importação de DOCX pessoal", () => {
 
   it("usa o nome do DOCX sem extensão quando o título não foi informado", async () => {
     await expect(importPersonalDocx(form("nite-connect-b05-1-ficticio.docx", "")))
-      .rejects.toThrow("redirect:/documentos?uploaded=1");
+      .rejects.toThrow("redirect:/documentos");
 
     const request = mocks.fetch.mock.calls[0]?.[1] as RequestInit | undefined;
     const body = request?.body;
@@ -46,7 +46,7 @@ describe("importação de DOCX pessoal", () => {
 
   it("preserva o título editado pela pessoa", async () => {
     await expect(importPersonalDocx(form("modelo.docx", "Relatório de teste")))
-      .rejects.toThrow("redirect:/documentos?uploaded=1");
+      .rejects.toThrow("redirect:/documentos");
 
     const request = mocks.fetch.mock.calls[0]?.[1] as RequestInit | undefined;
     const body = request?.body;

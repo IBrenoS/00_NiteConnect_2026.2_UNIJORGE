@@ -71,8 +71,10 @@ public class DocumentLibraryController {
     }
     @GetMapping("/api/v1/me/shared-with-me")
     DocumentLibraryService.SharedListing sharedWithMe(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required=false) String cursor,@RequestParam(defaultValue="50") int limit) {
-        return library.sharedWithMe(identities.member(jwt),cursor,limit);
+            @RequestParam(required=false) String cursor,@RequestParam(required=false) String search,
+            @RequestParam(required=false) String mimeType,@RequestParam(defaultValue="sharedAt") String sortBy,
+            @RequestParam(defaultValue="desc") String direction,@RequestParam(defaultValue="50") int limit) {
+        return library.sharedWithMe(identities.member(jwt),search,mimeType,sortBy,direction,cursor,limit);
     }
     public record CreateShare(UUID memberId,String permission) {}
     public record ChangeShare(String permission) {}

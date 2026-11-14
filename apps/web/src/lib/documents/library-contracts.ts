@@ -1,16 +1,16 @@
 export type LibraryFolder={
   id:string;parentId:string|null;name:string;color:string;kind:"ROOT"|"PERSONAL"|"PROJECT"|"CUSTOM";
   systemKey:string|null;ownerId:string|null;ownerName:string|null;projectId:string|null;createdByName:string|null;
-  createdAt:string|null;modifiedByName:string|null;modifiedAt:string;
+  createdAt:string|null;modifiedByName:string|null;modifiedAt:string;effectivePermission?:"VIEW"|"EDIT"|null;
 };
 export type LibraryFile={
   id:string;folderId:string|null;title:string;context:string;ownerId:string|null;projectId:string|null;mimeType:string;
   revision:number;size:number;ownerName:string|null;createdByName:string;createdAt:string;modifiedByName:string|null;
   modifiedAt:string;sharedByName:string|null;sharedAt:string|null;sharedWithCount:number;lastOpenedByName:string|null;
-  lastOpenedAt:string|null;folderName:string|null;
+  lastOpenedAt:string|null;folderName:string|null;effectivePermission?:"VIEW"|"EDIT"|null;
 };
 export type LibraryListing={folder:LibraryFolder;folders:LibraryFolder[];files:LibraryFile[];totalFiles:number;nextCursor:string|null;hasMore:boolean};
-export type SharedItem={grantId:string;id:string;type:"FOLDER"|"DOCUMENT";name:string;permission:"VIEW"|"EDIT";ownerId:string|null;ownerName:string|null;sharedBy:string|null;sharedByName:string|null;sharedAt:string;modifiedAt:string|null};
+export type SharedItem={grantId:string;id:string;type:"FOLDER"|"DOCUMENT";name:string;permission:"VIEW"|"EDIT";ownerId:string|null;ownerName:string|null;sharedBy:string|null;sharedByName:string|null;sharedAt:string;modifiedAt:string|null;createdAt?:string|null;mimeType?:string|null;size?:number|null;createdByName?:string|null;modifiedByName?:string|null};
 export type SharedListing={items:SharedItem[];nextCursor:string|null;hasMore:boolean};
 export type LibraryActivity={id:string;action:string;reason:string|null;actorId:string|null;actorName:string|null;occurredAt:string};
 export type ActivityListing={items:LibraryActivity[];nextCursor:string|null;hasMore:boolean};
@@ -26,7 +26,8 @@ export const validUuid=uuid;
 export function parseLibraryFolder(value:unknown):LibraryFolder|null {
   if(!object(value)||!uuid(value.id)||!str(value.name)||!str(value.color)||!str(value.kind)||!optionalStr(value.parentId)
       ||!optionalStr(value.ownerId)||!optionalStr(value.ownerName)||!optionalStr(value.projectId)||!optionalStr(value.systemKey)
-      ||!optionalStr(value.createdByName)||!optionalStr(value.createdAt)||!optionalStr(value.modifiedByName)||!str(value.modifiedAt))return null;
+      ||!optionalStr(value.createdByName)||!optionalStr(value.createdAt)||!optionalStr(value.modifiedByName)||!str(value.modifiedAt)
+      ||(value.effectivePermission!==undefined&&value.effectivePermission!==null&&value.effectivePermission!=="VIEW"&&value.effectivePermission!=="EDIT"))return null;
   if(!["ROOT","PERSONAL","PROJECT","CUSTOM"].includes(value.kind))return null;
   return value as LibraryFolder;
 }
@@ -35,7 +36,8 @@ export function parseLibraryFile(value:unknown):LibraryFile|null {
       ||typeof value.revision!=="number"||typeof value.size!=="number"||!optionalStr(value.ownerId)||!optionalStr(value.projectId)
       ||!optionalStr(value.ownerName)||!str(value.createdByName)||!str(value.createdAt)||!optionalStr(value.modifiedByName)
       ||!str(value.modifiedAt)||!optionalStr(value.sharedByName)||!optionalStr(value.sharedAt)||typeof value.sharedWithCount!=="number"
-      ||!optionalStr(value.lastOpenedByName)||!optionalStr(value.lastOpenedAt)||!optionalStr(value.folderName))return null;
+      ||!optionalStr(value.lastOpenedByName)||!optionalStr(value.lastOpenedAt)||!optionalStr(value.folderName)
+      ||(value.effectivePermission!==undefined&&value.effectivePermission!==null&&value.effectivePermission!=="VIEW"&&value.effectivePermission!=="EDIT"))return null;
   return value as LibraryFile;
 }
 export function parseArray<T>(value:unknown,parser:(item:unknown)=>T|null):T[]|null {
@@ -52,7 +54,10 @@ export function parseLibraryListing(value:unknown):LibraryListing|null {
 function parseSharedItem(value:unknown):SharedItem|null {
   if(!object(value)||!uuid(value.grantId)||!uuid(value.id)||(value.type!=="FOLDER"&&value.type!=="DOCUMENT")||!str(value.name)
       ||(value.permission!=="VIEW"&&value.permission!=="EDIT")||!optionalStr(value.ownerId)||!optionalStr(value.ownerName)
-      ||!optionalStr(value.sharedBy)||!optionalStr(value.sharedByName)||!str(value.sharedAt)||!optionalStr(value.modifiedAt))return null;
+      ||!optionalStr(value.sharedBy)||!optionalStr(value.sharedByName)||!str(value.sharedAt)||!optionalStr(value.modifiedAt)
+      ||(value.createdAt!==undefined&&!optionalStr(value.createdAt))||(value.mimeType!==undefined&&!optionalStr(value.mimeType))
+      ||(value.size!==undefined&&value.size!==null&&typeof value.size!=="number")
+      ||(value.createdByName!==undefined&&!optionalStr(value.createdByName))||(value.modifiedByName!==undefined&&!optionalStr(value.modifiedByName)))return null;
   return value as SharedItem;
 }
 export function parseSharedListing(value:unknown):SharedListing|null {

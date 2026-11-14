@@ -26,5 +26,5 @@ export async function importPersonalDocx(form: FormData): Promise<void> {
       body,cache:"no-store",redirect:"error",signal:AbortSignal.timeout(30_000)});
     result=response.ok?"success":response.status===400?"invalid":response.status===401||response.status===403?"access":"unavailable";
   } catch { result="unavailable"; }
-  redirect(result==="success"?"/documentos?uploaded=1":`/documentos?error=${result}`);
+  redirect(result==="success"?"/documentos":`/documentos?error=${result}`);
 }

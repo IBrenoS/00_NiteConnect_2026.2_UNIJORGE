@@ -18,7 +18,7 @@ public class DocumentRepository {
     public record Document(UUID id, String title, UUID ownerId, String context, long version,
                            UUID versionId, UUID objectId, long size, String sha256, Instant versionAt, UUID folderId, UUID projectId, String mimeType, boolean storedAsAsset) {}
     public record Session(UUID documentId, UUID actorId, UUID sourceVersionId, boolean canWrite, Instant expiresAt) {}
-    public record WopiLock(String value, Instant expiresAt) {}
+    public record WopiLock(String value, Instant expiresAt,UUID actorId) {}
 
     private static Document map(ResultSet rs, int row) throws SQLException {
         return new Document(rs.getObject("id", UUID.class), rs.getString("title"),
@@ -118,34 +118,35 @@ public class DocumentRepository {
     }
     public WopiLock lock(UUID document, Instant now) {
         return jdbc.query("""
-                select lock_value,expires_at from nite_connect.document_wopi_locks
+                select lock_value,expires_at,actor_id from nite_connect.document_wopi_locks
                 where document_id=? and expires_at>?
-                """,(rs,row)->new WopiLock(rs.getString(1),rs.getTimestamp(2).toInstant()),document,Timestamp.from(now))
+                """,(rs,row)->new WopiLock(rs.getString(1),rs.getTimestamp(2).toInstant(),rs.getObject(3,UUID.class)),document,Timestamp.from(now))
                 .stream().findFirst().orElse(null);
     }
-    public boolean lockOrRefresh(UUID doc, String requested, Instant now, Instant expires) {
+    public boolean lockOrRefresh(UUID doc,UUID actor,String requested, Instant now, Instant expires) {
         int changed=jdbc.update("""
-                insert into nite_connect.document_wopi_locks(document_id,lock_value,expires_at,changed_at)
-                values (?,?,?,?) on conflict(document_id) do update
-                set lock_value=excluded.lock_value,expires_at=excluded.expires_at,changed_at=excluded.changed_at
-                where nite_connect.document_wopi_locks.expires_at<=? or nite_connect.document_wopi_locks.lock_value=?
-                """,doc,requested,Timestamp.from(expires),Timestamp.from(now),Timestamp.from(now),requested);
+                insert into nite_connect.document_wopi_locks(document_id,actor_id,lock_value,expires_at,changed_at)
+                values (?,?,?,?,?) on conflict(document_id) do update
+                set actor_id=excluded.actor_id,lock_value=excluded.lock_value,expires_at=excluded.expires_at,changed_at=excluded.changed_at
+                where nite_connect.document_wopi_locks.expires_at<=?
+                   or (nite_connect.document_wopi_locks.lock_value=? and nite_connect.document_wopi_locks.actor_id=excluded.actor_id)
+                """,doc,actor,requested,Timestamp.from(expires),Timestamp.from(now),Timestamp.from(now),requested);
         return changed==1;
     }
-    public boolean refresh(UUID doc,String requested,Instant now,Instant expires) {
+    public boolean refresh(UUID doc,UUID actor,String requested,Instant now,Instant expires) {
         return jdbc.update("""
                 update nite_connect.document_wopi_locks set expires_at=?,changed_at=?
-                where document_id=? and lock_value=? and expires_at>?
-                """,Timestamp.from(expires),Timestamp.from(now),doc,requested,Timestamp.from(now))==1;
+                where document_id=? and actor_id=? and lock_value=? and expires_at>?
+                """,Timestamp.from(expires),Timestamp.from(now),doc,actor,requested,Timestamp.from(now))==1;
     }
-    public boolean relock(UUID doc,String oldLock,String newLock,Instant now,Instant expires) {
+    public boolean relock(UUID doc,UUID actor,String oldLock,String newLock,Instant now,Instant expires) {
         return jdbc.update("""
                 update nite_connect.document_wopi_locks set lock_value=?,expires_at=?,changed_at=?
-                where document_id=? and lock_value=? and expires_at>?
-                """,newLock,Timestamp.from(expires),Timestamp.from(now),doc,oldLock,Timestamp.from(now))==1;
+                where document_id=? and actor_id=? and lock_value=? and expires_at>?
+                """,newLock,Timestamp.from(expires),Timestamp.from(now),doc,actor,oldLock,Timestamp.from(now))==1;
     }
-    public boolean unlock(UUID doc,String requested,Instant now) {
-        return jdbc.update("delete from nite_connect.document_wopi_locks where document_id=? and lock_value=? and expires_at>?",
-                doc,requested,Timestamp.from(now))==1;
+    public boolean unlock(UUID doc,UUID actor,String requested,Instant now) {
+        return jdbc.update("delete from nite_connect.document_wopi_locks where document_id=? and actor_id=? and lock_value=? and expires_at>?",
+                doc,actor,requested,Timestamp.from(now))==1;
     }
 }

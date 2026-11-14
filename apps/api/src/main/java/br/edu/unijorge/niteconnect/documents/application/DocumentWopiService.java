@@ -121,12 +121,13 @@ public class DocumentWopiService {
         if("GET_LOCK".equals(operation)) return new Outcome(200,current==null?"":current.value(),null);
         if(lock==null || lock.isBlank() || lock.length()>1024) return new Outcome(400,null,null);
         Instant expiry=now.plus(LOCK_MINUTES,ChronoUnit.MINUTES);
+        UUID actor=auth.session().actorId();
         boolean success=switch(operation) {
-            case "LOCK" -> oldLock==null ? repo.lockOrRefresh(id,lock,now,expiry)
-                    : !oldLock.isBlank() && repo.relock(id,oldLock,lock,now,expiry);
-            case "REFRESH_LOCK" -> repo.refresh(id,lock,now,expiry);
-            case "UNLOCK" -> repo.unlock(id,lock,now);
-            case "UNLOCK_AND_RELOCK" -> oldLock!=null && !oldLock.isBlank() && repo.relock(id,oldLock,lock,now,expiry);
+            case "LOCK" -> oldLock==null ? repo.lockOrRefresh(id,actor,lock,now,expiry)
+                    : !oldLock.isBlank() && repo.relock(id,actor,oldLock,lock,now,expiry);
+            case "REFRESH_LOCK" -> repo.refresh(id,actor,lock,now,expiry);
+            case "UNLOCK" -> repo.unlock(id,actor,lock,now);
+            case "UNLOCK_AND_RELOCK" -> oldLock!=null && !oldLock.isBlank() && repo.relock(id,actor,oldLock,lock,now,expiry);
             default -> false;
         };
         if(!success) return new Outcome(409,current==null?"":current.value(),null);

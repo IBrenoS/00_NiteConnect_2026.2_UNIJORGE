@@ -109,6 +109,27 @@ public class DocumentLibraryService {
         }
         throw ApiException.forbidden();
     }
+    private boolean elevatedInScope(UUID actor,Folder folder) {
+        if(access.isAdministrator(actor)) return true;
+        Scope current=scope(folder);
+        if("PERSONAL".equals(current.kind())) return actor.equals(current.subject());
+        if("PROJECT".equals(current.kind())) {
+            try {projects.requireManage(actor,current.subject());return true;}
+            catch(ApiException ignored) {return false;}
+        }
+        return false;
+    }
+    private static Folder withPermission(Folder folder,String permission) {
+        return new Folder(folder.id(),folder.parentId(),folder.name(),folder.color(),folder.kind(),folder.systemKey(),folder.ownerId(),
+                folder.ownerName(),folder.projectId(),folder.projectTitle(),folder.createdBy(),folder.createdByName(),folder.createdAt(),
+                folder.modifiedBy(),folder.modifiedByName(),folder.modifiedAt(),permission);
+    }
+    private static FileEntry withPermission(FileEntry file,String permission) {
+        return new FileEntry(file.id(),file.folderId(),file.title(),file.context(),file.ownerId(),file.projectId(),file.mimeType(),
+                file.revision(),file.size(),file.ownerName(),file.createdByName(),file.createdBy(),file.createdAt(),file.modifiedByName(),
+                file.modifiedBy(),file.modifiedAt(),file.folderName(),file.sharedByName(),file.sharedAt(),file.sharedWithCount(),
+                file.lastOpenedByName(),file.lastOpenedBy(),file.lastOpenedAt(),permission);
+    }
     private UUID scopeRoot(Folder folder) {
         Scope current=scope(folder);
         if("PERSONAL".equals(current.kind())) return folders.personal(current.subject()).id();
@@ -181,21 +202,33 @@ public class DocumentLibraryService {
                     folder.ownerName(),folder.projectId(),folder.projectTitle(),folder.createdBy(),folder.createdByName(),folder.createdAt(),
                     folder.modifiedBy(),folder.modifiedByName(),folder.modifiedAt());
         }
-        return new Listing(visible,folders.children(folder.id()),page.items(),page.total(),next,page.hasMore());
+        boolean elevated=elevatedInScope(actor,folder);
+        List<Folder> children=folders.children(folder.id(),normalizedSearch,normalizedSort,normalizedDirection);
+        Map<UUID,String> folderGrants=sharing.folderPermissions(children.stream().map(Folder::id).toList(),actor);
+        List<Folder> authorizedFolders=children.stream().map(child->withPermission(child,elevated?"EDIT":folderGrants.getOrDefault(child.id(),"VIEW"))).toList();
+        Map<UUID,String> documentGrants=sharing.documentPermissions(page.items().stream().map(FileEntry::id).toList(),actor);
+        List<FileEntry> authorizedFiles=page.items().stream().map(file->withPermission(file,elevated?"EDIT":documentGrants.getOrDefault(file.id(),"VIEW"))).toList();
+        String currentPermission=elevated?"EDIT":sharing.folderPermissions(List.of(folder.id()),actor).getOrDefault(folder.id(),"VIEW");
+        return new Listing(withPermission(visible,currentPermission),authorizedFolders,authorizedFiles,page.total(),next,page.hasMore());
     }
     @Transactional(readOnly=true)
     public FileEntry documentDetails(UUID actor,UUID id) {
         Document document=core.require(actor,id);
         FileEntry file=folders.file(id);
-        if("PROJECT".equals(document.context())&&!access.isAdministrator(actor)) {
+        boolean elevated=access.isAdministrator(actor);
+        if("PROJECT".equals(document.context())&&!elevated) {
             try {projects.requireRead(actor,document.projectId());}
             catch(ApiException ex) {
-                return new FileEntry(file.id(),null,file.title(),file.context(),file.ownerId(),null,file.mimeType(),file.revision(),file.size(),
+                return withPermission(new FileEntry(file.id(),null,file.title(),file.context(),file.ownerId(),null,file.mimeType(),file.revision(),file.size(),
                         file.ownerName(),file.createdByName(),file.createdBy(),file.createdAt(),file.modifiedByName(),file.modifiedBy(),file.modifiedAt(),
-                        null,file.sharedByName(),file.sharedAt(),file.sharedWithCount(),file.lastOpenedByName(),file.lastOpenedBy(),file.lastOpenedAt());
+                        null,file.sharedByName(),file.sharedAt(),file.sharedWithCount(),file.lastOpenedByName(),file.lastOpenedBy(),file.lastOpenedAt()),
+                        sharing.documentPermission(id,actor));
             }
+            try {projects.requireManage(actor,document.projectId());elevated=true;} catch(ApiException ignored) { /* read-only project membership */ }
         }
-        return file;
+        if("PERSONAL".equals(document.context())&&actor.equals(document.ownerId())) elevated=true;
+        String permission=elevated?"EDIT":sharing.documentPermission(id,actor);
+        return withPermission(file,permission==null?"VIEW":permission);
     }
     @Transactional(readOnly=true)
     public ActivityListing documentActivity(UUID actor,UUID id,String cursor,int limit) {
@@ -209,26 +242,49 @@ public class DocumentLibraryService {
         return activityListing("folder",id,cursor,limit,(before,beforeId,pageSize)->folders.folderActivity(id,before,beforeId,pageSize));
     }
     public record SharedListing(List<SharedItem> items,String nextCursor,boolean hasMore) {}
-    private record ShareCursor(java.time.Instant at,UUID grantId) {}
+    private record ShareCursor(String sortBy,String direction,String search,String mimeType,String key,UUID grantId) {}
     @Transactional(readOnly=true)
-    public SharedListing sharedWithMe(UUID actor,String cursor,int limit) {
+    public SharedListing sharedWithMe(UUID actor,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
         access.requireActive(actor);
         if(limit<1||limit>100) throw ApiException.invalid("O limite deve estar entre 1 e 100");
-        ShareCursor after=decodeShareCursor(cursor);
-        var page=sharing.received(actor,after==null?null:after.at(),after==null?null:after.grantId(),limit);
+        String normalizedSearch=search==null||search.isBlank()?"":search.strip();
+        if(normalizedSearch.length()>120||normalizedSearch.chars().anyMatch(Character::isISOControl)) throw ApiException.invalid("Termo de pesquisa inválido");
+        String normalizedMime=mimeType==null||mimeType.isBlank()?"":mimeType;
+        if(!normalizedMime.isEmpty()&&!Set.of(DOCX,"application/pdf","image/png","image/jpeg").contains(normalizedMime))
+            throw ApiException.invalid("Filtro de tipo documental inválido");
+        String normalizedSort=sortBy==null||sortBy.isBlank()?"sharedAt":sortBy;
+        String normalizedDirection=direction==null||direction.isBlank()?"desc":direction.toLowerCase(Locale.ROOT);
+        if(!Set.of("name","modifiedAt","createdAt","size","sharedAt").contains(normalizedSort)) throw ApiException.invalid("Ordenação documental inválida");
+        if(!Set.of("asc","desc").contains(normalizedDirection)) throw ApiException.invalid("Direção de ordenação inválida");
+        ShareCursor after=decodeShareCursor(cursor,normalizedSort,normalizedDirection,normalizedSearch,normalizedMime);
+        var page=sharing.received(actor,normalizedSearch,normalizedMime,normalizedSort,normalizedDirection,
+                after==null?null:after.key(),after==null?null:after.grantId(),limit);
         String next=null;
         if(page.hasMore()&&!page.items().isEmpty()) {
             SharedItem last=page.items().getLast();
-            next=Base64.getUrlEncoder().withoutPadding().encodeToString((last.sharedAt()+"\n"+last.grantId()).getBytes(StandardCharsets.UTF_8));
+            String key=switch(normalizedSort) {
+                case "name" -> last.name();
+                case "modifiedAt" -> (last.modifiedAt()==null?last.sharedAt():last.modifiedAt()).toString();
+                case "createdAt" -> last.createdAt().toString();
+                case "size" -> String.valueOf(last.size()==null?-1:last.size());
+                default -> last.sharedAt().toString();
+            };
+            next=Base64.getUrlEncoder().withoutPadding().encodeToString(String.join("\n",normalizedSort,normalizedDirection,
+                    normalizedSearch,normalizedMime,key,last.grantId().toString()).getBytes(StandardCharsets.UTF_8));
         }
         return new SharedListing(page.items(),next,page.hasMore());
     }
-    private static ShareCursor decodeShareCursor(String cursor) {
+    private static ShareCursor decodeShareCursor(String cursor,String sortBy,String direction,String search,String mimeType) {
         if(cursor==null||cursor.isBlank()) return null;
         try {
             String[] parts=new String(Base64.getUrlDecoder().decode(cursor),StandardCharsets.UTF_8).split("\\n",-1);
-            if(parts.length!=2) throw ApiException.invalid("Cursor de compartilhamentos inválido");
-            return new ShareCursor(java.time.Instant.parse(parts[0]),UUID.fromString(parts[1]));
+            if(parts.length==2&&"sharedAt".equals(sortBy)&&"desc".equals(direction)&&search.isEmpty()&&mimeType.isEmpty())
+                return new ShareCursor(sortBy,direction,search,mimeType,parts[0],UUID.fromString(parts[1]));
+            if(parts.length!=6||!parts[0].equals(sortBy)||!parts[1].equals(direction)||!parts[2].equals(search)||!parts[3].equals(mimeType))
+                throw ApiException.invalid("Cursor de compartilhamentos inválido");
+            UUID id=UUID.fromString(parts[5]);
+            switch(sortBy) {case "modifiedAt","createdAt","sharedAt" -> java.time.Instant.parse(parts[4]);case "size" -> Long.parseLong(parts[4]);default -> {}}
+            return new ShareCursor(sortBy,direction,search,mimeType,parts[4],id);
         } catch(IllegalArgumentException ex) {throw ApiException.invalid("Cursor de compartilhamentos inválido");}
     }
     @Transactional(readOnly=true)

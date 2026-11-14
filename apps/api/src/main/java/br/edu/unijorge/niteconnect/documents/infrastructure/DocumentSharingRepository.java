@@ -9,6 +9,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.UUID;
 
 @Repository
@@ -22,7 +26,8 @@ public class DocumentSharingRepository {
         public String targetType() { return documentId==null?"FOLDER":"DOCUMENT"; }
     }
     public record SharedItem(UUID grantId,UUID id,String type,String name,String permission,UUID ownerId,
-                             String ownerName,UUID sharedBy,String sharedByName,Instant sharedAt,Instant modifiedAt) {}
+                             String ownerName,UUID sharedBy,String sharedByName,Instant sharedAt,Instant modifiedAt,
+                             Instant createdAt,String mimeType,Long size,String createdByName,String modifiedByName) {}
     public record SharedPage(List<SharedItem> items,boolean hasMore) {}
     public record Recipient(UUID id,String name) {}
 
@@ -68,6 +73,51 @@ public class DocumentSharingRepository {
                 where g.member_id=? and g.folder_id in (select id from ancestors) and g.revoked_at is null
                 order by case g.permission when 'EDIT' then 2 else 1 end desc limit 1
                 """,(rs,row)->rs.getString(1),folder,member).stream().findFirst().orElse(null);
+    }
+    public Map<UUID,String> folderPermissions(List<UUID> folderIds,UUID member) {
+        if(folderIds.isEmpty()) return Map.of();
+        String placeholders=String.join(",",Collections.nCopies(folderIds.size(),"?"));
+        Object[] args=new Object[folderIds.size()+1];
+        for(int index=0;index<folderIds.size();index++) args[index]=folderIds.get(index);
+        args[folderIds.size()]=member;
+        Map<UUID,String> result=new LinkedHashMap<>();
+        jdbc.query("""
+                with recursive ancestors(target_id,id,parent_id,depth) as (
+                  select f.id,f.id,f.parent_id,0 from nite_connect.document_folders f where f.id in (%s)
+                  union all select a.target_id,p.id,p.parent_id,a.depth+1 from ancestors a
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                )
+                select a.target_id,case max(case g.permission when 'EDIT' then 2 else 1 end) when 2 then 'EDIT' else 'VIEW' end permission
+                from ancestors a join nite_connect.document_grants g on g.folder_id=a.id and g.member_id=? and g.revoked_at is null
+                join nite_connect.members m on m.id=g.member_id and m.status='ATIVO'
+                group by a.target_id
+                """.formatted(placeholders),(rs,row)->Map.entry(rs.getObject(1,UUID.class),rs.getString(2)),args)
+                .forEach(entry->result.put(entry.getKey(),entry.getValue()));
+        return Map.copyOf(result);
+    }
+    public Map<UUID,String> documentPermissions(List<UUID> documentIds,UUID member) {
+        if(documentIds.isEmpty()) return Map.of();
+        String placeholders=String.join(",",Collections.nCopies(documentIds.size(),"?"));
+        Object[] args=new Object[documentIds.size()+1];
+        for(int index=0;index<documentIds.size();index++) args[index]=documentIds.get(index);
+        args[documentIds.size()]=member;
+        Map<UUID,String> result=new LinkedHashMap<>();
+        jdbc.query("""
+                with recursive ancestors(target_id,id,parent_id,depth) as (
+                  select d.id,f.id,f.parent_id,0 from nite_connect.documents d
+                    join nite_connect.document_folders f on f.id=d.folder_id
+                  where d.id in (%s) and d.archived_at is null
+                  union all select a.target_id,p.id,p.parent_id,a.depth+1 from ancestors a
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                )
+                select a.target_id,case max(case g.permission when 'EDIT' then 2 else 1 end) when 2 then 'EDIT' else 'VIEW' end permission
+                from ancestors a join nite_connect.document_grants g
+                  on g.member_id=? and g.revoked_at is null and (g.document_id=a.target_id or g.folder_id=a.id)
+                join nite_connect.members m on m.id=g.member_id and m.status='ATIVO'
+                group by a.target_id
+                """.formatted(placeholders),(rs,row)->Map.entry(rs.getObject(1,UUID.class),rs.getString(2)),args)
+                .forEach(entry->result.put(entry.getKey(),entry.getValue()));
+        return Map.copyOf(result);
     }
     /** Returns the outermost shared ancestor, the boundary within which parent links may be shown. */
     public UUID sharedBoundary(UUID folder,UUID member) {
@@ -150,7 +200,7 @@ public class DocumentSharingRepository {
     private void revokeSessions(UUID document,UUID folder,UUID recipient) {
         if(document!=null) {
             jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and actor_id=? and revoked_at is null",document,recipient);
-            jdbc.update("delete from nite_connect.document_wopi_locks where document_id=?",document);
+            jdbc.update("delete from nite_connect.document_wopi_locks where document_id=? and actor_id=?",document,recipient);
             return;
         }
         jdbc.update("""
@@ -165,9 +215,9 @@ public class DocumentSharingRepository {
                 with recursive tree(id) as (
                   select id from nite_connect.document_folders where id=?
                   union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id
-                ) delete from nite_connect.document_wopi_locks l where l.document_id in
+                ) delete from nite_connect.document_wopi_locks l where l.actor_id=? and l.document_id in
                     (select d.id from nite_connect.documents d join tree t on t.id=d.folder_id)
-                """,folder);
+                """,folder,recipient);
     }
     private void event(UUID document,UUID folder,UUID actor,UUID recipient,String action,String permission) {
         jdbc.update("""
@@ -194,29 +244,67 @@ public class DocumentSharingRepository {
                 """,(rs,row)->new Recipient(rs.getObject(1,UUID.class),rs.getString(2)),actor,"%"+
                 search.toLowerCase(java.util.Locale.ROOT).replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%",limit);
     }
-    public SharedPage received(UUID member,Instant before,UUID beforeId,int limit) {
+    public SharedPage received(UUID member,String search,String mimeType,String sortBy,String direction,
+                               String afterKey,UUID afterId,int limit) {
+        String sortExpression=switch(sortBy) {
+            case "name" -> "lower(name)";
+            case "modifiedAt" -> "coalesce(modified_at,shared_at)";
+            case "createdAt" -> "created_at";
+            case "size" -> "coalesce(size,-1)";
+            default -> "shared_at";
+        };
+        String comparison="asc".equals(direction)?">":"<";
+        String cursorClause=afterKey==null?"": "and ("+sortExpression+",grant_id) "+comparison+" (?,?)";
+        Object cursorKey=afterKey==null?null:switch(sortBy) {
+            case "name" -> afterKey.toLowerCase(java.util.Locale.ROOT);
+            case "size" -> Long.parseLong(afterKey);
+            default -> Timestamp.from(Instant.parse(afterKey));
+        };
         String sql="""
-                select * from (
-                  select g.id grant_id,d.id,'DOCUMENT' item_type,d.title,g.permission,d.owner_id,o.name owner_name,
-                         g.granted_by,s.name shared_by_name,g.created_at shared_at,d.modified_at
+                with received as (
+                  select g.id grant_id,d.id,'DOCUMENT' item_type,d.title name,g.permission,d.owner_id,o.name owner_name,
+                         g.granted_by,s.name shared_by_name,g.created_at shared_at,d.modified_at,d.created_at,
+                         d.mime_type,v.size,creator.name created_by_name,modifier.name modified_by_name
                   from nite_connect.document_grants g join nite_connect.documents d on d.id=g.document_id and d.archived_at is null
+                  join nite_connect.document_versions v on v.id=d.current_version_id
                   left join nite_connect.members o on o.id=d.owner_id join nite_connect.members s on s.id=g.granted_by
-                  where g.member_id=? and g.revoked_at is null and g.document_id is not null
+                  left join nite_connect.members creator on creator.id=d.created_by left join nite_connect.members modifier on modifier.id=d.modified_by
+                  where g.member_id=? and g.revoked_at is null and g.document_id is not null and not exists (
+                    with recursive ancestors(id,parent_id) as (
+                      select f.id,f.parent_id from nite_connect.document_folders f where f.id=d.folder_id and f.archived_at is null
+                      union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null
+                    ) select 1 from ancestors a join nite_connect.document_grants inherited on inherited.folder_id=a.id
+                      where inherited.member_id=g.member_id and inherited.revoked_at is null)
                   union all
                   select g.id grant_id,f.id,'FOLDER',f.name,g.permission,f.owner_id,o.name,
-                         g.granted_by,s.name,g.created_at,f.modified_at
+                         g.granted_by,s.name,g.created_at,f.modified_at,f.created_at,null::varchar,null::bigint,creator.name,modifier.name
                   from nite_connect.document_grants g join nite_connect.document_folders f on f.id=g.folder_id and f.archived_at is null
                   left join nite_connect.members o on o.id=f.owner_id join nite_connect.members s on s.id=g.granted_by
-                  where g.member_id=? and g.revoked_at is null and g.folder_id is not null
-                ) received
-                where (?=true or (shared_at,grant_id)<(?,?))
-                order by shared_at desc,grant_id desc limit ?
-                """;
+                  left join nite_connect.members creator on creator.id=f.created_by left join nite_connect.members modifier on modifier.id=f.modified_by
+                  where g.member_id=? and g.revoked_at is null and g.folder_id is not null and not exists (
+                    with recursive ancestors(id,parent_id) as (
+                      select parent.id,parent.parent_id from nite_connect.document_folders current
+                        join nite_connect.document_folders parent on parent.id=current.parent_id
+                      where current.id=f.id and parent.archived_at is null
+                      union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null
+                    ) select 1 from ancestors a join nite_connect.document_grants inherited on inherited.folder_id=a.id
+                      where inherited.member_id=g.member_id and inherited.revoked_at is null)
+                )
+                select * from received where (?='' or lower(name) like ? escape E'\\\\')
+                  and (?='' or item_type='FOLDER' or mime_type=?) %s
+                order by %s %s,grant_id %s limit ?
+                """.formatted(cursorClause,sortExpression,direction,direction);
+        String searchPattern=search==null||search.isEmpty()?"":"%"+search.toLowerCase(java.util.Locale.ROOT)
+                .replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
+        List<Object> args=new ArrayList<>(List.of(member,member,search==null?"":search,searchPattern,mimeType==null?"":mimeType,mimeType==null?"":mimeType));
+        // Empty strings disable the optional filters without relying on ambiguous PostgreSQL null typing.
+        if(afterKey!=null) {args.add(cursorKey);args.add(afterId);}
+        args.add(limit+1);
         List<SharedItem> rows=jdbc.query(sql,(rs,row)->new SharedItem(rs.getObject("grant_id",UUID.class),rs.getObject("id",UUID.class),
-                rs.getString("item_type"),rs.getString("title"),rs.getString("permission"),rs.getObject("owner_id",UUID.class),
+                rs.getString("item_type"),rs.getString("name"),rs.getString("permission"),rs.getObject("owner_id",UUID.class),
                 rs.getString("owner_name"),rs.getObject("granted_by",UUID.class),rs.getString("shared_by_name"),
-                rs.getTimestamp("shared_at").toInstant(),rs.getTimestamp("modified_at").toInstant()),
-                member,member,before==null,before==null?Timestamp.from(Instant.EPOCH):Timestamp.from(before),beforeId==null?new UUID(0,0):beforeId,limit+1);
+                rs.getTimestamp("shared_at").toInstant(),rs.getTimestamp("modified_at").toInstant(),rs.getTimestamp("created_at").toInstant(),
+                rs.getString("mime_type"),rs.getObject("size",Long.class),rs.getString("created_by_name"),rs.getString("modified_by_name")),args.toArray());
         boolean more=rows.size()>limit;
         return new SharedPage(more?List.copyOf(rows.subList(0,limit)):List.copyOf(rows),more);
     }
