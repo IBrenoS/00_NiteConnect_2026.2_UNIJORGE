@@ -11,7 +11,7 @@ vi.mock("../../lib/documents/library-actions", () => ({
   updateLibraryFolder: vi.fn(),
 }));
 
-import { DetailsPanel, getExplorerFlexibleColumnWidths, MyFilesExplorer, SelectionToolbar, toggleDetailsPanel } from "./my-files-explorer";
+import { CreateMenuActions, DetailsPanel, getExplorerFlexibleColumnWidths, MyFilesExplorer, SelectionToolbar, toggleDetailsPanel } from "./my-files-explorer";
 import type { LibraryFolder } from "../../lib/documents/library-contracts";
 
 describe("explorador Meus arquivos", () => {
@@ -32,6 +32,18 @@ describe("explorador Meus arquivos", () => {
     expect(narrowWidths[0]).toBeCloseTo(104,3);
     expect(narrowWidths[1]).toBe(0);
     expect(narrowWidths[2]).toBe(0);
+  });
+
+  it("compartilha as opções e os ícones dos dois menus de criação e carregamento",()=>{
+    for(const variant of ["title","primary"] as const) {
+      const html=renderToStaticMarkup(<CreateMenuActions variant={variant} onClose={()=>undefined} onCreateFolder={()=>undefined} onUploadFiles={()=>undefined} onUploadFolder={()=>undefined}/>);
+      expect(html).toContain(variant==="title"?"Nova pasta":"Pasta");
+      expect(html).toContain("Carregamento de arquivos");
+      expect(html).toContain("Carregamento de pasta");
+      expect(html).toContain("border-t border-nite-border-soft");
+      expect(html).not.toContain("Solicitar arquivos");
+      for(const icon of ["upload-file","upload-folder"])expect(html).toContain(`/icons/onedrive-menu/${icon}.svg`);
+    }
   });
 
   it("fecha os detalhes quando o controle contextual é acionado pela segunda vez", () => {
@@ -85,6 +97,7 @@ describe("explorador Meus arquivos", () => {
     />);
     expect(oneSelected).toContain("1 selecionado");
     expect(oneSelected).toContain('role="toolbar" aria-label="Ações para a seleção"');
+    expect(oneSelected).toContain("/icons/onedrive-menu/details.svg");
     for (const action of ["Compartilhar", "Copiar link", "Solicitar arquivos", "Excluir", "Adicionar aos favoritos", "Baixar", "Duplicar", "Mover para", "Copiar para", "Renomear"]) {
       expect(oneSelected).toContain(action);
     }
@@ -231,16 +244,23 @@ describe("explorador Meus arquivos", () => {
 
     expect(html).toContain("Meus arquivos");
     expect(html).toContain("/icons/onedrive-menu/page.svg");
+    expect(html).toContain("/icons/onedrive-menu/options.svg");
+    expect(html).toContain("/icons/onedrive-menu/details.svg");
     expect(html).toContain("lg:h-[calc(100svh-6.25rem)]");
     expect(html).toContain("lg:mb-[-1.75rem]");
     expect(html).toContain("h-[calc(100svh-6.5rem)]");
     expect(html).toContain("grid h-full min-h-0 min-w-0 items-stretch");
-    expect(html).toContain('aria-label="Criar ou carregar"');
+    expect(html).toContain('aria-label="Criar ou carregar pelo título"');
     expect(html).toContain("min-h-9 items-center gap-2.5 rounded-xl");
     expect(html).toContain("py-2 pl-2.5 pr-3 text-sm");
     expect(html).toContain("Nova pasta");
-    expect(html).toContain("Carregar arquivos");
-    expect(html).toContain("Carregar pasta");
+    expect(html).toContain("Carregamento de arquivos");
+    expect(html).toContain("Carregamento de pasta");
+    expect(html).toContain("Solicitar arquivos");
+    expect(html).toContain("/icons/onedrive-menu/upload-file.svg");
+    expect(html).toContain("/icons/onedrive-menu/upload-folder.svg");
+    expect(html).toContain('aria-label="Selecionar arquivos para carregar"');
+    expect(html).toContain('aria-label="Selecionar pasta para carregar"');
     expect(html).toContain("bg-nite-surface-elevated");
     expect(html).toContain("Criar ou carregar");
     expect(html).not.toContain("Alterações salvas.");
