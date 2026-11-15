@@ -36,6 +36,14 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V29 | [`V29__preserve_historical_personal_documents.sql`](V29__preserve_historical_personal_documents.sql) | B05.3: provisiona pastas para integrantes inativos que possuem documentos pessoais legados e associa registros sem pasta, sem reescrever IDs/versões/objetos. |
 | V30 | [`V30__document_sharing.sql`](V30__document_sharing.sql) | B05.4: estende grants existentes para arquivos e pastas com `VIEW`/`EDIT`, preserva o campo legado e registra eventos imutáveis de compartilhamento. |
 | V31 | [`V31__track_wopi_lock_owner.sql`](V31__track_wopi_lock_owner.sql) | B05.5: identifica o integrante associado ao lock ativo para invalidar apenas locks da sessão/grant revogado. |
+| V32 | [`V32__document_identity_capabilities.sql`](V32__document_identity_capabilities.sql) | B05.6.1: titular do espaço, proprietário por recurso, origem e proteção explícitos; backfill conservador sem alterar IDs, versões, grants ou objetos. |
+| V33 | [`V33__document_trash_lifecycle.sql`](V33__document_trash_lifecycle.sql) | B05.6.2: estado recuperável da Lixeira, responsável, instante e batch de exclusão/restauração independentes do arquivamento institucional. |
+| V34 | [`V34__document_purge_infrastructure.sql`](V34__document_purge_infrastructure.sql) | B05.6.3A: políticas versionadas sem aprovação inicial, operações e itens duráveis, tentativas de objetos, tombstones e estados `PURGE_PENDING`/`PURGED`; sem habilitar expurgo. |
+| V35 | [`V35__document_internal_retention_policy.sql`](V35__document_internal_retention_policy.sql) | B05.6.3B: eventos da política interna, pedidos de gestores de projeto e operação automática. |
+| V36 | [`V36__document_library_operations.sql`](V36__document_library_operations.sql) | B05.7A: favoritos e operações documentais em lote. |
+| V37 | [`V37__document_queries_requests.sql`](V37__document_queries_requests.sql) | B05.7B: solicitações autenticadas de arquivos, destinatários, uploads e eventos. |
+| V38 | [`V38__document_automations.sql`](V38__document_automations.sql) | B05.7D: regras, entregas duráveis e notificações documentais internas. |
+| V39 | [`V39__document_automation_delivery.sql`](V39__document_automation_delivery.sql) | B05.7D: escopos explícitos, retentativa, índices e auditoria imutável das regras. |
 
 ## Aplicação
 

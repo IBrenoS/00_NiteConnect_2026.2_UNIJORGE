@@ -510,6 +510,15 @@ class DocumentLibraryTest extends ProjectTestSupport {
                 .andExpect(jsonPath("$.alreadyPresent").value(2));
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_template_distributions where template_version_id in (select id from nite_connect.document_template_versions where template_id=?)",Integer.class,UUID.fromString(templateId)))
                 .isEqualTo(2);
+        UUID distributed=jdbc.queryForObject("select document_id from nite_connect.document_template_distributions where recipient_id=?",UUID.class,MEMBER);
+        mvc.perform(get("/api/v1/library/documents/"+distributed).with(token(MEMBER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.identity.origin").value("INSTITUTIONAL_DISTRIBUTION"))
+                .andExpect(jsonPath("$.identity.resourceOwnerKind").value("INSTITUTION"))
+                .andExpect(jsonPath("$.identity.createdFor").value(MEMBER.toString()))
+                .andExpect(jsonPath("$.identity.protection").value("OFFICIAL"))
+                .andExpect(jsonPath("$.capabilities.canEdit").value(true))
+                .andExpect(jsonPath("$.capabilities.canRename").value(false));
     }
     @Test void personalFolderSearchAndSortingAreAppliedByTheServer() throws Exception {
         UUID home=personal(MEMBER);
@@ -592,6 +601,94 @@ class DocumentLibraryTest extends ProjectTestSupport {
         mvc.perform(post("/api/v1/library/folders/"+folder+"/restore").with(token(ADMIN))).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/documents/"+fileId).with(token(ADMIN)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1));
+    }
+
+    @Test void personalDocumentCanBeTrashedAndRestoredWithoutChangingItsIdentityVersionOrObject() throws Exception {
+        UUID home=personal(MEMBER);
+        UUID id=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,home),"$.id"));
+        String session=mvc.perform(post("/api/v1/documents/"+id+"/editor-session").with(token(MEMBER)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String accessToken=com.jayway.jsonpath.JsonPath.read(session,"$.accessToken");
+        UUID version=jdbc.queryForObject("select current_version_id from nite_connect.documents where id=?",UUID.class,id);
+        UUID object=jdbc.queryForObject("select object_id from nite_connect.document_versions where id=?",UUID.class,version);
+        byte[] bytes=store.get(object);
+
+        mvc.perform(post("/api/v1/library/documents/"+id+"/trash").with(token(MEMBER)))
+                .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,id)).isEqualTo("TRASHED");
+        assertThat(jdbc.queryForObject("select current_version_id from nite_connect.documents where id=?",UUID.class,id)).isEqualTo(version);
+        assertThat(store.get(object)).isEqualTo(bytes);
+        mvc.perform(get("/api/v1/documents/"+id).with(token(MEMBER))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/documents/"+id+"/download").with(token(MEMBER))).andExpect(status().isNotFound());
+        mvc.perform(get("/wopi/files/"+id+"/contents").queryParam("access_token",accessToken)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/me/trash").with(token(MEMBER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.item.id=='"+id+"')].item.name").value(org.hamcrest.Matchers.contains("Relatório Individual.docx")))
+                .andExpect(jsonPath("$.items[?(@.item.id=='"+id+"')].capabilities.canRestore").value(org.hamcrest.Matchers.contains(true)));
+        mvc.perform(get("/api/v1/me/trash").queryParam("type","DOCUMENT").queryParam("sortBy","name").queryParam("direction","asc").with(token(MEMBER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].item.type").value("DOCUMENT"));
+        mvc.perform(get("/api/v1/library/trash").with(token(MEMBER))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/library/trash").with(token(ADMIN))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.item.id=='"+id+"')].item.deletedBy").exists());
+        mvc.perform(post("/api/v1/me/trash/"+id+"/restore").with(token(MEMBER))).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/documents/"+id).with(token(MEMBER))).andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1));
+        assertThat(jdbc.queryForObject("select id from nite_connect.document_versions where id=?",UUID.class,version)).isEqualTo(version);
+        assertThat(store.get(object)).isEqualTo(bytes);
+    }
+
+    @Test void recursiveTrashRejectsProtectedDescendantsWithoutPartialChanges() throws Exception {
+        UUID home=personal(MEMBER);
+        String created=mvc.perform(post("/api/v1/library/folders").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parentId\":\""+home+"\",\"name\":\"Pasta mista\",\"color\":\"#D6A432\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID folder=UUID.fromString(com.jayway.jsonpath.JsonPath.read(created,"$.id"));
+        UUID protectedFile=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(ADMIN,folder),"$.id"));
+        mvc.perform(post("/api/v1/library/folders/"+folder+"/trash").queryParam("recursive","true").with(token(MEMBER)))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.document_folders where id=?",String.class,folder)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,protectedFile)).isEqualTo("ACTIVE");
+    }
+
+    @Test void recursiveTrashRestoresTheOriginalFolderTreeAndEveryDocument() throws Exception {
+        UUID home=personal(MEMBER);
+        String created=mvc.perform(post("/api/v1/library/folders").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parentId\":\""+home+"\",\"name\":\"Pasta recuperável\",\"color\":\"#D6A432\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID folder=UUID.fromString(com.jayway.jsonpath.JsonPath.read(created,"$.id"));
+        UUID file=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,folder),"$.id"));
+        UUID version=jdbc.queryForObject("select current_version_id from nite_connect.documents where id=?",UUID.class,file);
+        mvc.perform(post("/api/v1/library/folders/"+folder+"/trash").queryParam("recursive","true").with(token(MEMBER)))
+                .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.documents where trash_batch_id=(select trash_batch_id from nite_connect.document_folders where id=?)",Integer.class,folder)).isEqualTo(1);
+        mvc.perform(post("/api/v1/me/trash/"+folder+"/restore").with(token(MEMBER))).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.document_folders where id=?",String.class,folder)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,file)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select current_version_id from nite_connect.documents where id=?",UUID.class,file)).isEqualTo(version);
+    }
+
+    @Test void restoringAFileNameConflictRequiresAnExplicitReplacementName() throws Exception {
+        UUID home=personal(MEMBER);
+        UUID original=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,home),"$.id"));
+        mvc.perform(post("/api/v1/library/documents/"+original+"/trash").with(token(MEMBER))).andExpect(status().isNoContent());
+        UUID replacement=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,home),"$.id"));
+        mvc.perform(post("/api/v1/me/trash/"+original+"/restore").with(token(MEMBER))).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/me/trash/"+original+"/restore").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Relatório anterior.docx\"}"))
+                .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select title from nite_connect.documents where id=?",String.class,original)).isEqualTo("Relatório anterior.docx");
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,replacement)).isEqualTo("ACTIVE");
+    }
+
+    @Test void grantsAreRevokedOnTrashAndAreNotReactivatedByRestore() throws Exception {
+        UUID home=personal(MEMBER);
+        UUID document=UUID.fromString(com.jayway.jsonpath.JsonPath.read(upload(MEMBER,home),"$.id"));
+        mvc.perform(post("/api/v1/library/documents/"+document+"/shares").with(token(MEMBER))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"memberId\":\""+OTHER+"\",\"permission\":\"VIEW\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/library/documents/"+document+"/trash").with(token(MEMBER))).andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("select revoked_at is not null from nite_connect.document_grants where document_id=? and member_id=?",Boolean.class,document,OTHER)).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_share_events where document_id=? and recipient_id=? and action='SHARE_REVOKED'",Integer.class,document,OTHER)).isEqualTo(1);
+        mvc.perform(post("/api/v1/me/trash/"+document+"/restore").with(token(MEMBER))).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/documents/"+document).with(token(OTHER))).andExpect(status().isNotFound());
     }
 
 }

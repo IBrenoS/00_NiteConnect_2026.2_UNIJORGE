@@ -39,8 +39,8 @@ public class DocumentController {
     }
     @GetMapping("/api/v1/documents/{id}")
     DocumentCoreService.Summary details(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
-        var doc=service.require(identities.member(jwt),id);
-        return new DocumentCoreService.Summary(doc.id(),doc.title(),doc.version(),doc.size(),doc.sha256());
+        UUID actor=identities.member(jwt);
+        return service.summary(actor,service.require(actor,id));
     }
     @GetMapping("/api/v1/documents/{id}/download")
     ResponseEntity<byte[]> download(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
@@ -48,6 +48,25 @@ public class DocumentController {
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(doc.mimeType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(doc.title(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(service.readVerified(doc));
+    }
+    @GetMapping("/api/v1/documents/{id}/versions")
+    DocumentCoreService.VersionPage versions(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,
+            @RequestParam(required=false) Integer beforeRevision,@RequestParam(defaultValue="50") int limit) {
+        return service.versions(identities.member(jwt),id,beforeRevision,limit);
+    }
+    @GetMapping("/api/v1/documents/{id}/versions/{versionId}/download")
+    ResponseEntity<byte[]> downloadVersion(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID versionId) {
+        UUID actor=identities.member(jwt);
+        var doc=service.require(actor,id);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(doc.mimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(doc.title(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
+                .body(service.readVersion(actor,id,versionId));
+    }
+    @PostMapping("/api/v1/documents/{id}/versions/{versionId}/restore")
+    DocumentCoreService.Summary restoreVersion(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID versionId) {
+        UUID actor=identities.member(jwt);
+        service.restoreVersion(actor,id,versionId);
+        return service.summary(actor,service.require(actor,id));
     }
     @PostMapping("/api/v1/documents/{id}/editor-session")
     DocumentWopiService.Launch launch(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {

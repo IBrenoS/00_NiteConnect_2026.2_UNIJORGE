@@ -1,6 +1,9 @@
 package br.edu.unijorge.niteconnect.documents.api;
 
 import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryService;
+import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryOperationsService;
+import br.edu.unijorge.niteconnect.documents.application.DocumentInformationService;
+import br.edu.unijorge.niteconnect.documents.application.DocumentSearchService;
 import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryService.*;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentLibraryRepository;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentSharingRepository.Share;
@@ -9,6 +12,8 @@ import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 /** All operations use the same document IDs and authorization boundaries as the WOPI editor. */
 @RestController
@@ -24,8 +30,87 @@ public class DocumentLibraryController {
     private final DocumentLibraryService library;
     private final DocumentLibraryRepository folders;
     private final IdentityDirectory identities;
-    public DocumentLibraryController(DocumentLibraryService library,DocumentLibraryRepository folders,IdentityDirectory identities) {
-        this.library=library;this.folders=folders;this.identities=identities;
+    private final DocumentLibraryOperationsService operations;
+    private final DocumentInformationService information;
+    private final DocumentSearchService search;
+    public DocumentLibraryController(DocumentLibraryService library,DocumentLibraryRepository folders,IdentityDirectory identities,
+                                     DocumentLibraryOperationsService operations,DocumentInformationService information,DocumentSearchService search) {
+        this.library=library;this.folders=folders;this.identities=identities;this.operations=operations;this.information=information;this.search=search;
+    }
+    @GetMapping("/api/v1/library/search")
+    DocumentSearchService.Page search(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required=false) String search,@RequestParam(required=false) String type,
+            @RequestParam(required=false) String mimeType,@RequestParam(required=false) Instant modifiedFrom,
+            @RequestParam(required=false) Instant modifiedTo,@RequestParam(required=false) UUID createdBy,
+            @RequestParam(required=false) UUID modifiedBy,@RequestParam(required=false) String ownerKind,
+            @RequestParam(required=false) UUID ownerId,@RequestParam(required=false) String origin,
+            @RequestParam(required=false) String shared,@RequestParam(required=false) String permission,
+            @RequestParam(defaultValue="modifiedAt") String sortBy,@RequestParam(defaultValue="desc") String direction,
+            @RequestParam(required=false) String cursor,@RequestParam(defaultValue="50") int limit) {
+        return this.search.search(identities.member(jwt),new DocumentSearchService.Filter(search,type,mimeType,modifiedFrom,
+                modifiedTo,createdBy,modifiedBy,ownerKind,ownerId,origin,shared,permission,sortBy,direction),cursor,limit);
+    }
+    @GetMapping("/api/v1/library/documents/{id}/info")
+    DocumentInformationService.Information documentInfo(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        return information.document(identities.member(jwt),id);
+    }
+    @GetMapping("/api/v1/library/folders/{id}/info")
+    DocumentInformationService.Information folderInfo(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        return information.folder(identities.member(jwt),id);
+    }
+    @GetMapping("/api/v1/library/links/{type}/{id}")
+    DocumentInformationService.Link link(@AuthenticationPrincipal Jwt jwt,@PathVariable String type,@PathVariable UUID id) {
+        return information.link(identities.member(jwt),type.toUpperCase(java.util.Locale.ROOT),id);
+    }
+    public record CopyInput(UUID destinationId,String name) {}
+    @PostMapping("/api/v1/library/documents/{id}/copy")
+    @ResponseStatus(HttpStatus.CREATED)
+    DocumentLibraryOperationsService.CopyResult copyDocument(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody CopyInput input) {
+        return operations.copy(identities.member(jwt),new DocumentLibraryOperationsService.Resource("DOCUMENT",id),input.destinationId(),input.name());
+    }
+    @PostMapping("/api/v1/library/folders/{id}/copy")
+    @ResponseStatus(HttpStatus.CREATED)
+    DocumentLibraryOperationsService.CopyResult copyFolder(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody CopyInput input) {
+        return operations.copy(identities.member(jwt),new DocumentLibraryOperationsService.Resource("FOLDER",id),input.destinationId(),input.name());
+    }
+    @PostMapping("/api/v1/library/documents/{id}/duplicate")
+    @ResponseStatus(HttpStatus.CREATED)
+    DocumentLibraryOperationsService.CopyResult duplicateDocument(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody CopyInput input) {
+        return operations.copy(identities.member(jwt),new DocumentLibraryOperationsService.Resource("DOCUMENT",id),null,input.name());
+    }
+    @PostMapping("/api/v1/library/folders/{id}/duplicate")
+    @ResponseStatus(HttpStatus.CREATED)
+    DocumentLibraryOperationsService.CopyResult duplicateFolder(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody CopyInput input) {
+        return operations.copy(identities.member(jwt),new DocumentLibraryOperationsService.Resource("FOLDER",id),null,input.name());
+    }
+    @GetMapping("/api/v1/me/favorites")
+    List<DocumentLibraryOperationsService.Resource> favorites(@AuthenticationPrincipal Jwt jwt) {
+        return operations.favorites(identities.member(jwt));
+    }
+    @PutMapping("/api/v1/me/favorites/{type}/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void favorite(@AuthenticationPrincipal Jwt jwt,@PathVariable String type,@PathVariable UUID id) {
+        operations.favorite(identities.member(jwt),new DocumentLibraryOperationsService.Resource(type,id),true);
+    }
+    @DeleteMapping("/api/v1/me/favorites/{type}/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void unfavorite(@AuthenticationPrincipal Jwt jwt,@PathVariable String type,@PathVariable UUID id) {
+        operations.favorite(identities.member(jwt),new DocumentLibraryOperationsService.Resource(type,id),false);
+    }
+    @PostMapping("/api/v1/library/operations/preview")
+    DocumentLibraryOperationsService.Preview preview(@AuthenticationPrincipal Jwt jwt,@RequestBody DocumentLibraryOperationsService.BatchRequest request) {
+        return operations.preview(identities.member(jwt),request);
+    }
+    @PostMapping("/api/v1/library/operations/batch")
+    DocumentLibraryOperationsService.BatchResult batch(@AuthenticationPrincipal Jwt jwt,@RequestHeader("Idempotency-Key") String key,
+                                                        @RequestBody DocumentLibraryOperationsService.BatchRequest request) {
+        return operations.batch(identities.member(jwt),key,request);
+    }
+    public record ZipInput(List<DocumentLibraryOperationsService.Resource> items) {}
+    @PostMapping(value="/api/v1/library/download-zip",produces="application/zip")
+    ResponseEntity<StreamingResponseBody> zip(@AuthenticationPrincipal Jwt jwt,@RequestBody ZipInput input) {
+        var stream=operations.zip(identities.member(jwt),input.items());
+        return ResponseEntity.ok().header("Content-Disposition","attachment; filename=documents.zip").body(stream);
     }
     @GetMapping("/api/v1/me/library")
     Listing mine(@AuthenticationPrincipal Jwt jwt,@RequestParam(required=false) UUID folderId,
@@ -45,6 +130,32 @@ public class DocumentLibraryController {
     }
     @GetMapping("/api/v1/library/archived")
     List<DocumentLibraryRepository.ArchivedItem> archived(@AuthenticationPrincipal Jwt jwt) {return library.archived(identities.member(jwt));}
+    @GetMapping("/api/v1/me/trash")
+    TrashListing trash(@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="50") int limit,
+                       @RequestParam(defaultValue="0") int offset,@RequestParam(required=false) String type,
+                       @RequestParam(defaultValue="deletedAt") String sortBy,@RequestParam(defaultValue="desc") String direction) {
+        return library.trash(identities.member(jwt),limit,offset,type,sortBy,direction);
+    }
+    @GetMapping("/api/v1/projects/{projectId}/trash")
+    TrashListing projectTrash(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID projectId,
+                              @RequestParam(defaultValue="50") int limit,@RequestParam(defaultValue="0") int offset,
+                              @RequestParam(required=false) String type,@RequestParam(defaultValue="deletedAt") String sortBy,
+                              @RequestParam(defaultValue="desc") String direction) {
+        return library.projectTrash(identities.member(jwt),projectId,limit,offset,type,sortBy,direction);
+    }
+    @GetMapping("/api/v1/library/trash")
+    TrashListing administrativeTrash(@AuthenticationPrincipal Jwt jwt,@RequestParam(defaultValue="50") int limit,
+                                     @RequestParam(defaultValue="0") int offset,@RequestParam(required=false) String type,
+                                     @RequestParam(defaultValue="deletedAt") String sortBy,
+                                     @RequestParam(defaultValue="desc") String direction) {
+        return library.administrativeTrash(identities.member(jwt),limit,offset,type,sortBy,direction);
+    }
+    @PostMapping("/api/v1/me/trash/{id}/restore")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void restoreTrash(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody(required=false) RestoreTrash request) {
+        library.restoreTrash(identities.member(jwt),id,request==null?null:request.name());
+    }
+    public record RestoreTrash(String name) {}
     @GetMapping("/api/v1/library/tree")
     List<DocumentLibraryRepository.Folder> tree(@AuthenticationPrincipal Jwt jwt) {
         return library.tree(identities.member(jwt));
@@ -75,6 +186,21 @@ public class DocumentLibraryController {
             @RequestParam(required=false) String mimeType,@RequestParam(defaultValue="sharedAt") String sortBy,
             @RequestParam(defaultValue="desc") String direction,@RequestParam(defaultValue="50") int limit) {
         return library.sharedWithMe(identities.member(jwt),search,mimeType,sortBy,direction,cursor,limit);
+    }
+    @GetMapping("/api/v1/me/shared-by-me")
+    DocumentLibraryService.SentListing sharedByMe(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required=false) String search,@RequestParam(required=false) UUID recipientId,
+            @RequestParam(required=false) String permission,@RequestParam(required=false) String cursor,
+            @RequestParam(defaultValue="50") int limit) {
+        return library.sharedByMe(identities.member(jwt),search,recipientId,permission,cursor,limit);
+    }
+    @GetMapping("/api/v1/library/documents/{id}/access")
+    DocumentLibraryService.AccessInfo documentAccess(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        return library.accessInfo(identities.member(jwt),"DOCUMENT",id);
+    }
+    @GetMapping("/api/v1/library/folders/{id}/access")
+    DocumentLibraryService.AccessInfo folderAccess(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        return library.accessInfo(identities.member(jwt),"FOLDER",id);
     }
     public record CreateShare(UUID memberId,String permission) {}
     public record ChangeShare(String permission) {}
@@ -137,6 +263,11 @@ public class DocumentLibraryController {
     void archiveFolder(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestParam(defaultValue="false") boolean recursive) {
         library.archiveFolder(identities.member(jwt),id,recursive);
     }
+    @PostMapping("/api/v1/library/folders/{id}/trash")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void trashFolder(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestParam(defaultValue="false") boolean recursive) {
+        library.trashFolder(identities.member(jwt),id,recursive);
+    }
     @PostMapping("/api/v1/library/folders/{id}/restore")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void restoreFolder(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
@@ -156,6 +287,14 @@ public class DocumentLibraryController {
                                                          @RequestParam("paths") List<String> paths) {
         return library.uploadTree(identities.member(jwt),folderId,files,paths);
     }
+    @PostMapping(path="/api/v1/library/folders/{folderId}/upload-directory",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    DocumentLibraryService.UploadDirectoryResult uploadDirectory(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID folderId,
+            @RequestParam(value="files",required=false) List<MultipartFile> files,
+            @RequestParam(value="paths",required=false) List<String> paths,
+            @RequestParam(value="directories",required=false) List<String> directories) {
+        return library.uploadDirectory(identities.member(jwt),folderId,files,paths,directories);
+    }
     @PatchMapping("/api/v1/library/documents/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void organizeDocument(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody DocumentChange request) {
@@ -165,6 +304,11 @@ public class DocumentLibraryController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void archiveDocument(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
         library.archiveFile(identities.member(jwt),id);
+    }
+    @PostMapping("/api/v1/library/documents/{id}/trash")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void trashDocument(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        library.trashFile(identities.member(jwt),id);
     }
     @PostMapping("/api/v1/library/documents/{id}/restore")
     @ResponseStatus(HttpStatus.NO_CONTENT)

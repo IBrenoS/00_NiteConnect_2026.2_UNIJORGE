@@ -53,6 +53,7 @@ export function buildAuthenticatedNavigationGroups(options: NavigationOptions): 
       {label:"Reuniões",icon:"meeting",href:"/reunioes"},
       {label:"Frequência",icon:"attendance",href:"/frequencia"},
       {label:"Meus arquivos",icon:"projects",href:"/documentos"},
+      {label:"Lixeira",icon:"projects",href:"/documentos/lixeira"},
     ]},
     {label:"Núcleo",defaultOpen:true,items:[planned("Projetos","projects")]},
   ];

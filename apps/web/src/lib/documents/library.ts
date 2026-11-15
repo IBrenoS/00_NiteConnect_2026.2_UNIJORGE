@@ -1,6 +1,6 @@
 import "server-only";
 import { getApiJson } from "../api/server";
-import { parseActivityListing,parseArray,parseLibraryFile,parseLibraryFolder,parseLibraryListing,parseSharedListing,validUuid } from "./library-contracts";
+import { parseActivityListing,parseArray,parseLibraryFile,parseLibraryFolder,parseLibraryListing,parseSearchPage,parseSharedListing,parseSentListing,parseTrashListing,validUuid } from "./library-contracts";
 import type { LibraryArchivedItem,LibraryFolder,LibraryRecipient,LibraryTemplate } from "./library-contracts";
 export * from "./library-contracts";
 
@@ -19,6 +19,13 @@ export const getProjectLibrary=(bearer:string,project:string,folderId?:string)=>
   `/api/v1/projects/${encodeURIComponent(project)}/library${folderId?`?folderId=${encodeURIComponent(folderId)}`:""}`,bearer,parseLibraryListing);
 export const getSharedListing=(bearer:string,options:ListingOptions={})=>getApiJson(
   `/api/v1/me/shared-with-me?${listingQuery({...options,limit:options.limit??50})}`,bearer,parseSharedListing);
+export const getSentListing=(bearer:string,options:ListingOptions={})=>getApiJson(
+  `/api/v1/me/shared-by-me?${query({search:options.search,cursor:options.cursor,limit:String(options.limit??50)})}`,bearer,parseSentListing);
+export const getTrashListing=(bearer:string,options:{limit?:number;offset?:number;type?:string;sortBy?:string;direction?:string}={})=>getApiJson(
+  `/api/v1/me/trash?${query({limit:String(options.limit??50),offset:String(options.offset??0),type:options.type,sortBy:options.sortBy,direction:options.direction})}`,bearer,parseTrashListing);
+export type SearchOptions={search?:string;type?:string;mimeType?:string;modifiedFrom?:string;modifiedTo?:string;createdBy?:string;modifiedBy?:string;ownerKind?:string;ownerId?:string;origin?:string;shared?:string;permission?:string;sortBy?:string;direction?:string;cursor?:string;limit?:number};
+export const getDocumentSearch=(bearer:string,options:SearchOptions={})=>getApiJson(
+  `/api/v1/library/search?${query({...options,limit:String(options.limit??50)})}`,bearer,parseSearchPage);
 export const getSharedFolder=(bearer:string,id:string,options:ListingOptions={})=>getApiJson(
   `/api/v1/library/folders/${encodeURIComponent(id)}?${query({...options,limit:String(options.limit??100)})}`,bearer,parseLibraryListing);
 export async function getFolderAncestors(bearer:string,folder:LibraryFolder):Promise<LibraryFolder[]> {

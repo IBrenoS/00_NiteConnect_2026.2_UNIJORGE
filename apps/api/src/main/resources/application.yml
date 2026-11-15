@@ -67,6 +67,9 @@ nite:
         zone: ${JUSTIFICATION_ATTACHMENT_RETENTION_PURGE_ZONE:UTC}
   documents:
     enabled: ${DOCUMENTS_ENABLED:false}
+    purge:
+      worker-enabled: ${DOCUMENT_PURGE_WORKER_ENABLED:false}
+      poll-delay-ms: ${DOCUMENT_PURGE_POLL_DELAY_MS:30000}
     # Enable only for the local development environment; require HTTPS for actual deployment.
     allow-insecure-dev: ${DOCUMENTS_ALLOW_INSECURE_DEV:false}
     wopi-public-base-url: ${DOCUMENTS_WOPI_PUBLIC_BASE_URL:https://wopi.invalid}

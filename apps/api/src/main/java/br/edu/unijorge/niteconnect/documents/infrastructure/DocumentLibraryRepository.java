@@ -1,6 +1,8 @@
 package br.edu.unijorge.niteconnect.documents.infrastructure;
 
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
+import br.edu.unijorge.niteconnect.documents.domain.DocumentIdentity;
+import br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
@@ -14,31 +16,47 @@ import java.util.UUID;
 @Repository
 public class DocumentLibraryRepository {
     private final JdbcTemplate jdbc;
-    public DocumentLibraryRepository(JdbcTemplate jdbc) { this.jdbc=jdbc; }
+    private final DocumentIdentityRepository identities;
+    public DocumentLibraryRepository(JdbcTemplate jdbc,DocumentIdentityRepository identities) { this.jdbc=jdbc;this.identities=identities; }
 
     public record Folder(UUID id,UUID parentId,String name,String color,String kind,String systemKey,
                          UUID ownerId,String ownerName,UUID projectId,String projectTitle,
                          UUID createdBy,String createdByName,Instant createdAt,UUID modifiedBy,String modifiedByName,Instant modifiedAt,
-                         String effectivePermission) {
+                         String effectivePermission,DocumentIdentity identity,DocumentCapabilities capabilities) {
         public Folder(UUID id,UUID parentId,String name,String color,String kind,String systemKey,UUID ownerId,String ownerName,
                       UUID projectId,String projectTitle,UUID createdBy,String createdByName,Instant createdAt,
                       UUID modifiedBy,String modifiedByName,Instant modifiedAt) {
             this(id,parentId,name,color,kind,systemKey,ownerId,ownerName,projectId,projectTitle,createdBy,createdByName,createdAt,
-                    modifiedBy,modifiedByName,modifiedAt,null);
+                    modifiedBy,modifiedByName,modifiedAt,null,null,null);
+        }
+        public Folder(UUID id,UUID parentId,String name,String color,String kind,String systemKey,UUID ownerId,String ownerName,
+                      UUID projectId,String projectTitle,UUID createdBy,String createdByName,Instant createdAt,
+                      UUID modifiedBy,String modifiedByName,Instant modifiedAt,String effectivePermission) {
+            this(id,parentId,name,color,kind,systemKey,ownerId,ownerName,projectId,projectTitle,createdBy,createdByName,createdAt,
+                    modifiedBy,modifiedByName,modifiedAt,effectivePermission,null,null);
         }
     }
     public record FileEntry(UUID id,UUID folderId,String title,String context,UUID ownerId,UUID projectId,
                             String mimeType,long revision,long size,String ownerName,String createdByName,
                             UUID createdBy,Instant createdAt,String modifiedByName,UUID modifiedBy,Instant modifiedAt,
                             String folderName,String sharedByName,Instant sharedAt,long sharedWithCount,
-                            String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt,String effectivePermission) {
+                            String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt,String effectivePermission,
+                            DocumentIdentity identity,DocumentCapabilities capabilities) {
         public FileEntry(UUID id,UUID folderId,String title,String context,UUID ownerId,UUID projectId,String mimeType,long revision,
                          long size,String ownerName,String createdByName,UUID createdBy,Instant createdAt,String modifiedByName,
                          UUID modifiedBy,Instant modifiedAt,String folderName,String sharedByName,Instant sharedAt,long sharedWithCount,
                          String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt) {
             this(id,folderId,title,context,ownerId,projectId,mimeType,revision,size,ownerName,createdByName,createdBy,createdAt,
                     modifiedByName,modifiedBy,modifiedAt,folderName,sharedByName,sharedAt,sharedWithCount,lastOpenedByName,lastOpenedBy,
-                    lastOpenedAt,null);
+                    lastOpenedAt,null,null,null);
+        }
+        public FileEntry(UUID id,UUID folderId,String title,String context,UUID ownerId,UUID projectId,String mimeType,long revision,
+                         long size,String ownerName,String createdByName,UUID createdBy,Instant createdAt,String modifiedByName,
+                         UUID modifiedBy,Instant modifiedAt,String folderName,String sharedByName,Instant sharedAt,long sharedWithCount,
+                         String lastOpenedByName,UUID lastOpenedBy,Instant lastOpenedAt,String effectivePermission) {
+            this(id,folderId,title,context,ownerId,projectId,mimeType,revision,size,ownerName,createdByName,createdBy,createdAt,
+                    modifiedByName,modifiedBy,modifiedAt,folderName,sharedByName,sharedAt,sharedWithCount,lastOpenedByName,lastOpenedBy,
+                    lastOpenedAt,effectivePermission,null,null);
         }
     }
     public record FilePage(List<FileEntry> items,long total,String nextCursor,boolean hasMore) {}
@@ -46,6 +64,10 @@ public class DocumentLibraryRepository {
     public record ActivityPage(List<Activity> items,boolean hasMore) {}
     public record Template(UUID id,String title,boolean autoAssign,boolean retired,UUID currentVersionId,int revision) {}
     public record Distribution(UUID memberId,UUID documentId,boolean created) {}
+    public record TrashItem(UUID id,String name,String type,UUID spaceOwnerId,UUID resourceOwnerId,String resourceOwnerKind,
+                            UUID createdBy,String createdByName,Instant createdAt,UUID deletedBy,String deletedByName,Instant deletedAt,
+                            UUID originalFolderId,String originalFolderName,String origin,String protection,boolean retentionHold,
+                            long size,long subtreeItems,UUID batchId) {}
 
     private static final String FOLDER_COLUMNS="""
             select f.*,o.name owner_name,p.title project_title,c.name created_by_name,m.name modified_by_name
@@ -62,7 +84,7 @@ public class DocumentLibraryRepository {
                 rs.getObject("created_by",UUID.class),rs.getString("created_by_name"),rs.getTimestamp("created_at").toInstant(),
                 rs.getObject("modified_by",UUID.class),rs.getString("modified_by_name"),rs.getTimestamp("modified_at").toInstant());
     }
-    private static final String FOLDER_SQL=FOLDER_COLUMNS+" where f.id=? and f.archived_at is null";
+    private static final String FOLDER_SQL=FOLDER_COLUMNS+" where f.id=? and f.archived_at is null and f.lifecycle_state='ACTIVE'";
     public Folder folder(UUID id) {
         return jdbc.query(FOLDER_SQL,DocumentLibraryRepository::folder,id).stream().findFirst().orElseThrow(ApiException::notFound);
     }
@@ -75,93 +97,97 @@ public class DocumentLibraryRepository {
             case "MODELOS" -> "Modelos oficiais";
             default -> throw ApiException.invalid("Raiz institucional desconhecida");
         };
-        var found=jdbc.query(FOLDER_COLUMNS+" where f.system_key=? and f.archived_at is null",DocumentLibraryRepository::folder,key);
+        var found=jdbc.query(FOLDER_COLUMNS+" where f.system_key=? and f.archived_at is null and f.lifecycle_state='ACTIVE'",DocumentLibraryRepository::folder,key);
         if(!found.isEmpty()) return found.getFirst();
-        jdbc.update("insert into nite_connect.document_folders(id,name,kind,system_key) values (?,?,'ROOT',?) on conflict do nothing",
+        jdbc.update("insert into nite_connect.document_folders(id,name,kind,system_key,resource_owner_kind,origin,protection,protection_reason,protection_revision) values (?,?,'ROOT',?,'INSTITUTION','INSTITUTIONAL_SPACE','ADMINISTRATIVE','Raiz estrutural institucional',1) on conflict do nothing",
                 UUID.randomUUID(),title,key);
-        return jdbc.query(FOLDER_COLUMNS+" where f.system_key=? and f.archived_at is null",DocumentLibraryRepository::folder,key)
+        return jdbc.query(FOLDER_COLUMNS+" where f.system_key=? and f.archived_at is null and f.lifecycle_state='ACTIVE'",DocumentLibraryRepository::folder,key)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
     public List<Folder> roots() {
         for(String key:List.of("INTEGRANTES","PROJETOS","MATERIAIS","MODELOS")) root(key);
-        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id is null and f.archived_at is null order by f.name,f.id",DocumentLibraryRepository::folder);
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id is null and f.archived_at is null and f.lifecycle_state='ACTIVE' order by f.name,f.id",DocumentLibraryRepository::folder);
     }
     public List<Folder> children(UUID parent) {
-        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null order by lower(f.name),f.id",DocumentLibraryRepository::folder,parent);
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null and f.lifecycle_state='ACTIVE' order by lower(f.name),f.id",DocumentLibraryRepository::folder,parent);
     }
     public List<Folder> children(UUID parent,String search,String sortBy,String direction) {
         String order=switch(sortBy) {case "createdAt" -> "f.created_at";case "modifiedAt" -> "f.modified_at";default -> "lower(f.name)";};
         String searchPattern=search==null||search.isEmpty()?"":"%"+search.toLowerCase(java.util.Locale.ROOT)
                 .replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";
-        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null and (?='' or lower(f.name) like ? escape E'\\\\') order by "+order+" "+direction+",f.id "+direction,
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and f.archived_at is null and f.lifecycle_state='ACTIVE' and (?='' or lower(f.name) like ? escape E'\\\\') order by "+order+" "+direction+",f.id "+direction,
                 DocumentLibraryRepository::folder,parent,search==null?"":search,searchPattern);
     }
     public Folder child(UUID parent,String name) {
-        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and lower(btrim(f.name))=lower(btrim(?)) and f.archived_at is null",
+        return jdbc.query(FOLDER_COLUMNS+" where f.parent_id=? and lower(btrim(f.name))=lower(btrim(?)) and f.archived_at is null and f.lifecycle_state='ACTIVE'",
                 DocumentLibraryRepository::folder,parent,name).stream().findFirst().orElse(null);
     }
     public Folder personal(UUID member) {
-        return jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null",DocumentLibraryRepository::folder,member)
+        return jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null and f.lifecycle_state='ACTIVE'",DocumentLibraryRepository::folder,member)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
     public Folder project(UUID project) {
-        return jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null",DocumentLibraryRepository::folder,project)
+        return jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null and f.lifecycle_state='ACTIVE'",DocumentLibraryRepository::folder,project)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
     public Folder ensurePersonal(UUID member) {
-        var existing=jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null",
+        var existing=jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null and f.lifecycle_state='ACTIVE'",
                 DocumentLibraryRepository::folder,member);
         if(!existing.isEmpty()) return existing.getFirst();
         String name=jdbc.query("select name from nite_connect.members where id=? and status='ATIVO'",(rs,row)->rs.getString(1),member)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
         UUID root=root("INTEGRANTES").id();
         String safe=uniqueName(root,name,member);
-        jdbc.update("insert into nite_connect.document_folders(id,parent_id,name,kind,owner_id) values (?,?,?,'PERSONAL',?) on conflict do nothing",
-                UUID.randomUUID(),root,safe,member);
+        jdbc.update("insert into nite_connect.document_folders(id,parent_id,name,kind,owner_id,space_owner_id,resource_owner_kind,origin,protection,protection_reason,protection_revision) values (?,?,?,'PERSONAL',?,?,'INSTITUTION','PERSONAL_SPACE','ADMINISTRATIVE','Raiz estrutural pessoal',1) on conflict do nothing",
+                UUID.randomUUID(),root,safe,member,member);
         return personal(member);
     }
     public Folder ensureProject(UUID project) {
-        var existing=jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null",
+        var existing=jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null and f.lifecycle_state='ACTIVE'",
                 DocumentLibraryRepository::folder,project);
         if(!existing.isEmpty()) return existing.getFirst();
         String title=jdbc.query("select title from nite_connect.projects where id=?",(rs,row)->rs.getString(1),project)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
         UUID root=root("PROJETOS").id();
         String safe=uniqueName(root,title,project);
-        jdbc.update("insert into nite_connect.document_folders(id,parent_id,name,kind,project_id) values (?,?,?,'PROJECT',?) on conflict do nothing",
-                UUID.randomUUID(),root,safe,project);
+        jdbc.update("insert into nite_connect.document_folders(id,parent_id,name,kind,project_id,resource_owner_kind,resource_owner_id,origin,protection,protection_reason,protection_revision) values (?,?,?,'PROJECT',?,'PROJECT',?,'PROJECT_SPACE','ADMINISTRATIVE','Raiz estrutural do projeto',1) on conflict do nothing",
+                UUID.randomUUID(),root,safe,project,project);
         return project(project);
     }
     private String uniqueName(UUID parent,String original,UUID id) {
         String name=original.strip();
-        Boolean exists=jdbc.queryForObject("select exists(select 1 from nite_connect.document_folders where parent_id=? and lower(btrim(name))=lower(?) and archived_at is null)",Boolean.class,parent,name);
+        Boolean exists=jdbc.queryForObject("select exists(select 1 from nite_connect.document_folders where parent_id=? and lower(btrim(name))=lower(?) and archived_at is null and lifecycle_state='ACTIVE')",Boolean.class,parent,name);
         return Boolean.TRUE.equals(exists)?name.substring(0,Math.min(170,name.length()))+" ("+id.toString().substring(0,8)+")":name.substring(0,Math.min(190,name.length()));
     }
     public boolean siblingExists(UUID parent,String name,UUID exclude) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.document_folders where parent_id is not distinct from ? and lower(btrim(name))=lower(btrim(?)) and archived_at is null and id<>?)",
+        return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.document_folders where parent_id is not distinct from ? and lower(btrim(name))=lower(btrim(?)) and archived_at is null and lifecycle_state='ACTIVE' and id<>?)",
                 Boolean.class,parent,name,exclude));
     }
     public Folder addFolder(UUID parent,String name,String color,UUID actor) {
+        return addFolder(parent,name,color,actor,false);
+    }
+    public Folder addFolder(UUID parent,String name,String color,UUID actor,boolean institutional) {
         UUID id=UUID.randomUUID();
         jdbc.update("insert into nite_connect.document_folders(id,parent_id,name,color,kind,created_by,modified_by) values (?,?,?,?,'CUSTOM',?,?)",
                 id,parent,name,color,actor,actor);
+        identities.createdFolder(id,parent,actor,institutional);
         folderEvent(id,actor,"FOLDER_CREATED","Pasta criada");
         return folder(id);
     }
     public Folder updateFolder(UUID id,UUID parent,String name,String color,UUID actor) {
-        jdbc.update("update nite_connect.document_folders set parent_id=?,name=?,color=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind='CUSTOM' and archived_at is null",
+        jdbc.update("update nite_connect.document_folders set parent_id=?,name=?,color=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind='CUSTOM' and archived_at is null and lifecycle_state='ACTIVE'",
                 parent,name,color,actor,id);
         folderEvent(id,actor,"FOLDER_UPDATED","Pasta renomeada, recolorida ou movida");
         return folder(id);
     }
     public Folder renameRootFolder(UUID id,String name,String color,UUID actor) {
-        jdbc.update("update nite_connect.document_folders set name=?,color=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind='ROOT' and archived_at is null",
+        jdbc.update("update nite_connect.document_folders set name=?,color=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind='ROOT' and archived_at is null and lifecycle_state='ACTIVE'",
                 name,color,actor,id);
         folderEvent(id,actor,"FOLDER_UPDATED","Raiz institucional renomeada ou recolorida");
         return folder(id);
     }
     public void renameProtectedFolder(UUID id,String name,String color,UUID actor) {
-        jdbc.update("update nite_connect.document_folders set name=?,color=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind in ('PERSONAL','PROJECT') and archived_at is null",
+        jdbc.update("update nite_connect.document_folders set name=?,color=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind in ('PERSONAL','PROJECT') and archived_at is null and lifecycle_state='ACTIVE'",
                 name,color,actor,id);
         folderEvent(id,actor,"FOLDER_UPDATED","Pasta vinculada renomeada ou recolorida");
     }
@@ -174,30 +200,50 @@ public class DocumentLibraryRepository {
                 ) select exists(select 1 from tree where id=?)
                 """,Boolean.class,ancestor,possibleChild));
     }
+    /** A personal folder cannot carry someone else's or protected descendants across a boundary. */
+    public boolean restrictedPersonalDescendant(UUID root,UUID actor) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                with recursive tree(id,depth) as (
+                  select id,0 from nite_connect.document_folders where id=? and archived_at is null and lifecycle_state='ACTIVE'
+                  union all
+                  select child.id,tree.depth+1 from nite_connect.document_folders child
+                    join tree on child.parent_id=tree.id where child.archived_at is null and child.lifecycle_state='ACTIVE' and tree.depth<63
+                )
+                select exists(
+                  select 1 from nite_connect.document_folders f join tree on tree.id=f.id
+                  where f.id<>? and (f.resource_owner_kind<>'MEMBER' or f.resource_owner_id<>?
+                    or f.created_by<>? or f.protection<>'NONE' or f.retention_hold)
+                  union all
+                  select 1 from nite_connect.documents d join tree on tree.id=d.folder_id
+                  where d.archived_at is null and d.lifecycle_state='ACTIVE' and (d.resource_owner_kind<>'MEMBER' or d.resource_owner_id<>?
+                    or d.created_by<>? or d.protection<>'NONE' or d.retention_hold)
+                )
+                """,Boolean.class,root,root,actor,actor,actor,actor));
+    }
     public void archiveFolder(UUID id,UUID actor) {
-        jdbc.update("update nite_connect.document_folders set archived_at=clock_timestamp(),archive_batch_id=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind='CUSTOM' and archived_at is null",UUID.randomUUID(),actor,id);
+        jdbc.update("update nite_connect.document_folders set archived_at=clock_timestamp(),archive_batch_id=?,modified_by=?,modified_at=clock_timestamp() where id=? and kind='CUSTOM' and archived_at is null and lifecycle_state='ACTIVE'",UUID.randomUUID(),actor,id);
         folderEvent(id,actor,"FOLDER_ARCHIVED","Pasta vazia arquivada");
     }
     /** Explicit recursive archive; every affected row retains its immutable document versions. */
     public void archiveFolderTree(UUID root,UUID actor) {
         List<UUID> ids=jdbc.query("""
                 with recursive subtree(id) as (
-                    select id from nite_connect.document_folders where id=? and kind='CUSTOM' and archived_at is null
-                    union all select f.id from nite_connect.document_folders f join subtree t on f.parent_id=t.id where f.archived_at is null
+                    select id from nite_connect.document_folders where id=? and kind='CUSTOM' and archived_at is null and lifecycle_state='ACTIVE'
+                    union all select f.id from nite_connect.document_folders f join subtree t on f.parent_id=t.id where f.archived_at is null and f.lifecycle_state='ACTIVE'
                 ) select id from subtree
                 """,(rs,row)->rs.getObject(1,UUID.class),root);
         if(ids.isEmpty()) throw ApiException.notFound();
         String placeholders=String.join(",",java.util.Collections.nCopies(ids.size(),"?"));
-        var affected=jdbc.query("select id from nite_connect.documents where folder_id in ("+placeholders+") and archived_at is null",
+        var affected=jdbc.query("select id from nite_connect.documents where folder_id in ("+placeholders+") and archived_at is null and lifecycle_state='ACTIVE'",
                 (rs,row)->rs.getObject(1,UUID.class),ids.toArray());
         UUID batch=UUID.randomUUID();
-        jdbc.update("update nite_connect.documents set archived_at=clock_timestamp(),archive_batch_id=?,modified_by=?,modified_at=clock_timestamp() where folder_id in ("+placeholders+") and archived_at is null",
+        jdbc.update("update nite_connect.documents set archived_at=clock_timestamp(),archive_batch_id=?,modified_by=?,modified_at=clock_timestamp() where folder_id in ("+placeholders+") and archived_at is null and lifecycle_state='ACTIVE'",
                 join(batch,actor,ids));
         for(UUID document:affected) {
             jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and revoked_at is null",document);
             event(document,actor,"DOCUMENT_ARCHIVED","Arquivado com pasta "+root);
         }
-        jdbc.update("update nite_connect.document_folders set archived_at=clock_timestamp(),archive_batch_id=?,modified_by=?,modified_at=clock_timestamp() where id in ("+placeholders+") and archived_at is null",
+        jdbc.update("update nite_connect.document_folders set archived_at=clock_timestamp(),archive_batch_id=?,modified_by=?,modified_at=clock_timestamp() where id in ("+placeholders+") and archived_at is null and lifecycle_state='ACTIVE'",
                 join(batch,actor,ids));
         for(UUID folder:ids) folderEvent(folder,actor,"FOLDER_ARCHIVED","Arquivamento em grupo "+root);
     }
@@ -214,7 +260,7 @@ public class DocumentLibraryRepository {
         if(Boolean.TRUE.equals(jdbc.queryForObject("""
             select exists(select 1 from nite_connect.document_folders f
              join nite_connect.document_folders other on other.parent_id is not distinct from f.parent_id
-               and lower(btrim(other.name))=lower(btrim(f.name)) and other.id<>f.id and other.archived_at is null
+               and lower(btrim(other.name))=lower(btrim(f.name)) and other.id<>f.id and other.archived_at is null and other.lifecycle_state='ACTIVE'
              where f.archive_batch_id=?)
             """,Boolean.class,info.batch()))) throw ApiException.conflict("Outra pasta ativa usa um dos nomes originais; renomeie-a antes de restaurar");
         jdbc.update("update nite_connect.document_folders set archived_at=null,archive_batch_id=null,modified_by=?,modified_at=clock_timestamp() where archive_batch_id=?",
@@ -228,8 +274,8 @@ public class DocumentLibraryRepository {
     }
     public boolean hasContents(UUID folder) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
-                select exists(select 1 from nite_connect.document_folders where parent_id=? and archived_at is null)
-                    or exists(select 1 from nite_connect.documents where folder_id=? and archived_at is null)
+                select exists(select 1 from nite_connect.document_folders where parent_id=? and archived_at is null and lifecycle_state='ACTIVE')
+                    or exists(select 1 from nite_connect.documents where folder_id=? and archived_at is null and lifecycle_state='ACTIVE')
                 """,Boolean.class,folder,folder));
     }
     private static final String FILE_COLUMNS="""
@@ -261,7 +307,7 @@ public class DocumentLibraryRepository {
                 rs.getTimestamp("last_opened_at")==null?null:rs.getTimestamp("last_opened_at").toInstant());
     }
     public List<FileEntry> files(UUID folder) {
-        return jdbc.query(FILE_COLUMNS+" where d.folder_id=? and d.archived_at is null order by lower(d.title),d.id limit 500",
+        return jdbc.query(FILE_COLUMNS+" where d.folder_id=? and d.archived_at is null and d.lifecycle_state='ACTIVE' order by lower(d.title),d.id limit 500",
                 DocumentLibraryRepository::file,folder);
     }
     public FilePage filePage(UUID folder,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
@@ -274,7 +320,7 @@ public class DocumentLibraryRepository {
         String order="desc".equals(direction)?"desc":"asc";
         String sign="desc".equals(order)?"<":">";
         var params=new java.util.ArrayList<Object>();
-        StringBuilder sql=new StringBuilder(FILE_COLUMNS).append(" where d.folder_id=? and d.archived_at is null");
+        StringBuilder sql=new StringBuilder(FILE_COLUMNS).append(" where d.folder_id=? and d.archived_at is null and d.lifecycle_state='ACTIVE'");
         params.add(folder);
         if(search!=null&&!search.isBlank()) {
             sql.append(" and lower(d.title) like ? escape E'\\\\'");
@@ -297,7 +343,7 @@ public class DocumentLibraryRepository {
                 params.add(value);params.add(value);params.add(id);
             }
         }
-        long total=jdbc.queryForObject("select count(*) from nite_connect.documents d where d.folder_id=? and d.archived_at is null"+
+        long total=jdbc.queryForObject("select count(*) from nite_connect.documents d where d.folder_id=? and d.archived_at is null and d.lifecycle_state='ACTIVE'"+
                 (search==null||search.isBlank()?"":" and lower(d.title) like ? escape E'\\\\'")+
                 (mimeType==null||mimeType.isBlank()?"":" and d.mime_type=?"),Long.class,
                 pageCountArgs(folder,search,mimeType));
@@ -329,11 +375,15 @@ public class DocumentLibraryRepository {
         return args.toArray();
     }
     public FileEntry file(UUID id) {
-        return jdbc.query(FILE_COLUMNS+" where d.id=? and d.archived_at is null",DocumentLibraryRepository::file,id)
+        return jdbc.query(FILE_COLUMNS+" where d.id=? and d.archived_at is null and d.lifecycle_state='ACTIVE'",DocumentLibraryRepository::file,id)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
+    public FileEntry fileByName(UUID folder,String title) {
+        return jdbc.query(FILE_COLUMNS+" where d.folder_id=? and lower(btrim(d.title))=lower(btrim(?)) and d.archived_at is null and d.lifecycle_state='ACTIVE'",
+                DocumentLibraryRepository::file,folder,title).stream().findFirst().orElse(null);
+    }
     public boolean fileNameExists(UUID folder,String title,UUID excluded) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.documents where folder_id=? and lower(btrim(title))=lower(btrim(?)) and archived_at is null and id<>?)",
+        return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.documents where folder_id is not distinct from ? and lower(btrim(title))=lower(btrim(?)) and archived_at is null and lifecycle_state='ACTIVE' and id<>?)",
                 Boolean.class,folder,title,excluded));
     }
     public ActivityPage documentActivity(UUID id,Instant before,UUID beforeId,int limit) {
@@ -384,14 +434,14 @@ public class DocumentLibraryRepository {
                 select f.id,f.name,f.parent_id,f.archived_at from nite_connect.document_folders f
                 left join nite_connect.document_folders parent on parent.id=f.parent_id
                 where f.kind='CUSTOM' and f.archived_at is not null
-                  and (f.parent_id is null or parent.archived_at is null)
+                  and (f.parent_id is null or parent.archived_at is null and parent.lifecycle_state='ACTIVE')
                 order by f.archived_at desc,f.id limit 100
                 """,(rs,row)->new ArchivedItem(rs.getObject(1,UUID.class),rs.getString(2),"FOLDER",
                 rs.getObject(3,UUID.class),rs.getTimestamp(4).toInstant())));
         entries.addAll(jdbc.query("""
                 select d.id,d.title,d.folder_id,d.archived_at from nite_connect.documents d
                 join nite_connect.document_folders f on f.id=d.folder_id
-                where d.archived_at is not null and f.archived_at is null
+                where d.archived_at is not null and f.archived_at is null and f.lifecycle_state='ACTIVE'
                 order by d.archived_at desc,d.id limit 100
                 """,(rs,row)->new ArchivedItem(rs.getObject(1,UUID.class),rs.getString(2),"DOCUMENT",
                 rs.getObject(3,UUID.class),rs.getTimestamp(4).toInstant())));
@@ -399,20 +449,231 @@ public class DocumentLibraryRepository {
         return List.copyOf(entries);
     }
     public void moveFile(UUID id,UUID folder,String name,UUID actor) {
-        jdbc.update("update nite_connect.documents set folder_id=?,title=?,modified_by=?,modified_at=clock_timestamp() where id=? and archived_at is null",
+        jdbc.update("update nite_connect.documents set folder_id=?,title=?,modified_by=?,modified_at=clock_timestamp() where id=? and archived_at is null and lifecycle_state='ACTIVE'",
                 folder,name,actor,id);
         jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and revoked_at is null",id);
         event(id,actor,"DOCUMENT_ORGANIZED","Pasta ou nome atualizado");
     }
     public void archiveFile(UUID id,UUID actor) {
-        jdbc.update("update nite_connect.documents set archived_at=clock_timestamp(),modified_by=?,modified_at=clock_timestamp() where id=? and archived_at is null",actor,id);
+        jdbc.update("update nite_connect.documents set archived_at=clock_timestamp(),modified_by=?,modified_at=clock_timestamp() where id=? and archived_at is null and lifecycle_state='ACTIVE'",actor,id);
         jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and revoked_at is null",id);
         event(id,actor,"DOCUMENT_ARCHIVED","Arquivamento recuperável");
+    }
+
+    /** Locks the complete active subtree so WOPI saves and tree mutations serialize with trash. */
+    public void lockTrashSubtree(UUID root) {
+        jdbc.query("""
+                with recursive tree(id) as (
+                  select id from nite_connect.document_folders where id=? and archived_at is null and lifecycle_state='ACTIVE'
+                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id
+                    where f.archived_at is null and f.lifecycle_state='ACTIVE'
+                ) select f.id from nite_connect.document_folders f join tree t on t.id=f.id order by f.id for update of f
+                """,(rs,row)->rs.getObject(1,UUID.class),root);
+        jdbc.query("""
+                with recursive tree(id) as (
+                  select id from nite_connect.document_folders where id=? and archived_at is null and lifecycle_state='ACTIVE'
+                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id
+                    where f.archived_at is null and f.lifecycle_state='ACTIVE'
+                ) select d.id from nite_connect.documents d join tree t on t.id=d.folder_id
+                  where d.archived_at is null and d.lifecycle_state='ACTIVE' order by d.id for update of d
+                """,(rs,row)->rs.getObject(1,UUID.class),root);
+    }
+    public List<UUID> activeSubtreeFolders(UUID root) {
+        return jdbc.query("""
+                with recursive tree(id) as (
+                  select id from nite_connect.document_folders where id=? and kind='CUSTOM' and archived_at is null and lifecycle_state='ACTIVE'
+                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id
+                    where f.archived_at is null and f.lifecycle_state='ACTIVE'
+                ) select id from tree order by id
+                """,(rs,row)->rs.getObject(1,UUID.class),root);
+    }
+    public boolean hasNonActiveDescendant(UUID root) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                with recursive tree(id,depth) as (
+                  select id,0 from nite_connect.document_folders where id=?
+                  union all select f.id,t.depth+1 from nite_connect.document_folders f join tree t on f.parent_id=t.id where t.depth<63
+                ) select exists(select 1 from nite_connect.document_folders f join tree t on t.id=f.id
+                    where f.id<>? and (f.archived_at is not null or f.lifecycle_state<>'ACTIVE'))
+                  or exists(select 1 from nite_connect.documents d join tree t on t.id=d.folder_id
+                    where d.archived_at is not null or d.lifecycle_state<>'ACTIVE')
+                """,Boolean.class,root,root));
+    }
+    public List<UUID> activeSubtreeDocuments(List<UUID> folderIds) {
+        if(folderIds.isEmpty()) return List.of();
+        String marks=String.join(",",java.util.Collections.nCopies(folderIds.size(),"?"));
+        return jdbc.query("select id from nite_connect.documents where folder_id in ("+marks+") and archived_at is null and lifecycle_state='ACTIVE' order by id",
+                (rs,row)->rs.getObject(1,UUID.class),folderIds.toArray());
+    }
+    public void trashFile(UUID id,UUID actor,UUID batch) {
+        revokeDocumentGrants(List.of(id),actor);
+        int count=jdbc.update("update nite_connect.documents set lifecycle_state='TRASHED',deleted_at=clock_timestamp(),deleted_by=?,trash_batch_id=? where id=? and archived_at is null and lifecycle_state='ACTIVE'",actor,batch,id);
+        if(count!=1) throw ApiException.conflict("O documento deixou de estar ativo");
+        revokeWopi(id);
+        event(id,actor,"DOCUMENT_TRASHED","Exclusão recuperável");
+    }
+    public void trashFolderTree(UUID root,UUID actor,UUID batch) {
+        List<UUID> folders=activeSubtreeFolders(root);
+        if(folders.isEmpty()) throw ApiException.notFound();
+        List<UUID> docs=activeSubtreeDocuments(folders);
+        revokeFolderGrants(folders,actor);
+        revokeDocumentGrants(docs,actor);
+        String marks=String.join(",",java.util.Collections.nCopies(folders.size(),"?"));
+        Object[] args=join(actor,batch,folders);
+        jdbc.update("update nite_connect.documents set lifecycle_state='TRASHED',deleted_at=clock_timestamp(),deleted_by=?,trash_batch_id=? where folder_id in ("+marks+") and archived_at is null and lifecycle_state='ACTIVE'",args);
+        for(UUID doc:docs) {revokeWopi(doc);event(doc,actor,"DOCUMENT_TRASHED","Exclusão em grupo "+root);}
+        jdbc.update("update nite_connect.document_folders set lifecycle_state='TRASHED',deleted_at=clock_timestamp(),deleted_by=?,trash_batch_id=? where id in ("+marks+") and archived_at is null and lifecycle_state='ACTIVE'",args);
+        for(UUID folder:folders) folderEvent(folder,actor,"FOLDER_TRASHED","Lixeira em grupo "+root);
+    }
+    private void revokeWopi(UUID id) {
+        jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and revoked_at is null",id);
+        jdbc.update("delete from nite_connect.document_wopi_locks where document_id=?",id);
+    }
+    private void revokeDocumentGrants(List<UUID> documents,UUID actor) {
+        if(documents.isEmpty()) return;
+        String marks=String.join(",",java.util.Collections.nCopies(documents.size(),"?"));
+        String sql="""
+                with revoked as (
+                  update nite_connect.document_grants set revoked_at=clock_timestamp()
+                  where document_id in (%s) and revoked_at is null
+                  returning document_id,folder_id,member_id,permission
+                ) insert into nite_connect.document_share_events(id,document_id,folder_id,actor_id,recipient_id,action,permission)
+                  select gen_random_uuid(),document_id,folder_id,?,member_id,'SHARE_REVOKED',permission from revoked
+                """.formatted(marks);
+        jdbc.update(sql,java.util.stream.Stream.concat(documents.stream(),java.util.stream.Stream.of(actor)).toArray());
+    }
+    private void revokeFolderGrants(List<UUID> folders,UUID actor) {
+        if(folders.isEmpty()) return;
+        String marks=String.join(",",java.util.Collections.nCopies(folders.size(),"?"));
+        String sql="""
+                with revoked as (
+                  update nite_connect.document_grants set revoked_at=clock_timestamp()
+                  where folder_id in (%s) and revoked_at is null
+                  returning document_id,folder_id,member_id,permission
+                ) insert into nite_connect.document_share_events(id,document_id,folder_id,actor_id,recipient_id,action,permission)
+                  select gen_random_uuid(),document_id,folder_id,?,member_id,'SHARE_REVOKED',permission from revoked
+                """.formatted(marks);
+        jdbc.update(sql,java.util.stream.Stream.concat(folders.stream(),java.util.stream.Stream.of(actor)).toArray());
+    }
+    public List<TrashItem> trash(UUID spaceOwner,UUID project,boolean administrative,String type,String sortBy,String direction,int limit,int offset) {
+        String orderColumn=switch(sortBy) {case "name" -> "lower(name)";case "createdAt" -> "created_at";default -> "deleted_at";};
+        String orderDirection="asc".equals(direction)?"asc":"desc";
+        String sql="""
+                select * from (
+                  select d.id,d.title name,'DOCUMENT' type,d.space_owner_id,d.resource_owner_id,d.resource_owner_kind,d.created_by,c.name created_by_name,d.created_at,
+                    d.deleted_by,m.name deleted_by_name,d.deleted_at,d.folder_id original_folder_id,f.name original_folder_name,
+                    d.origin,d.protection,d.retention_hold,coalesce(v.size,0) size,0::bigint subtree_items,d.trash_batch_id
+                  from nite_connect.documents d left join nite_connect.members m on m.id=d.deleted_by
+                    left join nite_connect.members c on c.id=d.created_by
+                    left join nite_connect.document_folders f on f.id=d.folder_id
+                    left join nite_connect.document_versions v on v.id=d.current_version_id
+                  where d.lifecycle_state='TRASHED' and d.archived_at is null
+                    and (? or d.space_owner_id=? or (cast(? as uuid) is not null and d.resource_owner_kind='PROJECT' and d.resource_owner_id=cast(? as uuid)))
+                  union all
+                  select f.id,f.name,'FOLDER',f.space_owner_id,f.resource_owner_id,f.resource_owner_kind,f.created_by,c.name,f.created_at,
+                    f.deleted_by,m.name,f.deleted_at,f.parent_id,p.name,
+                    f.origin,f.protection,f.retention_hold,
+                    coalesce((select sum(v.size) from nite_connect.documents d join nite_connect.document_versions v on v.id=d.current_version_id
+                      where d.folder_id in (select child.id from nite_connect.document_folders child where child.trash_batch_id=f.trash_batch_id)),0),
+                    (select count(*) from nite_connect.documents d where d.trash_batch_id=f.trash_batch_id)
+                      +(select count(*) from nite_connect.document_folders x where x.trash_batch_id=f.trash_batch_id)-1,f.trash_batch_id
+                  from nite_connect.document_folders f left join nite_connect.members m on m.id=f.deleted_by
+                    left join nite_connect.members c on c.id=f.created_by
+                    left join nite_connect.document_folders p on p.id=f.parent_id
+                  where f.lifecycle_state='TRASHED' and f.archived_at is null
+                    and (? or f.space_owner_id=? or (cast(? as uuid) is not null and f.resource_owner_kind='PROJECT' and f.resource_owner_id=cast(? as uuid)))
+                    and not exists(select 1 from nite_connect.document_folders p0 where p0.id=f.parent_id and p0.trash_batch_id=f.trash_batch_id)
+                ) items where (cast(? as varchar) is null or type=cast(? as varchar))
+                order by %s %s,id %s limit ? offset ?
+                """.formatted(orderColumn,orderDirection,orderDirection);
+        return jdbc.query(sql,(rs,row)->new TrashItem(rs.getObject("id",UUID.class),rs.getString("name"),rs.getString("type"),
+                rs.getObject("space_owner_id",UUID.class),rs.getObject("resource_owner_id",UUID.class),rs.getString("resource_owner_kind"),
+                rs.getObject("created_by",UUID.class),rs.getString("created_by_name"),rs.getTimestamp("created_at").toInstant(),rs.getObject("deleted_by",UUID.class),
+                rs.getString("deleted_by_name"),rs.getTimestamp("deleted_at").toInstant(),rs.getObject("original_folder_id",UUID.class),
+                rs.getString("original_folder_name"),rs.getString("origin"),rs.getString("protection"),rs.getBoolean("retention_hold"),
+                rs.getLong("size"),rs.getLong("subtree_items"),rs.getObject("trash_batch_id",UUID.class)),
+                administrative,spaceOwner,project,project,administrative,spaceOwner,project,project,type,type,limit,offset);
+    }
+    public TrashItem trashItem(UUID id) {
+        return jdbc.query("""
+                select d.id,d.title name,'DOCUMENT' type,d.space_owner_id,d.resource_owner_id,d.resource_owner_kind,d.created_by,c.name created_by_name,d.created_at,
+                  d.deleted_by,m.name deleted_by_name,d.deleted_at,d.folder_id original_folder_id,f.name original_folder_name,
+                  d.origin,d.protection,d.retention_hold,coalesce(v.size,0) size,0::bigint subtree_items,d.trash_batch_id
+                from nite_connect.documents d left join nite_connect.members m on m.id=d.deleted_by
+                  left join nite_connect.members c on c.id=d.created_by
+                  left join nite_connect.document_folders f on f.id=d.folder_id left join nite_connect.document_versions v on v.id=d.current_version_id
+                where d.id=? and d.lifecycle_state='TRASHED' and d.archived_at is null
+                union all
+                select f.id,f.name,'FOLDER',f.space_owner_id,f.resource_owner_id,f.resource_owner_kind,f.created_by,c.name,f.created_at,
+                  f.deleted_by,m.name,f.deleted_at,f.parent_id,p.name,f.origin,f.protection,f.retention_hold,0::bigint,0::bigint,f.trash_batch_id
+                from nite_connect.document_folders f left join nite_connect.members m on m.id=f.deleted_by
+                  left join nite_connect.members c on c.id=f.created_by
+                  left join nite_connect.document_folders p on p.id=f.parent_id
+                where f.id=? and f.lifecycle_state='TRASHED' and f.archived_at is null
+                """,(rs,row)->new TrashItem(rs.getObject("id",UUID.class),rs.getString("name"),rs.getString("type"),
+                rs.getObject("space_owner_id",UUID.class),rs.getObject("resource_owner_id",UUID.class),rs.getString("resource_owner_kind"),
+                rs.getObject("created_by",UUID.class),rs.getString("created_by_name"),rs.getTimestamp("created_at").toInstant(),rs.getObject("deleted_by",UUID.class),
+                rs.getString("deleted_by_name"),rs.getTimestamp("deleted_at").toInstant(),rs.getObject("original_folder_id",UUID.class),
+                rs.getString("original_folder_name"),rs.getString("origin"),rs.getString("protection"),rs.getBoolean("retention_hold"),
+                rs.getLong("size"),rs.getLong("subtree_items"),rs.getObject("trash_batch_id",UUID.class)),id,id)
+                .stream().findFirst().orElseThrow(ApiException::notFound);
+    }
+    public boolean trashBlocked(UUID id,String type) {
+        String table="DOCUMENT".equals(type)?"documents":"document_folders";
+        return Boolean.TRUE.equals(jdbc.queryForObject("select resource_owner_kind='UNKNOWN' or retention_hold from nite_connect."+table+" where id=? and lifecycle_state='TRASHED'",Boolean.class,id));
+    }
+    public String trashMimeType(UUID id) {
+        return jdbc.query("select mime_type from nite_connect.documents where id=? and lifecycle_state='TRASHED'",
+                (rs,row)->rs.getString(1),id).stream().findFirst().orElseThrow(ApiException::notFound);
+    }
+    public void restoreTrash(UUID id,String type,UUID actor,String explicitName) {
+        if("DOCUMENT".equals(type)) {
+            Boolean conflict=jdbc.queryForObject("""
+                    select (cast(? as varchar) is null and exists(select 1 from nite_connect.documents d join nite_connect.documents other
+                      on other.folder_id=d.folder_id and lower(btrim(other.title))=lower(btrim(d.title)) and other.id<>d.id
+                      and other.archived_at is null and other.lifecycle_state='ACTIVE'
+                     where d.id=? and d.lifecycle_state='TRASHED'))
+                    or exists(select 1 from nite_connect.documents d left join nite_connect.document_folders f on f.id=d.folder_id
+                     where d.id=? and d.folder_id is not null and (f.id is null or f.archived_at is not null or f.lifecycle_state<>'ACTIVE'))
+                    """,Boolean.class,explicitName,id,id);
+            if(Boolean.TRUE.equals(conflict)) throw ApiException.conflict("Pasta original indisponível ou conflito de nome");
+            int changed=jdbc.update("update nite_connect.documents set title=coalesce(?,title),lifecycle_state='ACTIVE',deleted_at=null,deleted_by=null,trash_batch_id=null,restored_at=clock_timestamp(),restored_by=? where id=? and lifecycle_state='TRASHED'",explicitName,actor,id);
+            if(changed!=1) throw ApiException.conflict("O item deixou de estar na Lixeira");
+            event(id,actor,"DOCUMENT_RESTORED_FROM_TRASH","Restaurado ao local original");
+            return;
+        }
+        UUID batch=jdbc.query("select trash_batch_id from nite_connect.document_folders where id=? and lifecycle_state='TRASHED'",(rs,row)->rs.getObject(1,UUID.class),id)
+                .stream().findFirst().orElseThrow(ApiException::notFound);
+        Boolean conflict=jdbc.queryForObject("""
+                select exists(
+                  select 1 from nite_connect.document_folders f join nite_connect.document_folders other
+                    on other.parent_id is not distinct from f.parent_id and lower(btrim(other.name))=lower(btrim(f.name))
+                    and other.id<>f.id and other.lifecycle_state='ACTIVE' and other.archived_at is null
+                  where f.trash_batch_id=? and (cast(? as varchar) is null or f.id<>?)
+                  union all
+                  select 1 from nite_connect.documents d join nite_connect.documents other on other.folder_id=d.folder_id
+                    and lower(btrim(other.title))=lower(btrim(d.title)) and other.id<>d.id and other.lifecycle_state='ACTIVE' and other.archived_at is null
+                  where d.trash_batch_id=?
+                )
+                """,Boolean.class,batch,explicitName,id,batch);
+        if(Boolean.TRUE.equals(conflict)) throw ApiException.conflict("Conflito de nome no local original; escolha uma resolução explícita");
+        Boolean parentMissing=jdbc.queryForObject("""
+                select exists(select 1 from nite_connect.document_folders f left join nite_connect.document_folders p on p.id=f.parent_id
+                  where f.trash_batch_id=? and f.parent_id is not null and (p.id is null or p.archived_at is not null
+                    or (p.lifecycle_state<>'ACTIVE' and p.trash_batch_id is distinct from f.trash_batch_id)))
+                """,Boolean.class,batch);
+        if(Boolean.TRUE.equals(parentMissing)) throw ApiException.conflict("A pasta original não está disponível");
+        List<UUID> documentsToRestore=jdbc.query("select id from nite_connect.documents where trash_batch_id=? and lifecycle_state='TRASHED'",(rs,row)->rs.getObject(1,UUID.class),batch);
+        List<UUID> foldersToRestore=jdbc.query("select id from nite_connect.document_folders where trash_batch_id=? and lifecycle_state='TRASHED'",(rs,row)->rs.getObject(1,UUID.class),batch);
+        jdbc.update("update nite_connect.document_folders set name=coalesce(?,name) where id=? and lifecycle_state='TRASHED'",explicitName,id);
+        jdbc.update("update nite_connect.documents set lifecycle_state='ACTIVE',deleted_at=null,deleted_by=null,trash_batch_id=null,restored_at=clock_timestamp(),restored_by=? where trash_batch_id=? and lifecycle_state='TRASHED'",actor,batch);
+        jdbc.update("update nite_connect.document_folders set lifecycle_state='ACTIVE',deleted_at=null,deleted_by=null,trash_batch_id=null,restored_at=clock_timestamp(),restored_by=? where trash_batch_id=? and lifecycle_state='TRASHED'",actor,batch);
+        for(UUID doc:documentsToRestore) event(doc,actor,"DOCUMENT_RESTORED_FROM_TRASH","Restaurado com subárvore");
+        for(UUID folder:foldersToRestore) folderEvent(folder,actor,"FOLDER_RESTORED_FROM_TRASH","Restaurada com subárvore");
     }
     public boolean archivedFileFolderMissing(UUID id) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 select not exists(select 1 from nite_connect.document_folders f join nite_connect.documents d on d.folder_id=f.id
-                 where d.id=? and f.archived_at is null and d.archived_at is not null)
+                 where d.id=? and f.archived_at is null and f.lifecycle_state='ACTIVE' and d.archived_at is not null)
                 """,Boolean.class,id));
     }
     public void restoreFile(UUID id,UUID actor) {
@@ -494,8 +755,8 @@ public class DocumentLibraryRepository {
     public List<Folder> subtree(UUID root) {
         return jdbc.query("""
                 with recursive selected(id) as (
-                  select id from nite_connect.document_folders where id=? and archived_at is null
-                  union all select f.id from nite_connect.document_folders f join selected s on f.parent_id=s.id where f.archived_at is null
+                  select id from nite_connect.document_folders where id=? and archived_at is null and lifecycle_state='ACTIVE'
+                  union all select f.id from nite_connect.document_folders f join selected s on f.parent_id=s.id where f.archived_at is null and f.lifecycle_state='ACTIVE'
                 ) select f.*,o.name owner_name,p.title project_title,c.name created_by_name,m.name modified_by_name
                   from nite_connect.document_folders f join selected s on s.id=f.id
                   left join nite_connect.members o on o.id=f.owner_id left join nite_connect.projects p on p.id=f.project_id
@@ -504,7 +765,7 @@ public class DocumentLibraryRepository {
                 """,DocumentLibraryRepository::folder,root);
     }
     public List<Folder> folderTree() {
-        return jdbc.query(FOLDER_COLUMNS+" where f.archived_at is null order by f.name,f.id",DocumentLibraryRepository::folder);
+        return jdbc.query(FOLDER_COLUMNS+" where f.archived_at is null and f.lifecycle_state='ACTIVE' order by f.name,f.id",DocumentLibraryRepository::folder);
     }
     public List<UUID> activeMembers(UUID after,int limit) {
         String sql="select id from nite_connect.members where status='ATIVO'"+(after==null?"":" and id>?")+" order by id limit ?";
@@ -512,7 +773,7 @@ public class DocumentLibraryRepository {
                 :jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),after,limit);
     }
     public List<UUID> projectsNeedingFolder(UUID after,int limit) {
-        String sql="select p.id from nite_connect.projects p where not exists(select 1 from nite_connect.document_folders f where f.project_id=p.id and f.archived_at is null)"+
+        String sql="select p.id from nite_connect.projects p where not exists(select 1 from nite_connect.document_folders f where f.project_id=p.id and f.archived_at is null and f.lifecycle_state='ACTIVE')"+
                 (after==null?"":" and p.id>?")+" order by p.id limit ?";
         return after==null?jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),limit)
                 :jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),after,limit);

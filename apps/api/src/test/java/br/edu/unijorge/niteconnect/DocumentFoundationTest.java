@@ -117,7 +117,10 @@ class DocumentFoundationTest extends ProjectTestSupport {
         mvc.perform(get(file+"/contents").queryParam("access_token",access))
                 .andExpect(status().isOk()).andExpect(content().bytes(changed));
         mvc.perform(get("/api/v1/documents/"+doc).with(token(MEMBER)))
-                .andExpect(jsonPath("$.revision").value(2));
+                .andExpect(jsonPath("$.revision").value(2))
+                .andExpect(jsonPath("$.identity.resourceOwnerId").value(MEMBER.toString()))
+                .andExpect(jsonPath("$.identity.createdBy").value(MEMBER.toString()))
+                .andExpect(jsonPath("$.identity.modifiedBy").value(MEMBER.toString()));
         mvc.perform(post(file).queryParam("access_token",access).header("X-WOPI-Override","UNLOCK")
                 .header("X-WOPI-Lock","editor-lock-1")).andExpect(status().isOk());
         // A writer started before this revision cannot overwrite it without a shared WOPI lock.

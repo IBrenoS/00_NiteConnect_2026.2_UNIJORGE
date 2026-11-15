@@ -44,5 +44,26 @@ class DocumentLibraryMigrationTest {
         assertThat(jdbc.queryForObject("select id from nite_connect.document_versions where document_id=?",UUID.class,document)).isEqualTo(version);
         assertThat(jdbc.queryForObject("select object_id from nite_connect.document_versions where id=?",UUID.class,version)).isEqualTo(object);
         assertThat(jdbc.queryForObject("select permission from nite_connect.document_grants where id=?",String.class,legacyGrant)).isEqualTo("EDIT");
+
+        UUID ambiguous=UUID.randomUUID(),ambiguousVersion=UUID.randomUUID(),ambiguousObject=UUID.randomUUID();
+        jdbc.update("insert into nite_connect.documents(id,title,context,owner_id,folder_id,official,created_by) values (?,?,'PERSONAL',?,?,false,?)",
+                ambiguous,"Criado por terceiro.docx",member,folder,recipient);
+        jdbc.update("insert into nite_connect.document_versions(id,document_id,revision,object_id,size,sha256,status,created_by) values (?,?,1,?,1,repeat('b',64),'AVAILABLE',?)",
+                ambiguousVersion,ambiguous,ambiguousObject,recipient);
+        jdbc.update("update nite_connect.documents set current_version_id=?,version=1 where id=?",ambiguousVersion,ambiguous);
+        UUID diary=UUID.randomUUID();
+        jdbc.update("insert into nite_connect.documents(id,title,context,owner_id,folder_id,official,created_by) values (?,?,'PERSONAL',?,?,false,?)",
+                diary,"Diário histórico.docx",member,folder,member);
+        jdbc.update("insert into nite_connect.diaries(member_id,document_id,imported_by,import_reason) values (?,?,?,'Importação histórica')",
+                member,diary,recipient);
+        Flyway.configure().dataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword())
+                .locations("classpath:Migrations").target("32").load().migrate();
+        assertThat(jdbc.queryForObject("select resource_owner_kind from nite_connect.documents where id=?",String.class,document)).isEqualTo("MEMBER");
+        assertThat(jdbc.queryForObject("select resource_owner_id from nite_connect.documents where id=?",UUID.class,document)).isEqualTo(member);
+        assertThat(jdbc.queryForObject("select resource_owner_kind from nite_connect.documents where id=?",String.class,ambiguous)).isEqualTo("UNKNOWN");
+        assertThat(jdbc.queryForObject("select resource_owner_kind from nite_connect.documents where id=?",String.class,diary)).isEqualTo("INSTITUTION");
+        assertThat(jdbc.queryForObject("select protection from nite_connect.documents where id=?",String.class,diary)).isEqualTo("ACADEMIC");
+        assertThat(jdbc.queryForObject("select id from nite_connect.document_versions where document_id=?",UUID.class,ambiguous)).isEqualTo(ambiguousVersion);
+        assertThat(jdbc.queryForObject("select permission from nite_connect.document_grants where id=?",String.class,legacyGrant)).isEqualTo("EDIT");
     }
 }

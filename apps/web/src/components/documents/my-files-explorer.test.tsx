@@ -12,6 +12,7 @@ vi.mock("../../lib/documents/library-actions", () => ({
 }));
 
 import { DetailsPanel, getExplorerFlexibleColumnWidths, MyFilesExplorer, SelectionToolbar, toggleDetailsPanel } from "./my-files-explorer";
+import type { LibraryFolder } from "../../lib/documents/library-contracts";
 
 describe("explorador Meus arquivos", () => {
   it("preserva a largura de Nome e redistribui apenas as colunas posteriores durante a abertura dos detalhes",()=>{
@@ -44,7 +45,7 @@ describe("explorador Meus arquivos", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it("mantém o contador de seleção sem borda própria",()=>{
+  it("mantém o contador de seleção com borda própria",()=>{
     const html=renderToStaticMarkup(<SelectionToolbar
       items={[{id:"folder-1",name:"Pasta de exemplo",kind:"folder"}]}
       view="personal"
@@ -60,7 +61,7 @@ describe("explorador Meus arquivos", () => {
       onDetails={vi.fn()}
     />);
     const clearSelectionButton=html.match(/<button type="button" aria-label="Limpar seleção" class="([^"]+)"/)?.[1]??"";
-    expect(clearSelectionButton).not.toContain("border");
+    expect(clearSelectionButton).toContain("border border-nite-border-soft");
     expect(html).toContain("1 selecionado");
   });
 
@@ -81,7 +82,7 @@ describe("explorador Meus arquivos", () => {
       onDetails={vi.fn()}
     />);
     expect(oneSelected).toContain("1 selecionado");
-    for (const action of ["Compartilhar", "Copiar link", "Solicitar arquivos", "Arquivar", "Adicionar aos favoritos", "Baixar", "Duplicar", "Mover para", "Copiar para", "Renomear"]) {
+    for (const action of ["Compartilhar", "Copiar link", "Solicitar arquivos", "Excluir", "Adicionar aos favoritos", "Baixar", "Duplicar", "Mover para", "Copiar para", "Renomear"]) {
       expect(oneSelected).toContain(action);
     }
     expect(oneSelected).toMatch(/<summary aria-label="Mais opções de organização"/);
@@ -141,15 +142,33 @@ describe("explorador Meus arquivos", () => {
     expect(twoSelected).toContain('disabled="" title="Ação em lote ainda não está disponível para esta operação."');
   });
 
-  it("exibe arquivamento apenas para perfis de gestão e nunca em itens compartilhados",()=>{
+  it("exibe exclusão pessoal conforme capacidade, sem depender de papel de gestão",()=>{
     const item={id:"folder-1",name:"Pasta de exemplo",kind:"folder" as const};
     const manager=renderToStaticMarkup(<SelectionToolbar items={[item]} view="personal" canArchivePersonal details={false} onShare={vi.fn()} onCopyLink={vi.fn()} onDownload={vi.fn()} onArchive={vi.fn()} onRename={vi.fn()} onMove={vi.fn()} onClear={vi.fn()} onDetails={vi.fn()}/>);
-    expect(manager).toContain("Arquivar");
-    expect(manager).not.toContain('disabled="" title="Arquivamento em lote ainda não está disponível."');
+    expect(manager).toContain("Excluir");
+    expect(manager).toContain("Exclusão não autorizada para este item.");
     const member=renderToStaticMarkup(<SelectionToolbar items={[item]} view="personal" details={false} onShare={vi.fn()} onCopyLink={vi.fn()} onDownload={vi.fn()} onArchive={vi.fn()} onRename={vi.fn()} onMove={vi.fn()} onClear={vi.fn()} onDetails={vi.fn()}/>);
-    expect(member).not.toContain("Arquivar");
+    expect(member).toContain("Excluir");
     const shared=renderToStaticMarkup(<SelectionToolbar items={[item]} view="shared" canArchivePersonal details={false} onShare={vi.fn()} onCopyLink={vi.fn()} onDownload={vi.fn()} onArchive={vi.fn()} onRename={vi.fn()} onMove={vi.fn()} onClear={vi.fn()} onDetails={vi.fn()}/>);
-    expect(shared).not.toContain("Arquivar");
+    expect(shared).not.toContain("Excluir");
+  });
+
+  it("usa capacidades do backend para desabilitar ações sobre item protegido",()=>{
+    const folder:LibraryFolder={id:"11467e62-310f-45b0-b0c4-54c17a3c06d1",parentId:null,name:"Pasta protegida",
+      color:"#d6a432",kind:"CUSTOM",systemKey:null,ownerId:null,ownerName:null,projectId:null,
+      createdByName:null,createdAt:null,modifiedByName:null,modifiedAt:"2026-11-13T12:00:00Z",
+      capabilities:{policyVersion:1,canView:true,canDownload:false,canEdit:false,canAddChild:false,
+        canRename:false,canMove:false,canCopy:false,canShare:false,canDeleteToTrash:false,
+        canRestore:false,canPermanentlyDelete:false,canArchiveInstitutionally:false,canManageProtection:false,
+        deniedReasons:{canRename:"PROTECTED",canMove:"PROTECTED",canShare:"PROTECTED"}}};
+    const html=renderToStaticMarkup(<SelectionToolbar items={[{id:folder.id,name:folder.name,kind:"folder",folder}]}
+      view="personal" details={false} canArchivePersonal onShare={vi.fn()} onCopyLink={vi.fn()}
+      onDownload={vi.fn()} onArchive={vi.fn()} onRename={vi.fn()} onMove={vi.fn()} onClear={vi.fn()}
+      onDetails={vi.fn()}/>);
+    expect(html).toContain("Compartilhamento não está disponível para esta seleção.");
+    expect(html).toContain("Este item não pode ser movido neste contexto.");
+    expect(html).toContain("Este item não pode ser renomeado neste contexto.");
+    expect(html).toContain("Exclusão não autorizada para este item.");
   });
 
   it("organiza a página sem incluir a busca global e mantém a lista detalhada", () => {
@@ -169,6 +188,9 @@ describe("explorador Meus arquivos", () => {
           createdAt: null,
           modifiedByName: "BRENO CERQUEIRA DOS SANTOS",
           modifiedAt: "2026-11-13T12:00:00Z",
+          capabilities:{policyVersion:1,canView:true,canDownload:false,canEdit:false,canAddChild:true,
+            canRename:false,canMove:false,canCopy:false,canShare:true,canDeleteToTrash:false,
+            canRestore:false,canPermanentlyDelete:false,canArchiveInstitutionally:false,canManageProtection:false,deniedReasons:{}},
         },
         folders: [{
           id: "21467e62-310f-45b0-b0c4-54c17a3c06d1",
@@ -184,6 +206,9 @@ describe("explorador Meus arquivos", () => {
           createdAt: "2026-11-13T12:00:00Z",
           modifiedByName: "BRENO CERQUEIRA DOS SANTOS",
           modifiedAt: "2026-11-13T12:00:00Z",
+          capabilities:{policyVersion:1,canView:true,canDownload:false,canEdit:false,canAddChild:false,
+            canRename:false,canMove:false,canCopy:false,canShare:false,canDeleteToTrash:false,
+            canRestore:false,canPermanentlyDelete:false,canArchiveInstitutionally:false,canManageProtection:false,deniedReasons:{}},
         }],
         files: [],
         totalFiles: 0,
@@ -247,7 +272,8 @@ describe("explorador Meus arquivos", () => {
     for (const action of ["Compartilhar", "Copiar link", "Solicitar arquivos", "Gerenciar acesso", "Excluir", "Adicionar aos favoritos", "Baixar", "Renomear", "Mover para", "Copiar para", "Duplicata", "Cor da pasta", "Detalhes"]) {
       expect(html).toContain(action);
     }
-    expect(html).not.toContain("Automatizar");
+    expect(html).toContain("Automatizar");
+    expect(html).toContain("Automações");
     expect(html).toContain("Renomear");
     expect(html).toContain('aria-label="Adicionar Pasta de exemplo aos favoritos"');
     expect(html).not.toContain("pastas · 0 arquivos");

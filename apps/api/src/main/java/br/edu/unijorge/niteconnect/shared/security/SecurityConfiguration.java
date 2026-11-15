@@ -51,9 +51,19 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download",
-                                "/api/v1/me/library", "/api/v1/me/shared-with-me", "/api/v1/library/**", "/api/v1/projects/*/library", "/api/v1/projects/*/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session",
-                                "/api/v1/library/**", "/api/v1/me/library/**").access(authenticatedJwt)
+                                "/api/v1/documents/*/versions", "/api/v1/documents/*/versions/*/download",
+                                "/api/v1/me/library", "/api/v1/me/favorites", "/api/v1/me/trash", "/api/v1/me/trash/**", "/api/v1/me/shared-with-me", "/api/v1/me/shared-by-me", "/api/v1/library/**", "/api/v1/projects/*/library", "/api/v1/projects/*/library/**", "/api/v1/projects/*/trash", "/api/v1/me/library/**").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/documents", "/api/v1/documents/*/editor-session", "/api/v1/documents/*/versions/*/restore",
+                                "/api/v1/library/**", "/api/v1/me/library/**", "/api/v1/me/trash/**").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/me/file-requests", "/api/v1/file-requests/*").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/file-requests", "/api/v1/file-requests/*/cancel", "/api/v1/file-requests/*/uploads").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/me/document-automations", "/api/v1/me/document-automations/options",
+                                "/api/v1/me/document-automations/*/history", "/api/v1/me/document-notifications").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/document-automations", "/api/v1/me/document-notifications/*/read").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/me/document-automations/*").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/me/document-automations/*").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/me/favorites/*/*").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/me/favorites/*/*").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/frequency/qr/handoffs").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/academic/enrollments/*/homologation", "/api/v1/academic/enrollments/*/reviews", "/api/v1/me/academic/enrollments/*/reviews", "/api/v1/academic/enrollments/*/history", "/api/v1/academic/homologations/*/forwardings").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/dashboard", "/api/v1/projects/*/dashboard", "/api/v1/analytics/dashboard",

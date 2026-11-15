@@ -16,7 +16,7 @@ export default async function DocumentEditorPage({params}:{params:Promise<{id:st
   return <main className="mx-auto w-full space-y-5 px-4 py-5 sm:px-8">
     <Link href="/documentos" className="text-type-body-compact font-medium text-nite-brand-primary underline underline-offset-4">Voltar aos documentos</Link>
     <h1 className="font-display text-type-page-title text-nite-text-primary">{document.data?.title??"Documento indisponível"}</h1>
-    {!launch || !document.data ? <p role="alert" className="text-type-body-compact text-nite-text-secondary">Não foi possível iniciar uma sessão de edição. Verifique a API, o CODE e suas permissões.</p>
+    {!launch || !document.data ? <p role="alert" className="text-type-body-compact text-nite-text-secondary">Não foi possível iniciar uma sessão de visualização ou edição. Verifique a API, o CODE e suas permissões.</p>
       : <CollaboraFrame actionUrl={launch.actionUrl} token={launch.accessToken} ttl={launch.accessTokenTtl} title={document.data.title} />}
   </main>;
 }

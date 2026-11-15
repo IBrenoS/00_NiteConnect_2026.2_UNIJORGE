@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.Collections;
 import java.util.UUID;
+import br.edu.unijorge.niteconnect.documents.domain.DocumentIdentity;
+import br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities;
 
 @Repository
 public class DocumentSharingRepository {
@@ -27,9 +29,93 @@ public class DocumentSharingRepository {
     }
     public record SharedItem(UUID grantId,UUID id,String type,String name,String permission,UUID ownerId,
                              String ownerName,UUID sharedBy,String sharedByName,Instant sharedAt,Instant modifiedAt,
-                             Instant createdAt,String mimeType,Long size,String createdByName,String modifiedByName) {}
+                             Instant createdAt,String mimeType,Long size,String createdByName,String modifiedByName,
+                             DocumentIdentity identity,DocumentCapabilities capabilities) {
+        public SharedItem(UUID grantId,UUID id,String type,String name,String permission,UUID ownerId,
+                          String ownerName,UUID sharedBy,String sharedByName,Instant sharedAt,Instant modifiedAt,
+                          Instant createdAt,String mimeType,Long size,String createdByName,String modifiedByName) {
+            this(grantId,id,type,name,permission,ownerId,ownerName,sharedBy,sharedByName,sharedAt,modifiedAt,
+                    createdAt,mimeType,size,createdByName,modifiedByName,null,null);
+        }
+    }
     public record SharedPage(List<SharedItem> items,boolean hasMore) {}
     public record Recipient(UUID id,String name) {}
+    public record EffectiveGrant(Share grant,String origin,UUID sourceFolderId,int depth) {}
+    public record SentTarget(UUID id,String type,String name,Instant sharedAt) {}
+    public List<EffectiveGrant> effectiveGrants(UUID document,UUID folder,UUID viewer,boolean manager) {
+        if((document==null)==(folder==null)) throw ApiException.invalid("Informe um recurso documental");
+        String sql=document!=null?"""
+                with recursive ancestors(id,parent_id,depth) as (
+                  select f.id,f.parent_id,0 from nite_connect.documents d join nite_connect.document_folders f on f.id=d.folder_id
+                  where d.id=? and d.lifecycle_state='ACTIVE' and d.archived_at is null
+                  union all select p.id,p.parent_id,a.depth+1 from ancestors a
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.lifecycle_state='ACTIVE' and p.archived_at is null
+                    where a.depth<63
+                )
+                select g.id,g.document_id,g.folder_id,g.member_id,m.name member_name,g.permission,g.granted_by,
+                  issuer.name granted_by_name,g.created_at,g.revoked_at,
+                  case when g.document_id is not null then 'DIRECT' else 'INHERITED' end origin,
+                  g.folder_id source_folder_id,coalesce(a.depth,-1) depth
+                from nite_connect.document_grants g
+                join nite_connect.members m on m.id=g.member_id
+                join nite_connect.members issuer on issuer.id=g.granted_by
+                left join ancestors a on a.id=g.folder_id
+                where g.revoked_at is null and (g.document_id=? or a.id is not null) and (? or g.member_id=?)
+                order by g.member_id,depth,g.created_at desc,g.id
+                """:"""
+                with recursive ancestors(id,parent_id,depth) as (
+                  select id,parent_id,0 from nite_connect.document_folders where id=? and lifecycle_state='ACTIVE' and archived_at is null
+                  union all select p.id,p.parent_id,a.depth+1 from ancestors a
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.lifecycle_state='ACTIVE' and p.archived_at is null
+                    where a.depth<63
+                )
+                select g.id,g.document_id,g.folder_id,g.member_id,m.name member_name,g.permission,g.granted_by,
+                  issuer.name granted_by_name,g.created_at,g.revoked_at,
+                  case when a.depth=0 then 'DIRECT' else 'INHERITED' end origin,
+                  g.folder_id source_folder_id,a.depth depth
+                from ancestors a join nite_connect.document_grants g on g.folder_id=a.id and g.revoked_at is null
+                join nite_connect.members m on m.id=g.member_id
+                join nite_connect.members issuer on issuer.id=g.granted_by
+                where (? or g.member_id=?) order by g.member_id,depth,g.created_at desc,g.id
+                """;
+        UUID id=document==null?folder:document;
+        return jdbc.query(sql,(rs,index)->new EffectiveGrant(share(rs,index),rs.getString("origin"),
+                rs.getObject("source_folder_id",UUID.class),rs.getInt("depth")),
+                document==null?new Object[]{id,manager,viewer}:new Object[]{id,id,manager,viewer});
+    }
+    public List<SentTarget> sent(UUID actor,String search,UUID recipient,String permission,Instant before,UUID beforeId,int limit) {
+        String sql="""
+                with grouped as (
+                  select coalesce(g.document_id,g.folder_id) id,
+                    case when g.document_id is null then 'FOLDER' else 'DOCUMENT' end type,
+                    coalesce(d.title,f.name) name,max(g.created_at) shared_at
+                  from nite_connect.document_grants g
+                  left join nite_connect.documents d on d.id=g.document_id and d.lifecycle_state='ACTIVE' and d.archived_at is null
+                  left join nite_connect.document_folders f on f.id=g.folder_id and f.lifecycle_state='ACTIVE' and f.archived_at is null
+                  where g.granted_by=? and g.revoked_at is null and (d.id is not null or f.id is not null)
+                    and (?::uuid is null or g.member_id=?) and (?='' or g.permission=?)
+                  group by coalesce(g.document_id,g.folder_id),case when g.document_id is null then 'FOLDER' else 'DOCUMENT' end,
+                    coalesce(d.title,f.name)
+                ) select id,type,name,shared_at from grouped
+                where (?='' or lower(name) like ? escape E'\\\\')
+                  and (?::timestamptz is null or (shared_at,id)<(?,?))
+                order by shared_at desc,id desc limit ?
+                """;
+        String pattern="%"+search.toLowerCase(java.util.Locale.ROOT).replace("\\","\\\\")
+                .replace("%","\\%").replace("_","\\_")+"%";
+        return jdbc.query(sql,(rs,index)->new SentTarget(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),
+                rs.getTimestamp(4).toInstant()),actor,recipient,recipient,permission,permission,search,pattern,
+                before==null?null:Timestamp.from(before),before==null?null:Timestamp.from(before),beforeId,limit);
+    }
+    public List<Share> sharesForTargets(UUID actor,List<SentTarget> targets) {
+        if(targets.isEmpty()) return List.of();
+        var ids=targets.stream().map(SentTarget::id).toList();
+        String marks=String.join(",",Collections.nCopies(ids.size(),"?"));
+        Object[] args=java.util.stream.Stream.concat(java.util.stream.Stream.of(actor),
+                java.util.stream.Stream.concat(ids.stream(),ids.stream())).toArray();
+        return jdbc.query(SHARE_COLUMNS+" where g.granted_by=? and g.revoked_at is null and (g.document_id in ("+marks+") or g.folder_id in ("+marks+")) order by g.created_at desc,g.id desc",
+                DocumentSharingRepository::share,args);
+    }
 
     private static Share share(ResultSet rs,int row) throws SQLException {
         Timestamp revoked=rs.getTimestamp("revoked_at");
@@ -50,9 +136,9 @@ public class DocumentSharingRepository {
         return jdbc.query("""
                 with recursive ancestors(id,parent_id,depth) as (
                   select f.id,f.parent_id,0 from nite_connect.documents d join nite_connect.document_folders f on f.id=d.folder_id
-                  where d.id=? and d.archived_at is null and f.archived_at is null
+                  where d.id=? and d.archived_at is null and d.lifecycle_state='ACTIVE' and f.archived_at is null and f.lifecycle_state='ACTIVE'
                   union all select p.id,p.parent_id,a.depth+1 from ancestors a
-                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE' where a.depth<63
                 )
                 select g.permission from nite_connect.document_grants g
                 join nite_connect.members m on m.id=g.member_id and m.status='ATIVO'
@@ -66,7 +152,7 @@ public class DocumentSharingRepository {
                 with recursive ancestors(id,parent_id,depth) as (
                   select id,parent_id,0 from nite_connect.document_folders where id=? and archived_at is null
                   union all select p.id,p.parent_id,a.depth+1 from ancestors a
-                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE' where a.depth<63
                 )
                 select g.permission from nite_connect.document_grants g
                 join nite_connect.members m on m.id=g.member_id and m.status='ATIVO'
@@ -85,7 +171,7 @@ public class DocumentSharingRepository {
                 with recursive ancestors(target_id,id,parent_id,depth) as (
                   select f.id,f.id,f.parent_id,0 from nite_connect.document_folders f where f.id in (%s)
                   union all select a.target_id,p.id,p.parent_id,a.depth+1 from ancestors a
-                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE' where a.depth<63
                 )
                 select a.target_id,case max(case g.permission when 'EDIT' then 2 else 1 end) when 2 then 'EDIT' else 'VIEW' end permission
                 from ancestors a join nite_connect.document_grants g on g.folder_id=a.id and g.member_id=? and g.revoked_at is null
@@ -106,9 +192,9 @@ public class DocumentSharingRepository {
                 with recursive ancestors(target_id,id,parent_id,depth) as (
                   select d.id,f.id,f.parent_id,0 from nite_connect.documents d
                     join nite_connect.document_folders f on f.id=d.folder_id
-                  where d.id in (%s) and d.archived_at is null
+                  where d.id in (%s) and d.archived_at is null and d.lifecycle_state='ACTIVE'
                   union all select a.target_id,p.id,p.parent_id,a.depth+1 from ancestors a
-                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE' where a.depth<63
                 )
                 select a.target_id,case max(case g.permission when 'EDIT' then 2 else 1 end) when 2 then 'EDIT' else 'VIEW' end permission
                 from ancestors a join nite_connect.document_grants g
@@ -125,7 +211,7 @@ public class DocumentSharingRepository {
                 with recursive ancestors(id,parent_id,depth) as (
                   select id,parent_id,0 from nite_connect.document_folders where id=? and archived_at is null
                   union all select p.id,p.parent_id,a.depth+1 from ancestors a
-                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null where a.depth<63
+                    join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE' where a.depth<63
                 )
                 select a.id from ancestors a join nite_connect.document_grants g on g.folder_id=a.id
                 join nite_connect.members m on m.id=g.member_id and m.status='ATIVO'
@@ -136,7 +222,7 @@ public class DocumentSharingRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 with recursive ancestors(id,parent_id) as (
                   select id,parent_id from nite_connect.document_folders where id=? and archived_at is null
-                  union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null
+                  union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE'
                 ) select exists(select 1 from nite_connect.document_grants g join ancestors a on a.id=g.folder_id
                     join nite_connect.members m on m.id=g.member_id and m.status='ATIVO' where g.revoked_at is null)
                 """,Boolean.class,folder));
@@ -148,11 +234,11 @@ public class DocumentSharingRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 with recursive tree(id) as (
                   select id from nite_connect.document_folders where id=? and archived_at is null
-                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id where f.archived_at is null
+                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id where f.archived_at is null and f.lifecycle_state='ACTIVE'
                 ) select exists(
                     select 1 from nite_connect.document_grants g join nite_connect.members m on m.id=g.member_id and m.status='ATIVO'
                       where g.revoked_at is null and (g.folder_id in (select id from tree) or g.document_id in (
-                        select d.id from nite_connect.documents d join tree t on t.id=d.folder_id and d.archived_at is null)))
+                        select d.id from nite_connect.documents d join tree t on t.id=d.folder_id and d.archived_at is null and d.lifecycle_state='ACTIVE')))
                 """,Boolean.class,folder));
     }
 
@@ -191,9 +277,9 @@ public class DocumentSharingRepository {
         List<UUID> ids=document!=null?List.of(document):jdbc.query("""
                 with recursive tree(id) as (
                   select id from nite_connect.document_folders where id=? and archived_at is null
-                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id where f.archived_at is null
+                  union all select f.id from nite_connect.document_folders f join tree t on f.parent_id=t.id where f.archived_at is null and f.lifecycle_state='ACTIVE'
                 ) select d.id from nite_connect.documents d join tree t on t.id=d.folder_id
-                  where d.archived_at is null order by d.id
+                  where d.archived_at is null and d.lifecycle_state='ACTIVE' order by d.id
                 """,(rs,row)->rs.getObject(1,UUID.class),folder);
         for(UUID id:ids) jdbc.query("select id from nite_connect.documents where id=? for update",(rs,row)->rs.getObject(1,UUID.class),id);
     }
@@ -265,28 +351,28 @@ public class DocumentSharingRepository {
                   select g.id grant_id,d.id,'DOCUMENT' item_type,d.title name,g.permission,d.owner_id,o.name owner_name,
                          g.granted_by,s.name shared_by_name,g.created_at shared_at,d.modified_at,d.created_at,
                          d.mime_type,v.size,creator.name created_by_name,modifier.name modified_by_name
-                  from nite_connect.document_grants g join nite_connect.documents d on d.id=g.document_id and d.archived_at is null
+                  from nite_connect.document_grants g join nite_connect.documents d on d.id=g.document_id and d.archived_at is null and d.lifecycle_state='ACTIVE'
                   join nite_connect.document_versions v on v.id=d.current_version_id
                   left join nite_connect.members o on o.id=d.owner_id join nite_connect.members s on s.id=g.granted_by
                   left join nite_connect.members creator on creator.id=d.created_by left join nite_connect.members modifier on modifier.id=d.modified_by
                   where g.member_id=? and g.revoked_at is null and g.document_id is not null and not exists (
                     with recursive ancestors(id,parent_id) as (
-                      select f.id,f.parent_id from nite_connect.document_folders f where f.id=d.folder_id and f.archived_at is null
-                      union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null
+                      select f.id,f.parent_id from nite_connect.document_folders f where f.id=d.folder_id and f.archived_at is null and f.lifecycle_state='ACTIVE'
+                      union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE'
                     ) select 1 from ancestors a join nite_connect.document_grants inherited on inherited.folder_id=a.id
                       where inherited.member_id=g.member_id and inherited.revoked_at is null)
                   union all
                   select g.id grant_id,f.id,'FOLDER',f.name,g.permission,f.owner_id,o.name,
                          g.granted_by,s.name,g.created_at,f.modified_at,f.created_at,null::varchar,null::bigint,creator.name,modifier.name
-                  from nite_connect.document_grants g join nite_connect.document_folders f on f.id=g.folder_id and f.archived_at is null
+                  from nite_connect.document_grants g join nite_connect.document_folders f on f.id=g.folder_id and f.archived_at is null and f.lifecycle_state='ACTIVE'
                   left join nite_connect.members o on o.id=f.owner_id join nite_connect.members s on s.id=g.granted_by
                   left join nite_connect.members creator on creator.id=f.created_by left join nite_connect.members modifier on modifier.id=f.modified_by
                   where g.member_id=? and g.revoked_at is null and g.folder_id is not null and not exists (
                     with recursive ancestors(id,parent_id) as (
                       select parent.id,parent.parent_id from nite_connect.document_folders current
                         join nite_connect.document_folders parent on parent.id=current.parent_id
-                      where current.id=f.id and parent.archived_at is null
-                      union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null
+                      where current.id=f.id and parent.archived_at is null and parent.lifecycle_state='ACTIVE'
+                      union all select p.id,p.parent_id from ancestors a join nite_connect.document_folders p on p.id=a.parent_id and p.archived_at is null and p.lifecycle_state='ACTIVE'
                     ) select 1 from ancestors a join nite_connect.document_grants inherited on inherited.folder_id=a.id
                       where inherited.member_id=g.member_id and inherited.revoked_at is null)
                 )
