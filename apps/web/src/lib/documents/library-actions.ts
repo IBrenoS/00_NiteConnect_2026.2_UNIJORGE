@@ -10,7 +10,7 @@ function target(form:FormData) {
   const requested=form.get("returnTo");
   if(typeof requested!=="string")return "/documentos";
   // No untrusted external redirection or unexpected application routes.
-  if(!/^\/(?:documentos|biblioteca|projetos\/[a-f0-9-]+\/arquivos)(?:\?[a-zA-Z0-9=_&%-]+)?$/.test(requested))return "/documentos";
+  if(!/^\/(?:documentos(?:\/lixeira)?|biblioteca|projetos\/[a-f0-9-]+\/arquivos)(?:\?[a-zA-Z0-9=_&%-]+)?$/.test(requested))return "/documentos";
   return requested;
 }
 function field(form:FormData,key:string):string {
@@ -32,9 +32,9 @@ async function request(path:string,method:string,body:BodyInit|null,contentType?
   }catch{return "unavailable";}
 }
 function finish(form:FormData,outcome:string):never {
-  revalidatePath("/documentos");revalidatePath("/biblioteca");
+  revalidatePath("/documentos");revalidatePath("/documentos/lixeira");revalidatePath("/biblioteca");
   const url=target(form);
-  redirect(`${url}${url.includes("?")?"&":"?"}${outcome==="ok"?"saved=1":`error=${outcome}`}`);
+  redirect(`${url}${url.includes("?")?"&":"?"}${outcome==="ok"?`saved=${Date.now()}`:`error=${outcome}`}`);
 }
 export async function uploadLibraryFile(form:FormData):Promise<void> {
   const folderId=field(form,"folderId"), file=form.get("file"),name=field(form,"title");
@@ -65,6 +65,25 @@ export async function organizeLibraryFile(form:FormData):Promise<void> {
 export async function archiveLibraryFile(form:FormData):Promise<void> {
   const id=field(form,"id");if(!validUuid(id))finish(form,"invalid");
   finish(form,await request(`/api/v1/library/documents/${id}`,"DELETE",null));
+}
+export async function trashLibraryItem(form:FormData):Promise<void> {
+  const id=field(form,"id"),kind=field(form,"type");
+  if(!validUuid(id)||(kind!=="FOLDER"&&kind!=="DOCUMENT"))finish(form,"invalid");
+  const path=kind==="FOLDER"?`/api/v1/library/folders/${id}/trash?recursive=true`:`/api/v1/library/documents/${id}/trash`;
+  finish(form,await request(path,"POST",null));
+}
+export async function restoreTrashItem(form:FormData):Promise<void> {
+  const id=field(form,"id");if(!validUuid(id))finish(form,"invalid");
+  const name=field(form,"name");
+  finish(form,await request(`/api/v1/me/trash/${id}/restore`,"POST",name?JSON.stringify({name}):null,name?"application/json":undefined));
+}
+export async function copyLibraryItem(form:FormData):Promise<void> {
+  const id=field(form,"id"),type=field(form,"type"),destinationId=field(form,"destinationId"),name=field(form,"name");
+  if(!validUuid(id)||(type!=="DOCUMENT"&&type!=="FOLDER")||!name||name.length>190
+      ||(destinationId&&!validUuid(destinationId)))finish(form,"invalid");
+  const operation=destinationId?"copy":"duplicate";
+  finish(form,await request(`/api/v1/library/${type==="DOCUMENT"?"documents":"folders"}/${id}/${operation}`,
+    "POST",JSON.stringify({destinationId:destinationId||null,name}),"application/json"));
 }
 export async function createOfficialTemplate(form:FormData):Promise<void> {
   const file=form.get("file"),title=field(form,"title");

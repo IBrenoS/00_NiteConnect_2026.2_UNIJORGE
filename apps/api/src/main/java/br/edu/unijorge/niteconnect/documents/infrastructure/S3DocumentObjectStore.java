@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
 import java.util.UUID;
 
 /** No public bucket URLs, no mutable object keys and no presigned client access. */
@@ -63,5 +64,27 @@ public final class S3DocumentObjectStore implements DocumentObjectStore {
     @Override public void deleteOrphan(UUID objectId) {
         try { client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key(objectId)).build()); }
         catch (RuntimeException ignored) { /* orphan reconciliation is documented, never delete a referenced version */ }
+    }
+
+    /** Deletes every stored revision of an exact immutable key; errors remain retryable by the durable worker. */
+    @Override public void purge(UUID objectId, boolean asset) {
+        String objectKey=asset?assetKey(objectId):key(objectId);
+        String keyMarker=null,versionMarker=null;
+        do {
+            var request=ListObjectVersionsRequest.builder().bucket(bucket).prefix(objectKey)
+                    .keyMarker(keyMarker).versionIdMarker(versionMarker).build();
+            var page=client.listObjectVersions(request);
+            var versions=page.versions().stream().filter(v->objectKey.equals(v.key())).toList();
+            var markers=page.deleteMarkers().stream().filter(v->objectKey.equals(v.key())).toList();
+            for(var version:versions) client.deleteObject(DeleteObjectRequest.builder().bucket(bucket)
+                    .key(objectKey).versionId(version.versionId()).build());
+            for(var marker:markers) client.deleteObject(DeleteObjectRequest.builder().bucket(bucket)
+                    .key(objectKey).versionId(marker.versionId()).build());
+            keyMarker=page.nextKeyMarker();
+            versionMarker=page.nextVersionIdMarker();
+            if(!page.isTruncated()) break;
+        } while(true);
+        // Also handles unversioned and null-version objects and succeeds if the key is already absent.
+        client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(objectKey).build());
     }
 }

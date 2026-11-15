@@ -37,8 +37,10 @@ class DocumentS3IntegrationTest {
             store.put(id2,second);
             assertThat(store.get(id1)).isEqualTo(first);
             assertThat(store.get(id2)).isEqualTo(second);
-            store.deleteOrphan(id2);
+            store.purge(id2,false);
+            store.purge(id2,false);
             assertThat(store.get(id1)).isEqualTo(first);
+            assertThat(org.assertj.core.api.Assertions.catchThrowable(()->store.get(id2))).isNotNull();
         }
     }
 }

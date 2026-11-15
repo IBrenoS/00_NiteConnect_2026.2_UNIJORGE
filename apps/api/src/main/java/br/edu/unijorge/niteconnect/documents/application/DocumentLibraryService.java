@@ -36,19 +36,29 @@ public class DocumentLibraryService {
     private final AccessService access;
     private final ProjectAccess projects;
     private final AdministrativeTransactions transactions;
+    private final DocumentCapabilityService capabilities;
+    private final br.edu.unijorge.niteconnect.documents.infrastructure.DocumentIdentityRepository identities;
+    private final DocumentPurgeService purgeService;
     private final TransactionTemplate provisioningTransaction;
     public DocumentLibraryService(DocumentLibraryRepository folders,DocumentRepository documents,DocumentCoreService core,
                                   DocumentSharingRepository sharing,DocumentObjectStore store,AccessService access,ProjectAccess projects,AdministrativeTransactions transactions,
-                                  PlatformTransactionManager transactionManager) {
+                                  PlatformTransactionManager transactionManager,DocumentCapabilityService capabilities,
+                                  br.edu.unijorge.niteconnect.documents.infrastructure.DocumentIdentityRepository identities,
+                                  DocumentPurgeService purgeService) {
         this.folders=folders;this.documents=documents;this.core=core;this.sharing=sharing;this.store=store;
         this.access=access;this.projects=projects;this.transactions=transactions;
+        this.capabilities=capabilities;this.identities=identities;
+        this.purgeService=purgeService;
         this.provisioningTransaction=new TransactionTemplate(transactionManager);
     }
     public record Listing(Folder folder,List<Folder> folders,List<FileEntry> files,long totalFiles,String nextCursor,boolean hasMore) {}
     public record ActivityListing(List<Activity> items,String nextCursor,boolean hasMore) {}
+    public record TrashEntry(TrashItem item,br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities capabilities) {}
+    public record TrashListing(List<TrashEntry> items,int limit,int offset,boolean hasMore) {}
     public record FolderChange(UUID parentId,String name,String color,Boolean moveToRoot) {}
     public record DocumentChange(UUID folderId,String title) {}
     public record DistributionResult(int created,int alreadyPresent,List<Distribution> items) {}
+    public record UploadDirectoryResult(List<FileEntry> files,List<Folder> folders) {}
     private record Scope(String kind,UUID subject) {}
 
     private Scope scope(Folder folder) {
@@ -64,50 +74,15 @@ public class DocumentLibraryService {
         throw ApiException.conflict("Profundidade máxima da biblioteca excedida");
     }
     private void requireRead(UUID actor,Folder folder) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        Scope scope=scope(folder);
-        switch(scope.kind()) {
-            case "PERSONAL" -> { if(!actor.equals(scope.subject())&&sharing.folderPermission(folder.id(),actor)==null) throw ApiException.notFound(); }
-            case "PROJECT" -> {
-                try {projects.requireRead(actor,scope.subject());}
-                catch(ApiException ex) {if(sharing.folderPermission(folder.id(),actor)==null) throw ex;}
-            }
-            default -> {if(sharing.folderPermission(folder.id(),actor)==null) throw ApiException.notFound();}
-        }
-    }
-    private void requireManage(UUID actor,Folder folder) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        Scope scope=scope(folder);
-        if("PROJECT".equals(scope.kind())) {projects.requireManage(actor,scope.subject());return;}
-        throw ApiException.forbidden();
+        capabilities.requireView(actor,folder);
     }
     /** Members may organize only custom folders and documents in their own personal tree. */
     private void requireOrganize(UUID actor,Folder folder) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        Scope scope=scope(folder);
-        if("PERSONAL".equals(scope.kind())) {
-            if(!actor.equals(scope.subject())) throw ApiException.notFound();
-            return;
-        }
-        if("PROJECT".equals(scope.kind())) {projects.requireManage(actor,scope.subject());return;}
-        throw ApiException.forbidden();
+        capabilities.requireView(actor,folder);
+        if(!capabilities.folder(actor,folder).canRename()) throw ApiException.forbidden();
     }
     private void requireAddContent(UUID actor,Folder folder) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        Scope scope=scope(folder);
-        if("PERSONAL".equals(scope.kind())) {
-            if(actor.equals(scope.subject())||"EDIT".equals(sharing.folderPermission(folder.id(),actor))) return;
-            throw ApiException.notFound();
-        }
-        if("PROJECT".equals(scope.kind())) {
-            try {projects.requireManage(actor,scope.subject());return;}
-            catch(ApiException ex) {if("EDIT".equals(sharing.folderPermission(folder.id(),actor))) return;throw ex;}
-        }
-        throw ApiException.forbidden();
+        capabilities.requireAdd(actor,folder);
     }
     private boolean elevatedInScope(UUID actor,Folder folder) {
         if(access.isAdministrator(actor)) return true;
@@ -119,16 +94,18 @@ public class DocumentLibraryService {
         }
         return false;
     }
-    private static Folder withPermission(Folder folder,String permission) {
+    private Folder withPermission(UUID actor,Folder folder,String permission) {
         return new Folder(folder.id(),folder.parentId(),folder.name(),folder.color(),folder.kind(),folder.systemKey(),folder.ownerId(),
                 folder.ownerName(),folder.projectId(),folder.projectTitle(),folder.createdBy(),folder.createdByName(),folder.createdAt(),
-                folder.modifiedBy(),folder.modifiedByName(),folder.modifiedAt(),permission);
+                folder.modifiedBy(),folder.modifiedByName(),folder.modifiedAt(),permission,identities.folder(folder.id()),capabilities.folder(actor,folder));
     }
-    private static FileEntry withPermission(FileEntry file,String permission) {
+    private FileEntry withPermission(UUID actor,FileEntry file,String permission) {
+        var identity=identities.document(file.id());
+        if(file.folderId()==null&&"PROJECT".equals(file.context())) identity=identity.withoutOwnerIdentifier();
         return new FileEntry(file.id(),file.folderId(),file.title(),file.context(),file.ownerId(),file.projectId(),file.mimeType(),
                 file.revision(),file.size(),file.ownerName(),file.createdByName(),file.createdBy(),file.createdAt(),file.modifiedByName(),
                 file.modifiedBy(),file.modifiedAt(),file.folderName(),file.sharedByName(),file.sharedAt(),file.sharedWithCount(),
-                file.lastOpenedByName(),file.lastOpenedBy(),file.lastOpenedAt(),permission);
+                file.lastOpenedByName(),file.lastOpenedBy(),file.lastOpenedAt(),permission,identity,capabilities.document(actor,documents.require(file.id())));
     }
     private UUID scopeRoot(Folder folder) {
         Scope current=scope(folder);
@@ -149,9 +126,9 @@ public class DocumentLibraryService {
         access.requireAdministrator(actor);return folders.recipients();
     }
     @Transactional
-    public List<Folder> tree(UUID actor) {access.requireAdministrator(actor);folders.roots();return folders.folderTree();}
+    public List<Folder> tree(UUID actor) {access.requireAdministrator(actor);folders.roots();return folders.folderTree().stream().map(f->withPermission(actor,f,"EDIT")).toList();}
     @Transactional
-    public List<Folder> roots(UUID actor) {access.requireAdministrator(actor);return folders.roots();}
+    public List<Folder> roots(UUID actor) {access.requireAdministrator(actor);return folders.roots().stream().map(f->withPermission(actor,f,"EDIT")).toList();}
     @Transactional
     public Listing mine(UUID actor,UUID folderId,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
         access.requireActive(actor);
@@ -163,7 +140,7 @@ public class DocumentLibraryService {
     @Transactional
     public List<Folder> projectTree(UUID actor,UUID projectId) {
         projects.requireRead(actor,projectId);
-        return folders.subtree(folders.ensureProject(projectId).id());
+        return folders.subtree(folders.ensureProject(projectId).id()).stream().map(f->withPermission(actor,f,"VIEW")).toList();
     }
     @Transactional(readOnly=true)
     public Listing browse(UUID actor,UUID folderId,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
@@ -205,11 +182,11 @@ public class DocumentLibraryService {
         boolean elevated=elevatedInScope(actor,folder);
         List<Folder> children=folders.children(folder.id(),normalizedSearch,normalizedSort,normalizedDirection);
         Map<UUID,String> folderGrants=sharing.folderPermissions(children.stream().map(Folder::id).toList(),actor);
-        List<Folder> authorizedFolders=children.stream().map(child->withPermission(child,elevated?"EDIT":folderGrants.getOrDefault(child.id(),"VIEW"))).toList();
+        List<Folder> authorizedFolders=children.stream().map(child->withPermission(actor,child,elevated?"EDIT":folderGrants.getOrDefault(child.id(),"VIEW"))).toList();
         Map<UUID,String> documentGrants=sharing.documentPermissions(page.items().stream().map(FileEntry::id).toList(),actor);
-        List<FileEntry> authorizedFiles=page.items().stream().map(file->withPermission(file,elevated?"EDIT":documentGrants.getOrDefault(file.id(),"VIEW"))).toList();
+        List<FileEntry> authorizedFiles=page.items().stream().map(file->withPermission(actor,file,elevated?"EDIT":documentGrants.getOrDefault(file.id(),"VIEW"))).toList();
         String currentPermission=elevated?"EDIT":sharing.folderPermissions(List.of(folder.id()),actor).getOrDefault(folder.id(),"VIEW");
-        return new Listing(withPermission(visible,currentPermission),authorizedFolders,authorizedFiles,page.total(),next,page.hasMore());
+        return new Listing(withPermission(actor,visible,currentPermission),authorizedFolders,authorizedFiles,page.total(),next,page.hasMore());
     }
     @Transactional(readOnly=true)
     public FileEntry documentDetails(UUID actor,UUID id) {
@@ -219,7 +196,7 @@ public class DocumentLibraryService {
         if("PROJECT".equals(document.context())&&!elevated) {
             try {projects.requireRead(actor,document.projectId());}
             catch(ApiException ex) {
-                return withPermission(new FileEntry(file.id(),null,file.title(),file.context(),file.ownerId(),null,file.mimeType(),file.revision(),file.size(),
+                return withPermission(actor,new FileEntry(file.id(),null,file.title(),file.context(),file.ownerId(),null,file.mimeType(),file.revision(),file.size(),
                         file.ownerName(),file.createdByName(),file.createdBy(),file.createdAt(),file.modifiedByName(),file.modifiedBy(),file.modifiedAt(),
                         null,file.sharedByName(),file.sharedAt(),file.sharedWithCount(),file.lastOpenedByName(),file.lastOpenedBy(),file.lastOpenedAt()),
                         sharing.documentPermission(id,actor));
@@ -228,7 +205,7 @@ public class DocumentLibraryService {
         }
         if("PERSONAL".equals(document.context())&&actor.equals(document.ownerId())) elevated=true;
         String permission=elevated?"EDIT":sharing.documentPermission(id,actor);
-        return withPermission(file,permission==null?"VIEW":permission);
+        return withPermission(actor,file,permission==null?"VIEW":permission);
     }
     @Transactional(readOnly=true)
     public ActivityListing documentActivity(UUID actor,UUID id,String cursor,int limit) {
@@ -242,6 +219,83 @@ public class DocumentLibraryService {
         return activityListing("folder",id,cursor,limit,(before,beforeId,pageSize)->folders.folderActivity(id,before,beforeId,pageSize));
     }
     public record SharedListing(List<SharedItem> items,String nextCursor,boolean hasMore) {}
+    public record SentItem(UUID id,String type,String name,java.time.Instant sharedAt,List<Share> recipients,
+                           br.edu.unijorge.niteconnect.documents.domain.DocumentIdentity identity,
+                           br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities capabilities) {}
+    public record SentListing(List<SentItem> items,String nextCursor,boolean hasMore) {}
+    public record AccessInfo(String effectivePermission,boolean canManage,List<DocumentSharingRepository.EffectiveGrant> grants,
+                             br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities capabilities) {}
+    private record SentCursor(java.time.Instant at,UUID id) {}
+    private static SentCursor sentCursor(String cursor,String search,UUID recipient,String permission) {
+        if(cursor==null||cursor.isBlank()) return null;
+        try {
+            String[] parts=new String(Base64.getUrlDecoder().decode(cursor),StandardCharsets.UTF_8).split("\\n",-1);
+            if(parts.length!=5||!parts[0].equals(search)||!parts[1].equals(String.valueOf(recipient))||!parts[2].equals(permission))
+                throw ApiException.invalid("Cursor de compartilhamentos inválido");
+            return new SentCursor(java.time.Instant.parse(parts[3]),UUID.fromString(parts[4]));
+        } catch(IllegalArgumentException ex) {throw ApiException.invalid("Cursor de compartilhamentos inválido");}
+    }
+    @Transactional(readOnly=true)
+    public SentListing sharedByMe(UUID actor,String search,UUID recipient,String permission,String cursor,int limit) {
+        access.requireActive(actor);
+        if(limit<1||limit>100) throw ApiException.invalid("O limite deve estar entre 1 e 100");
+        String term=search==null?"":search.strip();
+        if(term.length()>120||term.chars().anyMatch(Character::isISOControl)) throw ApiException.invalid("Pesquisa inválida");
+        String grant=permission==null?"":permission;
+        if(!grant.isEmpty()&&!Set.of("VIEW","EDIT").contains(grant)) throw ApiException.invalid("Permissão inválida");
+        SentCursor after=sentCursor(cursor,term,recipient,grant);
+        List<DocumentSharingRepository.SentTarget> authorized=new ArrayList<>();
+        boolean more=false;
+        // Scan in stable keyset order; old grants for which the issuer lost authority are skipped.
+        for(int scan=0;scan<20&&authorized.size()<=limit;scan++) {
+            var page=sharing.sent(actor,term,recipient,grant,after==null?null:after.at(),after==null?null:after.id(),100);
+            if(page.isEmpty()) break;
+            for(var item:page) {
+                after=new SentCursor(item.sharedAt(),item.id());
+                boolean allowed="DOCUMENT".equals(item.type())
+                        ?capabilities.document(actor,documents.require(item.id())).canShare()
+                        :capabilities.folder(actor,folders.folder(item.id())).canShare();
+                if(allowed) authorized.add(item);
+                if(authorized.size()>limit) {more=true;break;}
+            }
+            if(more||page.size()<100) break;
+        }
+        var visible=authorized.stream().limit(limit).toList();
+        var grants=sharing.sharesForTargets(actor,visible);
+        Map<UUID,List<Share>> grouped=grants.stream().collect(java.util.stream.Collectors.groupingBy(
+                share->share.documentId()==null?share.folderId():share.documentId()));
+        List<SentItem> items=visible.stream().map(item-> {
+            boolean folder="FOLDER".equals(item.type());
+            return new SentItem(item.id(),item.type(),item.name(),item.sharedAt(),
+                    grouped.getOrDefault(item.id(),List.of()),folder?identities.folder(item.id()):identities.document(item.id()),
+                    folder?capabilities.folder(actor,folders.folder(item.id())):capabilities.document(actor,documents.require(item.id())));
+        }).toList();
+        String next=null;
+        if(more&&!visible.isEmpty()) {
+            var last=visible.getLast();
+            next=Base64.getUrlEncoder().withoutPadding().encodeToString(String.join("\n",term,String.valueOf(recipient),grant,
+                    last.sharedAt().toString(),last.id().toString()).getBytes(StandardCharsets.UTF_8));
+        }
+        return new SentListing(items,next,more);
+    }
+    @Transactional(readOnly=true)
+    public AccessInfo accessInfo(UUID actor,String type,UUID id) {
+        if("DOCUMENT".equals(type)) {
+            var doc=documents.require(id);capabilities.requireView(actor,doc);
+            var effective=capabilities.document(actor,doc);
+            boolean manage=effective.canShare();
+            return new AccessInfo(sharing.documentPermission(id,actor),manage,
+                    sharing.effectiveGrants(id,null,actor,manage),effective);
+        }
+        if("FOLDER".equals(type)) {
+            var folder=folders.folder(id);capabilities.requireView(actor,folder);
+            var effective=capabilities.folder(actor,folder);
+            boolean manage=effective.canShare();
+            return new AccessInfo(sharing.folderPermission(id,actor),manage,
+                    sharing.effectiveGrants(null,id,actor,manage),effective);
+        }
+        throw ApiException.invalid("Tipo documental inválido");
+    }
     private record ShareCursor(String sortBy,String direction,String search,String mimeType,String key,UUID grantId) {}
     @Transactional(readOnly=true)
     public SharedListing sharedWithMe(UUID actor,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
@@ -272,7 +326,21 @@ public class DocumentLibraryService {
             next=Base64.getUrlEncoder().withoutPadding().encodeToString(String.join("\n",normalizedSort,normalizedDirection,
                     normalizedSearch,normalizedMime,key,last.grantId().toString()).getBytes(StandardCharsets.UTF_8));
         }
-        return new SharedListing(page.items(),next,page.hasMore());
+        List<SharedItem> enriched=page.items().stream().map(item -> {
+            boolean folder="FOLDER".equals(item.type());
+            var identity=folder?identities.folder(item.id()):identities.document(item.id());
+            if(!folder) {
+                Document doc=documents.require(item.id());
+                if("PROJECT".equals(doc.context())&&!core.canReadProjectContext(actor,doc.projectId()))
+                    identity=identity.withoutOwnerIdentifier();
+            }
+            return new SharedItem(item.grantId(),item.id(),item.type(),item.name(),item.permission(),item.ownerId(),
+                    item.ownerName(),item.sharedBy(),item.sharedByName(),item.sharedAt(),item.modifiedAt(),
+                    item.createdAt(),item.mimeType(),item.size(),item.createdByName(),item.modifiedByName(),
+                    identity,
+                    folder?capabilities.folder(actor,folders.folder(item.id())):capabilities.document(actor,documents.require(item.id())));
+        }).toList();
+        return new SharedListing(enriched,next,page.hasMore());
     }
     private static ShareCursor decodeShareCursor(String cursor,String sortBy,String direction,String search,String mimeType) {
         if(cursor==null||cursor.isBlank()) return null;
@@ -296,25 +364,12 @@ public class DocumentLibraryService {
         return sharing.recipients(actor,search.strip(),limit);
     }
     private void requireShareManage(UUID actor,Folder folder) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        Scope scope=scope(folder);
-        if("PERSONAL".equals(scope.kind())) {
-            if(actor.equals(scope.subject())) return;
-            throw ApiException.notFound();
-        }
-        if("PROJECT".equals(scope.kind())) {projects.requireManage(actor,scope.subject());return;}
-        throw ApiException.forbidden();
+        capabilities.requireView(actor,folder);
+        if(!capabilities.folder(actor,folder).canShare()) throw ApiException.forbidden();
     }
     private void requireShareManage(UUID actor,Document document) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        if("PERSONAL".equals(document.context())) {
-            if(actor.equals(document.ownerId())) return;
-            throw ApiException.notFound();
-        }
-        if("PROJECT".equals(document.context())) {projects.requireManage(actor,document.projectId());return;}
-        throw ApiException.forbidden();
+        capabilities.requireView(actor,document);
+        if(!capabilities.document(actor,document).canShare()) throw ApiException.forbidden();
     }
     private void validateRecipient(UUID recipient,String targetKind,UUID projectId) {
         access.requireActive(recipient);
@@ -412,7 +467,9 @@ public class DocumentLibraryService {
         String tint=color(color);
         transactions.lock();
         if(folders.siblingExists(parentId,clean,new UUID(0,0))) throw ApiException.conflict("Já existe uma pasta com esse nome neste local");
-        return folders.addFolder(parentId,clean,tint,actor);
+        boolean institutional=parent!=null&&"PERSONAL".equals(scope(parent).kind())
+                &&!actor.equals(scope(parent).subject())&&access.isAdministrator(actor);
+        return withPermission(actor,folders.addFolder(parentId,clean,tint,actor,institutional),"EDIT");
     }
     @Transactional
     public Folder changeFolder(UUID actor,UUID id,FolderChange change) {
@@ -428,30 +485,144 @@ public class DocumentLibraryService {
         if(!"CUSTOM".equals(folder.kind()) && !Objects.equals(destination,folder.parentId()))
             throw ApiException.conflict("Pastas vinculadas a integrante ou projeto não podem mudar de área");
         if(destination!=null) {
-            Folder target=folders.folder(destination);requireOrganize(actor,target);
+            Folder target=folders.folder(destination);requireAddContent(actor,target);
             if(folders.descendant(id,destination)) throw ApiException.conflict("Uma pasta não pode ser movida para dentro de si mesma");
             if(!scope(folder).equals(scope(target)))
                 throw ApiException.conflict("Pastas não podem ser movidas para outro contexto documental");
+            if(!Objects.equals(destination,folder.parentId())&&!capabilities.folder(actor,folder).canMove())
+                throw ApiException.forbidden();
             if(!Objects.equals(destination,folder.parentId())&&(sharing.hasGrantInFolderSubtree(id)||sharing.hasFolderGrantOnPath(folder.id())||sharing.hasFolderGrantOnPath(target.id())))
                 throw ApiException.conflict("Revise os compartilhamentos antes de mover conteúdo entre limites compartilhados");
         }
         transactions.lock();
         if(folders.siblingExists(destination,name,id)) throw ApiException.conflict("Já existe uma pasta com esse nome neste local");
-        if("ROOT".equals(folder.kind())) return folders.renameRootFolder(id,name,tint,actor);
+        if("ROOT".equals(folder.kind())) return withPermission(actor,folders.renameRootFolder(id,name,tint,actor),"EDIT");
         if(!"CUSTOM".equals(folder.kind())) {
             folders.renameProtectedFolder(id,name,tint,actor);
-            return folders.folder(id);
+            return withPermission(actor,folders.folder(id),"EDIT");
         }
-        return folders.updateFolder(id,destination,name,tint,actor);
+        return withPermission(actor,folders.updateFolder(id,destination,name,tint,actor),"EDIT");
     }
     @Transactional
     public void archiveFolder(UUID actor,UUID id,boolean recursive) {
-        Folder folder=folders.folder(id); requireManage(actor,folder);
+        Folder folder=folders.folder(id);
+        capabilities.requireView(actor,folder);
+        if(!capabilities.folder(actor,folder).canArchiveInstitutionally()) throw ApiException.forbidden();
         if(!"CUSTOM".equals(folder.kind())) throw ApiException.conflict("Pasta estrutural protegida");
         transactions.lock();
         if(!recursive && folders.hasContents(id)) throw ApiException.conflict("Pasta não está vazia; confirme o arquivamento com conteúdo");
         if(recursive) folders.archiveFolderTree(id,actor);
         else folders.archiveFolder(id,actor);
+    }
+    @Transactional
+    public void trashFile(UUID actor,UUID id) {
+        access.requireActive(actor);
+        transactions.lock();
+        Document doc=documents.forUpdate(id);
+        if(!capabilities.document(actor,doc).canDeleteToTrash()) throw ApiException.forbidden();
+        folders.trashFile(id,actor,UUID.randomUUID());
+    }
+    @Transactional
+    public void trashFolder(UUID actor,UUID id,boolean recursive) {
+        access.requireActive(actor);
+        transactions.lock();
+        Folder root=folders.folder(id);
+        if(!capabilities.folder(actor,root).canDeleteToTrash()) throw ApiException.forbidden();
+        if(!recursive&&folders.hasContents(id)) throw ApiException.conflict("Pasta não está vazia; confirme a exclusão recursiva");
+        folders.lockTrashSubtree(id);
+        if(folders.hasNonActiveDescendant(id)) throw ApiException.conflict("A subárvore contém item previamente arquivado ou enviado à Lixeira");
+        List<UUID> subtree=folders.activeSubtreeFolders(id);
+        if(subtree.isEmpty()) throw ApiException.notFound();
+        for(UUID folderId:subtree) {
+            Folder item=folders.folder(folderId);
+            if(!capabilities.folder(actor,item).canDeleteToTrash()) throw ApiException.conflict("A subárvore contém pasta sem autorização para Lixeira");
+        }
+        for(UUID documentId:folders.activeSubtreeDocuments(subtree)) {
+            Document item=documents.require(documentId);
+            if(!capabilities.document(actor,item).canDeleteToTrash()) throw ApiException.conflict("A subárvore contém documento sem autorização para Lixeira");
+        }
+        folders.trashFolderTree(id,actor,UUID.randomUUID());
+    }
+    @Transactional(readOnly=true)
+    public TrashListing trash(UUID actor,int requestedLimit,int offset,String type,String sortBy,String direction) {
+        return trash(actor,null,false,requestedLimit,offset,type,sortBy,direction);
+    }
+    @Transactional(readOnly=true)
+    public TrashListing administrativeTrash(UUID actor,int requestedLimit,int offset,String type,String sortBy,String direction) {
+        access.requireAdministrator(actor);
+        return trash(actor,null,true,requestedLimit,offset,type,sortBy,direction);
+    }
+    @Transactional(readOnly=true)
+    public TrashListing projectTrash(UUID actor,UUID project,int requestedLimit,int offset,String type,String sortBy,String direction) {
+        projects.requireManage(actor,project);
+        return trash(actor,project,false,requestedLimit,offset,type,sortBy,direction);
+    }
+    private TrashListing trash(UUID actor,UUID project,boolean administrative,int requestedLimit,int offset,String type,String sortBy,String direction) {
+        access.requireActive(actor);
+        if(requestedLimit<1||requestedLimit>100||offset<0) throw ApiException.invalid("Paginação da Lixeira inválida");
+        if(type!=null&&!Set.of("DOCUMENT","FOLDER").contains(type)) throw ApiException.invalid("Filtro de tipo da Lixeira inválido");
+        if(!Set.of("deletedAt","createdAt","name").contains(sortBy)) throw ApiException.invalid("Ordenação da Lixeira inválida");
+        if(!Set.of("asc","desc").contains(direction)) throw ApiException.invalid("Direção da ordenação inválida");
+        List<TrashItem> rows=folders.trash(administrative?null:project==null?actor:null,project,administrative,type,sortBy,direction,requestedLimit+1,offset);
+        boolean more=rows.size()>requestedLimit;
+        List<TrashEntry> entries=rows.stream().limit(requestedLimit).map(item->new TrashEntry(item,trashCapabilities(actor,item))).toList();
+        return new TrashListing(entries,requestedLimit,offset,more);
+    }
+    @Transactional
+    public void restoreTrash(UUID actor,UUID id) {
+        restoreTrash(actor,id,null);
+    }
+    @Transactional
+    public void restoreTrash(UUID actor,UUID id,String requestedName) {
+        access.requireActive(actor);
+        transactions.lock();
+        TrashItem item=folders.trashItem(id);
+        if(!canRestore(actor,item)) throw ApiException.forbidden();
+        if(folders.trashBlocked(id,item.type())) throw ApiException.conflict("Recurso protegido ou sob retenção não pode ser restaurado neste fluxo");
+        String newName=requestedName==null||requestedName.isBlank()?null:name(requestedName);
+        if(newName!=null) {
+            if("DOCUMENT".equals(item.type())) {
+                String mime=folders.trashMimeType(id);
+                String required=switch(mime) {
+                    case DOCX -> ".docx";
+                    case "application/pdf" -> ".pdf";
+                    case "image/png" -> ".png";
+                    case "image/jpeg" -> ".jpg";
+                    default -> throw ApiException.invalid("Tipo documental não suportado");
+                };
+                String lower=newName.toLowerCase(Locale.ROOT);
+                if(!lower.endsWith(required)&&!(required.equals(".jpg")&&lower.endsWith(".jpeg")))
+                    throw ApiException.invalid("A extensão deve corresponder ao formato original do arquivo");
+                if(folders.fileNameExists(item.originalFolderId(),newName,id)) throw ApiException.conflict("Já existe um arquivo com esse nome no local de restauração");
+            } else if(folders.siblingExists(item.originalFolderId(),newName,id)) {
+                throw ApiException.conflict("Já existe uma pasta com esse nome no local de restauração");
+            }
+        }
+        folders.restoreTrash(id,item.type(),actor,newName);
+    }
+    private boolean canRestore(UUID actor,TrashItem item) {
+        if(item.retentionHold()||"UNKNOWN".equals(item.resourceOwnerKind())) return false;
+        if("MEMBER".equals(item.resourceOwnerKind()))
+            return actor.equals(item.resourceOwnerId())&&actor.equals(item.createdBy())&&"NONE".equals(item.protection());
+        return access.isAdministrator(actor)&&("INSTITUTION".equals(item.resourceOwnerKind())
+                ||"PROJECT".equals(item.resourceOwnerKind()));
+    }
+    public boolean canRestoreTrash(UUID actor,TrashItem item) {
+        access.requireActive(actor);
+        return canRestore(actor,item)&&!folders.trashBlocked(item.id(),item.type());
+    }
+    private br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities trashCapabilities(UUID actor,TrashItem item) {
+        boolean restore=canRestore(actor,item)&&!folders.trashBlocked(item.id(),item.type());
+        String purgeReason=purgeService.eligibilityReason(actor,item);
+        boolean purge=purgeReason.isEmpty();
+        Map<String,String> reasons=new HashMap<>();
+        reasons.put("canDeleteToTrash","STATE");
+        if(!restore) reasons.put("canRestore",folders.trashBlocked(item.id(),item.type())?"PROTECTED":"OUT_OF_SCOPE");
+        if(!purge) {
+            reasons.put("canPermanentlyDelete",purgeReason.isEmpty()?"RECURSIVE_REVIEW_REQUIRED":purgeReason);
+        }
+        return new br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities(1,false,false,false,false,false,false,false,false,
+                false,restore,purge,false,false,reasons);
     }
     @Transactional(readOnly=true)
     public List<ArchivedItem> archived(UUID actor) {access.requireAdministrator(actor);return folders.archivedItems();}
@@ -463,9 +634,20 @@ public class DocumentLibraryService {
     }
     @Transactional
     public FileEntry upload(UUID actor,UUID folderId,String title,String contentType,byte[] data) {
-        Folder folder=folders.folder(folderId);requireAddContent(actor,folder);
+        UUID id=createUploadedDocument(actor,folderId,title,contentType,data,false,null,null);
+        return withPermission(actor,folders.file(id),"EDIT");
+    }
+    /** A request grants one upload only; it never grants browsing or editing of the destination. */
+    @Transactional
+    public UUID uploadRequested(UUID actor,UUID requester,UUID folderId,UUID requestId,String title,String contentType,byte[] data) {
+        return createUploadedDocument(actor,folderId,title,contentType,data,true,requester,requestId);
+    }
+    private UUID createUploadedDocument(UUID actor,UUID folderId,String title,String contentType,byte[] data,
+                                        boolean requested,UUID requester,UUID requestId) {
+        Folder folder=folders.folder(folderId);
+        if(!requested) requireAddContent(actor,folder);
         Scope scope=scope(folder);
-        if("PROJECT".equals(scope.kind())) {
+        if(!requested&&"PROJECT".equals(scope.kind())) {
             try {projects.requireManage(actor,scope.subject());}
             catch(ApiException ex) {if(!"EDIT".equals(sharing.folderPermission(folder.id(),actor))) throw ex;}
         }
@@ -478,13 +660,26 @@ public class DocumentLibraryService {
         if(folders.fileNameExists(folderId,name,new UUID(0,0))) throw ApiException.conflict("Já existe um arquivo com esse nome nesta pasta");
         documents.createInFolder(id,name,scope.kind(),"PERSONAL".equals(scope.kind())?scope.subject():null,
                 "PROJECT".equals(scope.kind())?scope.subject():null,folderId,mime,asset,object,data.length,
-                DocxIntegrity.sha256(data),actor,null);
-        return folders.file(id);
+                DocxIntegrity.sha256(data),actor,null,"PERSONAL".equals(scope.kind())
+                        &&!actor.equals(scope.subject())&&access.isAdministrator(actor));
+        if(requested) {
+            identities.markRequestedUpload(id,requester);
+            folders.event(id,actor,"DOCUMENT_REQUEST_UPLOADED","Solicitação "+requestId);
+        }
+        return id;
     }
     @Transactional
     public List<FileEntry> uploadTree(UUID actor,UUID folderId,List<org.springframework.web.multipart.MultipartFile> files,List<String> paths) {
-        if(files==null||paths==null||files.isEmpty()||files.size()!=paths.size()||files.size()>100)
-            throw ApiException.invalid("Envie de 1 a 100 arquivos com um caminho para cada item");
+        return uploadDirectory(actor,folderId,files,paths,List.of()).files();
+    }
+    @Transactional
+    public UploadDirectoryResult uploadDirectory(UUID actor,UUID folderId,List<org.springframework.web.multipart.MultipartFile> files,
+                                                  List<String> paths,List<String> directoryPaths) {
+        if(files==null) files=List.of();
+        if(paths==null) paths=List.of();
+        if(directoryPaths==null) directoryPaths=List.of();
+        if(files.size()!=paths.size()||files.size()+directoryPaths.size()<1||files.size()+directoryPaths.size()>100)
+            throw ApiException.invalid("Envie de 1 a 100 arquivos e diretórios com caminhos correspondentes");
         long total=0;
         for(var file:files) {
             if(file.isEmpty()||file.getSize()>DocxIntegrity.MAX_BYTES) throw ApiException.invalid("Cada arquivo deve ter até 8 MiB e não pode estar vazio");
@@ -496,35 +691,56 @@ public class DocumentLibraryService {
         Scope original=scope(home);
         Set<String> destinations=new HashSet<>();
         List<FileEntry> created=new ArrayList<>();
+        List<Folder> createdFolders=new ArrayList<>();
+        for(String directory:directoryPaths) {
+            String[] segments=pathSegments(directory);
+            Folder parent=home;
+            for(String segment:segments) parent=directoryChild(actor,parent,name(segment),original,createdFolders);
+        }
         for(int index=0;index<files.size();index++) {
             String[] segments=pathSegments(paths.get(index));
             Folder parent=home;
             for(int position=0;position<segments.length-1;position++) {
-                String folderName=name(segments[position]);
-                Folder child=folders.child(parent.id(),folderName);
-                if(child==null) {
-                    requireAddContent(actor,parent);
-                    transactions.lock();
-                    if(folders.siblingExists(parent.id(),folderName,new UUID(0,0))) throw ApiException.conflict("Conflito de nome de pasta no lote");
-                    child=folders.addFolder(parent.id(),folderName,"#D6A432",actor);
-                }
-                if(!scope(child).equals(original)) throw ApiException.conflict("O caminho do lote ultrapassa o escopo documental");
-                parent=child;
+                parent=directoryChild(actor,parent,name(segments[position]),original,createdFolders);
             }
             String title=name(segments[segments.length-1]);
             String destination=parent.id()+"/"+title.toLowerCase(Locale.ROOT);
-            if(!destinations.add(destination)||folders.fileNameExists(parent.id(),title,new UUID(0,0)))
-                throw ApiException.conflict("Já existe um arquivo com esse nome nesta pasta");
+            if(!destinations.add(destination)) throw ApiException.conflict("Arquivo repetido no lote");
+            var existing=folders.fileByName(parent.id(),title);
+            if(existing!=null) {
+                try {
+                    byte[] data=files.get(index).getBytes();
+                    Document current=documents.require(existing.id());
+                    if(current.size()!=data.length||!current.sha256().equals(DocxIntegrity.sha256(data)))
+                        throw ApiException.conflict("Já existe um arquivo diferente com esse nome");
+                    capabilities.requireView(actor,current);
+                    created.add(withPermission(actor,existing,capabilities.document(actor,current).canEdit()?"EDIT":"VIEW"));
+                } catch(java.io.IOException ex) {throw new IllegalArgumentException("Não foi possível ler um arquivo do lote",ex);}
+                continue;
+            }
             try {created.add(upload(actor,parent.id(),title,files.get(index).getContentType(),files.get(index).getBytes()));}
             catch(java.io.IOException ex) {throw new IllegalArgumentException("Não foi possível ler um arquivo do lote",ex);}
         }
-        return List.copyOf(created);
+        return new UploadDirectoryResult(List.copyOf(created),List.copyOf(createdFolders));
+    }
+    private Folder directoryChild(UUID actor,Folder parent,String folderName,Scope original,List<Folder> created) {
+        Folder child=folders.child(parent.id(),folderName);
+        if(child==null) {
+            requireAddContent(actor,parent);
+            transactions.lock();
+            if(folders.siblingExists(parent.id(),folderName,new UUID(0,0))) throw ApiException.conflict("Conflito de nome de pasta no lote");
+            child=folders.addFolder(parent.id(),folderName,"#D6A432",actor,
+                    "PERSONAL".equals(original.kind())&&!actor.equals(original.subject())&&access.isAdministrator(actor));
+            created.add(withPermission(actor,child,"EDIT"));
+        } else requireAddContent(actor,child);
+        if(!scope(child).equals(original)) throw ApiException.conflict("O caminho do lote ultrapassa o escopo documental");
+        return child;
     }
     private static String[] pathSegments(String path) {
         if(path==null||path.isBlank()||path.startsWith("/")||path.startsWith("\\")||path.contains("\\")||path.chars().anyMatch(Character::isISOControl))
             throw ApiException.invalid("Caminho de arquivo inválido");
         String[] parts=path.split("/",-1);
-        if(parts.length==0||Arrays.stream(parts).anyMatch(part->part.isBlank()||part.equals(".")||part.equals("..")))
+        if(parts.length==0||parts.length>32||Arrays.stream(parts).anyMatch(part->part.isBlank()||part.equals(".")||part.equals("..")))
             throw ApiException.invalid("Caminho de arquivo inválido");
         return parts;
     }
@@ -542,9 +758,10 @@ public class DocumentLibraryService {
     public void moveFile(UUID actor,UUID id,DocumentChange change) {
         Document doc=core.require(actor,id);
         Folder target=folders.folder(change.folderId()==null?doc.folderId():change.folderId());
-        requireOrganize(actor,target);
+        requireAddContent(actor,target);
         Folder old=folders.folder(doc.folderId());
-        requireOrganize(actor,old);
+        requireRead(actor,old);
+        if(!capabilities.document(actor,doc).canMove()) throw ApiException.forbidden();
         Scope before=scope(old), after=scope(target);
         if(!before.equals(after)) throw ApiException.conflict("Movimentações entre contextos exigem transferência institucional específica");
         if(!target.id().equals(old.id())&&(sharing.hasFolderGrantOnPath(target.id())||sharing.hasDirectDocumentGrant(doc.id())))
@@ -566,7 +783,7 @@ public class DocumentLibraryService {
     @Transactional
     public void archiveFile(UUID actor,UUID id) {
         Document doc=core.require(actor,id);
-        requireManage(actor,folders.folder(doc.folderId()));
+        if(!capabilities.document(actor,doc).canArchiveInstitutionally()) throw ApiException.forbidden();
         folders.archiveFile(id,actor);
     }
     @Transactional
@@ -580,6 +797,7 @@ public class DocumentLibraryService {
         Document doc=core.require(actor,id);
         if(!"PROJECT".equals(doc.context())) throw ApiException.invalid("Permissões individuais de edição pertencem a documentos de projeto");
         projects.requireManage(actor,doc.projectId());
+        if(!capabilities.document(actor,doc).canShare()) throw ApiException.forbidden();
         if(canEdit) {access.requireActive(member);projects.requireRead(member,doc.projectId());}
         transactions.lock();
         folders.giveEdit(id,member,actor,canEdit);
@@ -637,7 +855,7 @@ public class DocumentLibraryService {
         try {
             String clean=title.toLowerCase(Locale.ROOT).endsWith(".docx")?title:title+".docx";
             documents.createInFolder(id,clean,"PERSONAL",member,null,personal.id(),DOCX,false,object,source.length,
-                    version.sha256(),issuer,version.id());
+                    version.sha256(),issuer,version.id(),true);
             folders.recordDistribution(version.id(),member,id,issuer);
         }catch(RuntimeException ex){store.deleteOrphan(object);throw ex;}
         return new Distribution(member,id,true);

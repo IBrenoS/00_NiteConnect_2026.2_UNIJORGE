@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { LibraryFolder,LibraryListing } from "../../lib/documents/library";
+import { resourceOwnerLabel } from "../../lib/documents/library-contracts";
 import { LibraryUploadForm } from "./library-upload-form";
 import { archiveLibraryFile,archiveLibraryFolder,createLibraryFolder,organizeLibraryFile,updateLibraryFolder,setProjectDocumentEditGrant } from "../../lib/documents/library-actions";
 
@@ -19,7 +20,7 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
     <div className="flex flex-wrap gap-2 text-type-body-compact text-nite-text-secondary">
       <span>{listing.folders.length} pastas</span><span aria-hidden="true">·</span><span>{listing.files.length} arquivos</span>
     </div>
-    {canManage&&<details className="rounded-control border border-nite-border-soft p-4">
+    {canManage&&current.capabilities?.canAddChild!==false&&<details className="rounded-control border border-nite-border-soft p-4">
       <summary className="cursor-pointer font-medium text-nite-text-primary">Nova subpasta</summary>
       <form action={createLibraryFolder} className="mt-4 flex flex-wrap items-end gap-3">
         <input type="hidden" name="parentId" value={current.id}/><input type="hidden" name="returnTo" value={returnTo}/>
@@ -40,18 +41,18 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
               <span aria-hidden="true" style={{color:f.color}}>▰</span>{f.name}</Link><span className="text-type-metadata text-nite-text-muted">Pasta</span></td>
             <td className="p-3 text-nite-text-secondary">{f.kind==="PERSONAL"?"Integrante":"Área institucional"}</td>
             <td className="p-3 text-nite-text-secondary">{when(f.modifiedAt)}</td>
-            <td className="p-3">{canManage&&<details><summary className="cursor-pointer text-nite-brand-primary">Organizar</summary>
+            <td className="p-3">{canManage&&(f.capabilities?.canRename!==false||f.capabilities?.canArchiveInstitutionally===true)&&<details><summary className="cursor-pointer text-nite-brand-primary">Organizar</summary>
               <form action={updateLibraryFolder} className="mt-2 grid max-w-56 gap-2">
                 <input type="hidden" name="id" value={f.id}/><input type="hidden" name="returnTo" value={returnTo}/>
                 <label className="grid gap-1">Nome<input name="name" defaultValue={f.name} required maxLength={190} className="rounded-control border border-nite-border-control bg-nite-surface p-2"/></label>
                 <label className="grid gap-1">Cor<input type="color" name="color" defaultValue={f.color} className="h-9"/></label>
-                {f.kind==="CUSTOM"&&tree.length>0&&<label className="grid gap-1">Mover para
+                {f.kind==="CUSTOM"&&f.capabilities?.canMove!==false&&tree.length>0&&<label className="grid gap-1">Mover para
                   <select name="parentId" defaultValue={f.parentId??""} className="rounded-control border border-nite-border-control bg-nite-surface p-2">
                     {tree.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
                   </select></label>}
                 <button className="min-h-9 rounded-control border border-nite-border-control px-2">Salvar</button>
               </form>
-              {f.kind==="CUSTOM"&&<form action={archiveLibraryFolder} className="mt-2">
+              {f.kind==="CUSTOM"&&f.capabilities?.canArchiveInstitutionally!==false&&<form action={archiveLibraryFolder} className="mt-2">
                 <input type="hidden" name="id" value={f.id}/><input type="hidden" name="returnTo" value={returnTo}/>
                 <label className="my-2 flex gap-2 text-type-metadata text-nite-text-secondary"><input type="checkbox" name="recursive"/>Incluir subpastas e arquivos (restauráveis pela gestão)</label>
                 <button className="text-nite-text-secondary underline underline-offset-2">Arquivar pasta</button>
@@ -63,21 +64,21 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
               <div><Link href={file.mimeType.includes("wordprocessing")?`/documentos/${file.id}`:`/api/library/download/${file.id}`}
                 className="font-medium text-nite-brand-primary underline underline-offset-4">{file.title}</Link>
                 <p className="text-type-metadata text-nite-text-muted">Revisão {file.revision} · {file.size.toLocaleString("pt-BR")} bytes</p></div></div></td>
-            <td className="p-3 text-nite-text-secondary"><div>Proprietário: {file.ownerName??"NITE"}</div><div>Criado por: {file.createdByName}</div>{file.sharedByName&&<div>Distribuído por: {file.sharedByName}{file.sharedAt?` · ${when(file.sharedAt)}`:""}</div>}</td>
+            <td className="p-3 text-nite-text-secondary"><div>Proprietário: {resourceOwnerLabel(file.identity,file.createdByName,file.ownerName)}</div><div>Criado por: {file.createdByName}</div>{file.sharedByName&&<div>Distribuído por: {file.sharedByName}{file.sharedAt?` · ${when(file.sharedAt)}`:""}</div>}</td>
             <td className="p-3 text-nite-text-secondary">{when(file.modifiedAt)}<div className="text-type-metadata">{file.modifiedByName??file.createdByName}</div>
               {file.lastOpenedAt&&<div className="mt-1 text-type-metadata">Aberto em {when(file.lastOpenedAt)}{file.lastOpenedByName?` por ${file.lastOpenedByName}`:""}</div>}</td>
             <td className="p-3"><Link href={`/api/library/download/${file.id}`} className="text-nite-brand-primary underline underline-offset-4">Baixar</Link>
-              {canManage&&<details className="mt-2"><summary className="cursor-pointer text-nite-brand-primary">Organizar</summary>
-                <form action={organizeLibraryFile} className="mt-2 grid max-w-56 gap-2">
+              {canManage&&(file.capabilities?.canRename!==false||file.capabilities?.canArchiveInstitutionally===true)&&<details className="mt-2"><summary className="cursor-pointer text-nite-brand-primary">Organizar</summary>
+                {file.capabilities?.canRename!==false&&<form action={organizeLibraryFile} className="mt-2 grid max-w-56 gap-2">
                   <input type="hidden" name="id" value={file.id}/><input type="hidden" name="returnTo" value={returnTo}/>
                   <label className="grid gap-1">Nome<input name="title" defaultValue={file.title} required className="rounded-control border border-nite-border-control bg-nite-surface p-2"/></label>
-                  <label className="grid gap-1">Pasta de destino
+                  {file.capabilities?.canMove!==false?<label className="grid gap-1">Pasta de destino
                     {tree.length?<select name="folderId" defaultValue={current.id} className="rounded-control border border-nite-border-control bg-nite-surface p-2">
                       {tree.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
                     </select>:<input name="folderId" readOnly value={current.id} className="rounded-control border border-nite-border-control p-2"/>}
-                  </label>
+                  </label>:<input type="hidden" name="folderId" value={current.id}/>}
                   <button className="min-h-9 rounded-control border border-nite-border-control px-2">Salvar</button>
-                </form>
+                </form>}
                 {file.context==="PROJECT"&&members.length>0&&<form action={setProjectDocumentEditGrant} className="mt-3 grid gap-2">
                   <input type="hidden" name="id" value={file.id}/><input type="hidden" name="returnTo" value={returnTo}/>
                   <label className="grid gap-1">Permissão de edição
@@ -90,10 +91,10 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
                   </select>
                   <button className="min-h-9 rounded-control border border-nite-border-control px-2">Aplicar permissão</button>
                 </form>}
-                <form action={archiveLibraryFile} className="mt-2">
+                {file.capabilities?.canArchiveInstitutionally!==false&&<form action={archiveLibraryFile} className="mt-2">
                   <input type="hidden" name="id" value={file.id}/><input type="hidden" name="returnTo" value={returnTo}/>
                   <button className="text-nite-text-secondary underline underline-offset-2">Arquivar arquivo</button>
-                </form>
+                </form>}
               </details>}
             </td>
           </tr>)}
@@ -101,7 +102,7 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
         </tbody>
       </table>
     </div>
-    {(personal||canManage)&&<details className="rounded-control border border-nite-border-soft p-4">
+    {(personal||canManage)&&current.capabilities?.canAddChild!==false&&<details className="rounded-control border border-nite-border-soft p-4">
       <summary className="cursor-pointer font-medium text-nite-text-primary">Criar ou carregar arquivo</summary>
       <div className="mt-3"><LibraryUploadForm folderId={current.id} returnTo={returnTo}/></div>
     </details>}

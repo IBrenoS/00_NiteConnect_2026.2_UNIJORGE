@@ -54,7 +54,8 @@ public class DocumentWopiService {
 
     @Transactional
     public Launch launch(UUID actor, UUID id) {
-        Document doc=core.require(actor,id);
+        Document doc=repo.forUpdate(id);
+        core.requireAccess(actor,doc);
         if(!DocumentLibraryService.DOCX.equals(doc.mimeType())) throw ApiException.invalid("Edição WOPI disponível apenas para DOCX");
         boolean writable=core.canWrite(actor,doc);
         // Discovery is checked before allocating an editor token (fail closed on misconfiguration).

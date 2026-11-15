@@ -7,12 +7,18 @@ import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentSharingRepos
 import br.edu.unijorge.niteconnect.documents.domain.DocxIntegrity;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentRepository;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentRepository.Document;
+import br.edu.unijorge.niteconnect.documents.domain.DocumentIdentity;
+import br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities;
+import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentIdentityRepository;
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -24,37 +30,29 @@ public class DocumentCoreService {
     private final ProjectAccess projects;
     private final DocumentLibraryRepository library;
     private final DocumentSharingRepository sharing;
+    private final DocumentCapabilityService capabilities;
+    private final DocumentIdentityRepository identities;
 
-    public DocumentCoreService(DocumentRepository repository,DocumentObjectStore store,AccessService access,ProjectAccess projects,DocumentLibraryRepository library,DocumentSharingRepository sharing) {
-        this.repository=repository;this.store=store;this.access=access;this.projects=projects;this.library=library;this.sharing=sharing;
+    public DocumentCoreService(DocumentRepository repository,DocumentObjectStore store,AccessService access,ProjectAccess projects,DocumentLibraryRepository library,DocumentSharingRepository sharing,DocumentCapabilityService capabilities,DocumentIdentityRepository identities) {
+        this.repository=repository;this.store=store;this.access=access;this.projects=projects;this.library=library;this.sharing=sharing;this.capabilities=capabilities;this.identities=identities;
     }
-    public record Summary(UUID id,String title,long revision,long size,String sha256) {
-        static Summary of(Document d) {return new Summary(d.id(),d.title(),d.version(),d.size(),d.sha256());}
+    public record Summary(UUID id,String title,long revision,long size,String sha256,DocumentIdentity identity,DocumentCapabilities capabilities) {
+        public Summary(UUID id,String title,long revision,long size,String sha256) {
+            this(id,title,revision,size,sha256,null,null);
+        }
+    }
+    public Summary summary(UUID actor,Document d) {
+        var identity=identities.document(d.id());
+        if("PROJECT".equals(d.context())&&!canReadProjectContext(actor,d.projectId()))
+            identity=identity.withoutOwnerIdentifier();
+        return new Summary(d.id(),d.title(),d.version(),d.size(),d.sha256(),identity,capabilities.document(actor,d));
     }
     public void requireAccess(UUID actor, Document document) {
-        access.requireActive(actor);
-        if(access.isAdministrator(actor)) return;
-        switch(document.context()) {
-            case "PERSONAL" -> {if(!actor.equals(document.ownerId())&&sharing.documentPermission(document.id(),actor)==null) throw ApiException.notFound();}
-            case "PROJECT" -> {
-                try {projects.requireRead(actor,document.projectId());}
-                catch(ApiException ex) {if(sharing.documentPermission(document.id(),actor)==null) throw ex;}
-            }
-            default -> {if(sharing.documentPermission(document.id(),actor)==null) throw ApiException.notFound();}
-        }
+        capabilities.requireView(actor,document);
     }
     public boolean canWrite(UUID actor,Document document) {
         requireAccess(actor,document);
-        if(access.isAdministrator(actor)) return true;
-        String permission=sharing.documentPermission(document.id(),actor);
-        return switch(document.context()) {
-            case "PERSONAL" -> actor.equals(document.ownerId())||"EDIT".equals(permission);
-            case "PROJECT" -> {
-                try {projects.requireManage(actor,document.projectId());yield true;}
-                catch(ApiException ex) {yield "EDIT".equals(permission)||library.canEdit(document.id(),actor);}
-            }
-            default -> "EDIT".equals(permission);
-        };
+        return capabilities.document(actor,document).canEdit();
     }
     public void requireWrite(UUID actor,Document document) {
         if(!canWrite(actor,document)) throw ApiException.forbidden();
@@ -77,7 +75,7 @@ public class DocumentCoreService {
     @Transactional(readOnly=true)
     public List<Summary> own(UUID actor) {
         access.requireActive(actor);
-        return repository.own(actor).stream().map(Summary::of).toList();
+        return repository.own(actor).stream().map(d->summary(actor,d)).toList();
     }
     @Transactional
     public Summary create(UUID actor,String title,byte[] data) {return create(actor,title,data,null);}
@@ -106,13 +104,14 @@ public class DocumentCoreService {
                 }
                 if(!within) throw ApiException.notFound();
             }
+            capabilities.requireAdd(actor,library.folder(target));
             repository.createInFolder(id,name,"PERSONAL",actor,null,target,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",false,objectId,data.length,hash,actor,null);
         } catch(RuntimeException ex) {
             store.deleteOrphan(objectId);
             throw ex;
         }
-        return Summary.of(repository.require(id));
+        return summary(actor,repository.require(id));
     }
     @Transactional(readOnly=true)
     public byte[] read(UUID actor,UUID id) {
@@ -125,5 +124,60 @@ public class DocumentCoreService {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"Integridade do documento não confirmada");
         }
         return bytes;
+    }
+    public record VersionInfo(UUID id,int revision,long size,UUID createdBy,Instant createdAt,boolean current) {
+        static VersionInfo from(DocumentRepository.Version version) {
+            return new VersionInfo(version.id(),version.revision(),version.size(),version.createdBy(),
+                    version.createdAt(),version.current());
+        }
+    }
+    public record VersionPage(List<VersionInfo> items,Integer nextBeforeRevision,boolean hasMore) {}
+    @Transactional(readOnly=true)
+    public VersionPage versions(UUID actor,UUID id,Integer beforeRevision,int limit) {
+        Document doc=require(actor,id);
+        if(limit<1||limit>100||beforeRevision!=null&&beforeRevision<1) throw ApiException.invalid("Paginação de versões inválida");
+        var rows=repository.versions(doc.id(),beforeRevision,limit+1);
+        boolean more=rows.size()>limit;
+        var items=more?rows.subList(0,limit):rows;
+        return new VersionPage(items.stream().map(VersionInfo::from).toList(),more?items.getLast().revision():null,more);
+    }
+    @Transactional(readOnly=true)
+    public byte[] readVersion(UUID actor,UUID id,UUID versionId) {
+        Document doc=require(actor,id);
+        if(!capabilities.document(actor,doc).canDownload()) throw ApiException.forbidden();
+        return readVersionVerified(doc,repository.version(id,versionId));
+    }
+    private byte[] readVersionVerified(Document doc,DocumentRepository.Version version) {
+        byte[] bytes=doc.storedAsAsset()?store.getAsset(version.objectId()):store.get(version.objectId());
+        if(bytes.length!=version.size()||!DocxIntegrity.sha256(bytes).equals(version.sha256()))
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"Integridade da versão não confirmada");
+        return bytes;
+    }
+    @Transactional
+    public DocumentRepository.Version restoreVersion(UUID actor,UUID id,UUID versionId) {
+        access.requireActive(actor);
+        Document current=repository.forUpdate(id);
+        capabilities.requireView(actor,current);
+        if(!capabilities.document(actor,current).canEdit()) throw ApiException.forbidden();
+        if(repository.lock(id,java.time.Instant.now())!=null) throw ApiException.conflict("Documento bloqueado para edição");
+        DocumentRepository.Version selected=repository.version(id,versionId);
+        byte[] bytes=readVersionVerified(current,selected);
+        UUID object=UUID.randomUUID();
+        try {
+            if(current.storedAsAsset()) store.putAsset(object,bytes,current.mimeType()); else store.put(object,bytes);
+        } catch(RuntimeException ex) {
+            if(current.storedAsAsset()) store.deleteAssetOrphan(object); else store.deleteOrphan(object);
+            throw ex;
+        }
+        if(TransactionSynchronizationManager.isSynchronizationActive())
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCompletion(int status) {
+                    if(status==STATUS_ROLLED_BACK) {
+                        if(current.storedAsAsset()) store.deleteAssetOrphan(object); else store.deleteOrphan(object);
+                    }
+                }
+            });
+        UUID created=repository.restoreVersion(current,object,bytes.length,DocxIntegrity.sha256(bytes),actor,selected.id());
+        return repository.version(id,created);
     }
 }

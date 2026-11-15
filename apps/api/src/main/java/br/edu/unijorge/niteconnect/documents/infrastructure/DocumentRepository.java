@@ -13,12 +13,51 @@ import java.util.UUID;
 @Repository
 public class DocumentRepository {
     private final JdbcTemplate jdbc;
-    public DocumentRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final DocumentIdentityRepository identities;
+    public DocumentRepository(JdbcTemplate jdbc,DocumentIdentityRepository identities) { this.jdbc = jdbc;this.identities=identities; }
 
     public record Document(UUID id, String title, UUID ownerId, String context, long version,
                            UUID versionId, UUID objectId, long size, String sha256, Instant versionAt, UUID folderId, UUID projectId, String mimeType, boolean storedAsAsset) {}
     public record Session(UUID documentId, UUID actorId, UUID sourceVersionId, boolean canWrite, Instant expiresAt) {}
     public record WopiLock(String value, Instant expiresAt,UUID actorId) {}
+    public record Version(UUID id,UUID documentId,int revision,UUID objectId,long size,String sha256,
+                          UUID createdBy,Instant createdAt,boolean current) {}
+    private static Version version(ResultSet rs,int row) throws SQLException {
+        return new Version(rs.getObject("id",UUID.class),rs.getObject("document_id",UUID.class),rs.getInt("revision"),
+                rs.getObject("object_id",UUID.class),rs.getLong("size"),rs.getString("sha256"),
+                rs.getObject("created_by",UUID.class),rs.getTimestamp("created_at").toInstant(),rs.getBoolean("is_current"));
+    }
+    private static final String VERSION_SQL="""
+            select v.*,v.id=d.current_version_id is_current from nite_connect.document_versions v
+            join nite_connect.documents d on d.id=v.document_id
+            where v.document_id=? and v.status='AVAILABLE' and d.archived_at is null and d.lifecycle_state='ACTIVE'
+              and not exists(select 1 from nite_connect.document_purge_objects p where p.object_id=v.object_id and p.state='PURGED')
+            """;
+    public List<Version> versions(UUID document,Integer beforeRevision,int limit) {
+        return jdbc.query(VERSION_SQL+(beforeRevision==null?"":" and v.revision<?")+" order by v.revision desc,v.id desc limit ?",
+                DocumentRepository::version,beforeRevision==null?new Object[]{document,limit}:new Object[]{document,beforeRevision,limit});
+    }
+    public Version version(UUID document,UUID version) {
+        return jdbc.query(VERSION_SQL+" and v.id=?",DocumentRepository::version,document,version)
+                .stream().findFirst().orElseThrow(ApiException::notFound);
+    }
+    public UUID restoreVersion(Document current,UUID object,long size,String sha,UUID actor,UUID sourceVersion) {
+        UUID next=UUID.randomUUID();
+        long revision=current.version()+1;
+        jdbc.update("""
+                insert into nite_connect.document_versions(id,document_id,revision,object_id,size,sha256,status,based_on,created_by)
+                values (?,?,?,?,?,?,'AVAILABLE',?,?)
+                """,next,current.id(),revision,object,size,sha,sourceVersion,actor);
+        int changed=jdbc.update("""
+                update nite_connect.documents set current_version_id=?,version=?,modified_by=?,modified_at=clock_timestamp()
+                where id=? and version=? and lifecycle_state='ACTIVE' and archived_at is null
+                """,next,revision,actor,current.id(),current.version());
+        if(changed!=1) throw ApiException.conflict("Documento alterado durante restauração de versão");
+        jdbc.update("update nite_connect.document_wopi_sessions set revoked_at=clock_timestamp() where document_id=? and revoked_at is null",current.id());
+        jdbc.update("delete from nite_connect.document_wopi_locks where document_id=?",current.id());
+        event(current.id(),actor,"VERSION_RESTORED",next,"Conteúdo restaurado da versão "+sourceVersion);
+        return next;
+    }
 
     private static Document map(ResultSet rs, int row) throws SQLException {
         return new Document(rs.getObject("id", UUID.class), rs.getString("title"),
@@ -31,7 +70,7 @@ public class DocumentRepository {
             select d.id, d.title, d.owner_id, d.context, d.version,
                    v.id version_id, v.object_id, v.size, v.sha256, v.created_at version_at, d.folder_id, d.project_id, d.mime_type, d.stored_as_asset
             from nite_connect.documents d join nite_connect.document_versions v on v.id=d.current_version_id
-            where d.id=? and d.archived_at is null
+            where d.id=? and d.archived_at is null and d.lifecycle_state='ACTIVE'
             """;
 
     public Document require(UUID id) {
@@ -47,7 +86,7 @@ public class DocumentRepository {
                 select d.id, d.title, d.owner_id, d.context, d.version,
                        v.id version_id, v.object_id, v.size, v.sha256, v.created_at version_at, d.folder_id, d.project_id, d.mime_type, d.stored_as_asset
                 from nite_connect.documents d join nite_connect.document_versions v on v.id=d.current_version_id
-                where d.context='PERSONAL' and d.owner_id=? and d.archived_at is null
+                where d.context='PERSONAL' and d.owner_id=? and d.archived_at is null and d.lifecycle_state='ACTIVE'
                 order by d.created_at desc,d.id
                 """, DocumentRepository::map, owner);
     }
@@ -55,6 +94,9 @@ public class DocumentRepository {
         createInFolder(id,title,"PERSONAL",owner,null,null,"application/vnd.openxmlformats-officedocument.wordprocessingml.document",false,object,size,hash,owner,null);
     }
     public void createInFolder(UUID id,String title,String context,UUID owner,UUID project,UUID folder,String mime,boolean asset,UUID object,long size,String hash,UUID actor,UUID templateVersion) {
+        createInFolder(id,title,context,owner,project,folder,mime,asset,object,size,hash,actor,templateVersion,false);
+    }
+    public void createInFolder(UUID id,String title,String context,UUID owner,UUID project,UUID folder,String mime,boolean asset,UUID object,long size,String hash,UUID actor,UUID templateVersion,boolean institutional) {
         UUID version = UUID.randomUUID();
         jdbc.update("""
                 insert into nite_connect.documents(id,title,context,owner_id,project_id,folder_id,mime_type,stored_as_asset,template_version_id,official,version,created_by,modified_by)
@@ -65,6 +107,7 @@ public class DocumentRepository {
                 (id,document_id,revision,object_id,size,sha256,status,created_by) values (?,?,1,?, ?,?,'AVAILABLE',?)
                 """, version,id,object,size,hash,actor);
         jdbc.update("update nite_connect.documents set current_version_id=?, version=1 where id=?",version,id);
+        identities.createdDocument(id,context,owner,project,actor,templateVersion,institutional);
         event(id, actor, "DOCUMENT_CREATED", version, "Documento criado na biblioteca");
     }
     public UUID promote(Document before, UUID objectId, long size, String hash, UUID actor) {
@@ -105,7 +148,7 @@ public class DocumentRepository {
         if(updated!=1) throw ApiException.conflict("Sessão de edição alterada; abra o documento novamente");
     }
     public void recordOpened(UUID document,UUID actor) {
-        jdbc.update("update nite_connect.documents set last_opened_at=clock_timestamp(),last_opened_by=? where id=? and archived_at is null",actor,document);
+        jdbc.update("update nite_connect.documents set last_opened_at=clock_timestamp(),last_opened_by=? where id=? and archived_at is null and lifecycle_state='ACTIVE'",actor,document);
     }
     public Session session(UUID document, String sha256, Instant now) {
         return jdbc.query("""
