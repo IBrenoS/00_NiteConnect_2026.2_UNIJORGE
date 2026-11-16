@@ -17,19 +17,19 @@ import type { LibraryFolder } from "../../lib/documents/library-contracts";
 describe("explorador Meus arquivos", () => {
   it("preserva a largura de Nome e redistribui apenas as colunas posteriores durante a abertura dos detalhes",()=>{
     const closedWidths=getExplorerFlexibleColumnWidths(1544,1544);
-    expect(closedWidths[0]).toBeCloseTo(440.343,3);
-    expect(closedWidths[1]).toBeCloseTo(254.004,3);
-    expect(closedWidths[2]).toBeCloseTo(346.653,3);
+    expect(closedWidths[0]).toBeCloseTo(401.004,3);
+    expect(closedWidths[1]).toBeCloseTo(231.312,3);
+    expect(closedWidths[2]).toBeCloseTo(315.684,3);
     const openWidths=getExplorerFlexibleColumnWidths(1176,1544);
     expect(openWidths[0]).toBeCloseTo(closedWidths[0],3);
-    expect(openWidths[1]).toBeCloseTo(98.385,3);
-    expect(openWidths[2]).toBeCloseTo(134.272,3);
+    expect(openWidths[1]).toBeCloseTo(75.693,3);
+    expect(openWidths[2]).toBeCloseTo(103.303,3);
     const midTransitionWidths=getExplorerFlexibleColumnWidths(1360,1544);
     expect(midTransitionWidths[0]).toBeCloseTo(closedWidths[0],3);
-    expect(midTransitionWidths[1]).toBeCloseTo(176.195,3);
-    expect(midTransitionWidths[2]).toBeCloseTo(240.462,3);
+    expect(midTransitionWidths[1]).toBeCloseTo(153.503,3);
+    expect(midTransitionWidths[2]).toBeCloseTo(209.493,3);
     const narrowWidths=getExplorerFlexibleColumnWidths(700,1544);
-    expect(narrowWidths[0]).toBeCloseTo(197,3);
+    expect(narrowWidths[0]).toBeCloseTo(104,3);
     expect(narrowWidths[1]).toBe(0);
     expect(narrowWidths[2]).toBe(0);
   });
@@ -57,6 +57,7 @@ describe("explorador Meus arquivos", () => {
       onArchive={vi.fn()}
       onRename={vi.fn()}
       onMove={vi.fn()}
+      onAutomate={vi.fn()}
       onClear={vi.fn()}
       onDetails={vi.fn()}
     />);
@@ -78,10 +79,12 @@ describe("explorador Meus arquivos", () => {
       onArchive={vi.fn()}
       onRename={vi.fn()}
       onMove={vi.fn()}
+      onAutomate={vi.fn()}
       onClear={vi.fn()}
       onDetails={vi.fn()}
     />);
     expect(oneSelected).toContain("1 selecionado");
+    expect(oneSelected).toContain('role="toolbar" aria-label="Ações para a seleção"');
     for (const action of ["Compartilhar", "Copiar link", "Solicitar arquivos", "Excluir", "Adicionar aos favoritos", "Baixar", "Duplicar", "Mover para", "Copiar para", "Renomear"]) {
       expect(oneSelected).toContain(action);
     }
@@ -90,6 +93,8 @@ describe("explorador Meus arquivos", () => {
     expect(oneSelected).toContain('aria-label="Limpar seleção"');
     const closedMenu=oneSelected.match(/<details[^>]*>(.*?)<\/details>/)?.[1]??"";
     expect(closedMenu).toContain("Renomear");
+    expect(closedMenu).toContain("Automatizar");
+    expect(closedMenu.indexOf("Renomear")).toBeLessThan(closedMenu.indexOf("Automatizar"));
     expect(closedMenu).not.toContain("Duplicar");
     expect(closedMenu).not.toContain("Mover para");
     expect(closedMenu).not.toContain("Copiar para");
@@ -109,17 +114,16 @@ describe("explorador Meus arquivos", () => {
       onArchive={vi.fn()}
       onRename={vi.fn()}
       onMove={vi.fn()}
+      onAutomate={vi.fn()}
       onClear={vi.fn()}
       onDetails={vi.fn()}
     />);
     const expandedMenu=detailsExpanded.match(/<details[^>]*>(.*?)<\/details>/)?.[1]??"";
-    for (const action of ["Duplicar", "Mover para", "Copiar para", "Renomear"]) {
+    for (const action of ["Renomear", "Automatizar"]) {
       expect(expandedMenu).toContain(action);
     }
     const expandedToolbar=detailsExpanded.split("<details")[0]??"";
-    expect(expandedToolbar).not.toContain("Duplicar");
-    expect(expandedToolbar).not.toContain("Mover para");
-    expect(expandedToolbar).not.toContain("Copiar para");
+    for (const action of ["Duplicar", "Mover para", "Copiar para"]) expect(expandedToolbar).toContain(action);
 
     const twoSelected = renderToStaticMarkup(<SelectionToolbar
       items={[folder, { ...folder, id: "folder-2", name: "Outra pasta" }]}
@@ -132,13 +136,17 @@ describe("explorador Meus arquivos", () => {
       onArchive={vi.fn()}
       onRename={vi.fn()}
       onMove={vi.fn()}
+      onAutomate={vi.fn()}
       onClear={vi.fn()}
       onDetails={vi.fn()}
     />);
     expect(twoSelected).toContain("2 selecionados");
-    expect(twoSelected).toContain("Compartilhar");
+    expect(twoSelected).not.toContain("Compartilhar");
+    expect(twoSelected).not.toContain("Copiar link");
+    expect(twoSelected).not.toContain("Solicitar arquivos");
     expect(twoSelected).toContain("Copiar para");
     expect(twoSelected).toContain("Renomear");
+    expect(twoSelected).toContain("Automatizar");
     expect(twoSelected).toContain('disabled="" title="Ação em lote ainda não está disponível para esta operação."');
   });
 
@@ -222,7 +230,8 @@ describe("explorador Meus arquivos", () => {
     />);
 
     expect(html).toContain("Meus arquivos");
-    expect(html).toContain("lg:h-[calc(100svh-5.75rem)]");
+    expect(html).toContain("/icons/onedrive-menu/page.svg");
+    expect(html).toContain("lg:h-[calc(100svh-6.25rem)]");
     expect(html).toContain("lg:mb-[-1.75rem]");
     expect(html).toContain("h-[calc(100svh-6.5rem)]");
     expect(html).toContain("grid h-full min-h-0 min-w-0 items-stretch");
@@ -248,12 +257,13 @@ describe("explorador Meus arquivos", () => {
     expect(html).toContain("Word");
     expect(html).toContain("PowerPoint ainda não é aceito no módulo documental");
     expect(html).toContain("Compartilhamento");
-    expect(html).toContain("Compar...");
+    expect(html).toContain("Compartilhamento</span>");
     expect(html).toContain("Atividade");
     expect(html).toMatch(/<thead class="[^"]*text-sm[^"]*"/);
-    expect(html).toContain("w-[3.55%]");
+    expect(html).toContain("2xl:w-[56px]");
     expect(html).toContain("2xl:w-auto");
-    expect(html).toContain("2xl:w-[195px]");
+    expect(html).toContain("2xl:w-[200px]");
+    expect(html).not.toContain('aria-label="Selecionar todas as linhas"');
     expect(html).toContain("overflow-x-hidden overflow-y-auto");
     expect(html).not.toContain("min-w-[680px]");
     expect(html).toContain('aria-label="Selecionar Pasta de exemplo"');

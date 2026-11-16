@@ -32,9 +32,10 @@ const dateTime=(value:string|null|undefined)=>value?new Date(value).toLocaleStri
 const relativePath=(file:File)=>{const value=Reflect.get(file,"webkitRelativePath");return typeof value==="string"&&value?value:file.name;};
 const permissionValue=(value:string):"VIEW"|"EDIT"=>value==="EDIT"?"EDIT":"VIEW";
 export function getExplorerFlexibleColumnWidths(tableWidth:number,gridWidth:number):[number,number,number] {
-  const closedFlexibleWidth=Math.max(0,gridWidth-503);
-  const nameWidth=Math.min(0.423*closedFlexibleWidth,Math.max(0,tableWidth-503));
-  const remainingFlexibleWidth=Math.max(0,tableWidth-503-nameWidth);
+  const fixedColumnWidth=596;
+  const closedFlexibleWidth=Math.max(0,gridWidth-fixedColumnWidth);
+  const nameWidth=Math.min(0.423*closedFlexibleWidth,Math.max(0,tableWidth-fixedColumnWidth));
+  const remainingFlexibleWidth=Math.max(0,tableWidth-fixedColumnWidth-nameWidth);
   const flexibleColumnsWeight=0.244+0.333;
   return [nameWidth,remainingFlexibleWidth*0.244/flexibleColumnsWeight,remainingFlexibleWidth*0.333/flexibleColumnsWeight];
 }
@@ -111,10 +112,10 @@ function MoreGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor"><circle cx="4" cy="10" r="1.35"/><circle cx="10" cy="10" r="1.35"/><circle cx="16" cy="10" r="1.35"/></svg>;
 }
 
-type OneDriveMenuIconName="share"|"copy-link"|"request-files"|"manage-access"|"delete"|"add-to-favorites"|"download"|"rename"|"move-to"|"copy-to"|"duplicate"|"folder-color"|"details";
+type OneDriveMenuIconName="share"|"copy-link"|"request-files"|"manage-access"|"delete"|"add-to-favorites"|"download"|"rename"|"move-to"|"copy-to"|"duplicate"|"folder-color"|"details"|"page";
 function OneDriveMenuIcon({name}:{name:OneDriveMenuIconName}) {
   const source=`/icons/onedrive-menu/${name}.svg`;
-  return <span aria-hidden="true" className="size-4 shrink-0 bg-current" style={{maskImage:`url("${source}")`,WebkitMaskImage:`url("${source}")`,maskRepeat:"no-repeat",WebkitMaskRepeat:"no-repeat",maskPosition:"center",WebkitMaskPosition:"center",maskSize:"contain",WebkitMaskSize:"contain"}}/>;
+  return <span aria-hidden="true" className="inline-block size-4 shrink-0 bg-current" style={{maskImage:`url("${source}")`,WebkitMaskImage:`url("${source}")`,maskRepeat:"no-repeat",WebkitMaskRepeat:"no-repeat",maskPosition:"center",WebkitMaskPosition:"center",maskSize:"contain",WebkitMaskSize:"contain"}}/>;
 }
 
 function RequestGlyph() {
@@ -124,7 +125,7 @@ function RequestGlyph() {
 function SelectionAction({label,disabledReason,onClick,children,variant="toolbar"}:{label:string;disabledReason?:string;onClick?:()=>void;children:ReactNode;variant?:"toolbar"|"menu"}) {
   const disabled=disabledReason!==undefined;
   const layout=variant==="menu"?"flex min-h-9 w-full items-center gap-1 rounded-control px-2 text-left":"inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control px-2.5 sm:px-3";
-  return <button type="button" role={variant==="menu"?"menuitem":undefined} disabled={disabled} title={disabledReason} onClick={(event)=>{if(variant==="menu")event.stopPropagation();onClick?.();}} className={`${layout} text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:text-nite-text-muted disabled:opacity-65`}>{children}{label}</button>;
+  return <button type="button" role={variant==="menu"?"menuitem":undefined} disabled={disabled} title={disabledReason} onClick={(event)=>{if(variant==="menu"){event.stopPropagation();event.currentTarget.closest("details")?.removeAttribute("open");}onClick?.();}} className={`${layout} text-type-body-compact ${variant==="menu"?"font-normal":"font-semibold"} text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:text-nite-text-muted disabled:opacity-65`}>{children}{label}</button>;
 }
 
 export function toggleDetailsPanel(isOpen:boolean,onOpen:()=>void,onClose:()=>void):void {
@@ -136,11 +137,11 @@ function FavoriteGlyph({active=false}:{active?:boolean}) {
   return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill={active?"currentColor":"none"} stroke="currentColor" strokeWidth="1.5"><path d="m10 2.5 2.35 4.77 5.27.77-3.81 3.71.9 5.25L10 14.52l-4.71 2.48.9-5.25-3.81-3.71 5.27-.77z"/></svg>;
 }
 
-function SelectionCheckbox({checked,label,onChange,className=""}:{checked:boolean;label:string;onChange:(checked:boolean)=>void;className?:string}) {
+function SelectionCheckbox({checked,label,onChange,className="",indeterminate=false}:{checked:boolean;label:string;onChange:(checked:boolean)=>void;className?:string;indeterminate?:boolean}) {
   return <label className={`relative grid size-5 shrink-0 cursor-pointer place-items-center rounded-full ${className}`} onClick={(event)=>event.stopPropagation()}>
-    <input aria-label={label} type="checkbox" checked={checked} onChange={(event)=>onChange(event.target.checked)} className="peer absolute inset-0 size-full cursor-pointer opacity-0"/>
-    <span aria-hidden="true" className={`grid size-[18px] place-items-center rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-nite-focus ${checked?"border-nite-brand-primary bg-nite-brand-primary text-white":"border-nite-border-control bg-nite-background text-transparent"}`}>
-      {checked&&<svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m3 8 3.2 3.2L13 4.5"/></svg>}
+    <input aria-label={label} aria-checked={indeterminate?"mixed":checked} type="checkbox" checked={checked} onChange={(event)=>onChange(event.target.checked)} className="peer absolute inset-0 size-full cursor-pointer opacity-0"/>
+    <span aria-hidden="true" className={`grid size-[18px] place-items-center rounded-full border transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-nite-focus ${checked||indeterminate?"border-nite-brand-primary bg-nite-brand-primary text-white":"border-nite-border-control bg-nite-background text-transparent"}`}>
+      {indeterminate?<span className="h-0.5 w-2.5 rounded-full bg-current"/>:checked&&<svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m3 8 3.2 3.2L13 4.5"/></svg>}
     </span>
   </label>;
 }
@@ -153,36 +154,29 @@ export function SelectionToolbar({items,view,details,canArchivePersonal=false,on
   const canRename=!!item&&view==="personal"&&allows(item,"canRename",legacyOrganize);
   const canMove=!!item&&view==="personal"&&allows(item,"canMove",legacyOrganize);
   const unavailable=(reason:string)=>oneItemReason??reason;
-  return <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-2 py-[7px] text-type-body-compact text-nite-text-secondary">
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-      <SelectionAction label="Compartilhar" disabledReason={view==="personal"&&item&&allows(item,"canShare",true)?undefined:unavailable("Compartilhamento não está disponível para esta seleção.")} onClick={item?()=>onShare(item):undefined}><OneDriveMenuIcon name="share"/></SelectionAction>
-      <SelectionAction label="Copiar link" disabledReason={oneItemReason} onClick={item?()=>onCopyLink(item):undefined}><OneDriveMenuIcon name="copy-link"/></SelectionAction>
-      <SelectionAction label="Solicitar arquivos" disabledReason={item?.kind==="folder"&&itemCapabilities(item)?.canAddChild&&onRequest?oneItemReason:unavailable("Selecione uma pasta que permita receber arquivos.")} onClick={item&&onRequest?()=>onRequest(item):undefined}><OneDriveMenuIcon name="request-files"/></SelectionAction>
-      {onAutomate&&<SelectionAction label="Automatizar" disabledReason={item&&itemCapabilities(item)?.canView?oneItemReason:unavailable("Item indisponível para automação.")} onClick={item?()=>onAutomate(item):undefined}><MoreGlyph/></SelectionAction>}
+  return <div role="toolbar" aria-label="Ações para a seleção" className="relative flex h-[52px] min-w-0 flex-1 flex-nowrap items-center rounded-[8px] bg-nite-surface px-2.5 text-type-body-compact text-nite-text-secondary" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
+    <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1">
+      {item&&<SelectionAction label="Compartilhar" disabledReason={view==="personal"&&allows(item,"canShare",true)?undefined:"Compartilhamento não está disponível para esta seleção."} onClick={()=>onShare(item)}><OneDriveMenuIcon name="share"/></SelectionAction>}
+      {item&&<SelectionAction label="Copiar link" onClick={()=>onCopyLink(item)}><OneDriveMenuIcon name="copy-link"/></SelectionAction>}
+      {item?.kind==="folder"&&<SelectionAction label="Solicitar arquivos" disabledReason={itemCapabilities(item)?.canAddChild&&onRequest?undefined:"Selecione uma pasta que permita receber arquivos."} onClick={onRequest?()=>onRequest(item):undefined}><OneDriveMenuIcon name="request-files"/></SelectionAction>}
       {view==="personal"&&<SelectionAction label="Excluir" disabledReason={item&&itemCapabilities(item)?.canDeleteToTrash?oneItemReason:unavailable("Exclusão não autorizada para este item.")} onClick={item?()=>onArchive(item):undefined}><OneDriveMenuIcon name="delete"/></SelectionAction>}
       <SelectionAction label="Adicionar aos favoritos" disabledReason={item&&itemCapabilities(item)?.canView&&onFavorite?oneItemReason:unavailable("Favorito indisponível para esta seleção.")} onClick={item&&onFavorite?()=>onFavorite(item):undefined}><OneDriveMenuIcon name="add-to-favorites"/></SelectionAction>
       <SelectionAction label="Baixar" disabledReason={items.length>0&&items.every((entry)=>entry.kind==="folder"?itemCapabilities(entry)?.canView:itemCapabilities(entry)?.canDownload)?undefined:"Download não autorizado para esta seleção."} onClick={()=>{if(item?.kind==="file")onDownload(item);else onZip?.(items);}}><OneDriveMenuIcon name="download"/></SelectionAction>
-      {items.length>1&&<SelectionAction label="Operações em lote" disabledReason={onBatch?undefined:"Operações em lote indisponíveis."} onClick={onBatch}><MoreGlyph/></SelectionAction>}
-      {!details&&<>
-        <SelectionAction label="Duplicar" disabledReason={item&&itemCapabilities(item)?.canCopy&&onDuplicate?oneItemReason:unavailable("Duplicação não autorizada.")} onClick={item&&onDuplicate?()=>onDuplicate(item):undefined}><OneDriveMenuIcon name="duplicate"/></SelectionAction>
-        <SelectionAction label="Mover para" disabledReason={canMove?undefined:unavailable("Este item não pode ser movido neste contexto.")} onClick={item&&canMove?()=>onMove(item):undefined}><OneDriveMenuIcon name="move-to"/></SelectionAction>
-        <SelectionAction label="Copiar para" disabledReason={item&&itemCapabilities(item)?.canCopy&&onCopy?oneItemReason:unavailable("Cópia não autorizada.")} onClick={item&&onCopy?()=>onCopy(item):undefined}><OneDriveMenuIcon name="copy-to"/></SelectionAction>
-      </>}
+      <SelectionAction label="Duplicar" disabledReason={item&&itemCapabilities(item)?.canCopy&&onDuplicate?oneItemReason:unavailable("Duplicação não autorizada.")} onClick={item&&onDuplicate?()=>onDuplicate(item):undefined}><OneDriveMenuIcon name="duplicate"/></SelectionAction>
+      <SelectionAction label="Mover para" disabledReason={canMove?undefined:unavailable("Este item não pode ser movido neste contexto.")} onClick={item&&canMove?()=>onMove(item):undefined}><OneDriveMenuIcon name="move-to"/></SelectionAction>
+      <SelectionAction label="Copiar para" disabledReason={item&&itemCapabilities(item)?.canCopy&&onCopy?oneItemReason:unavailable("Cópia não autorizada.")} onClick={item&&onCopy?()=>onCopy(item):undefined}><OneDriveMenuIcon name="copy-to"/></SelectionAction>
       <details className="group/selection-actions relative">
         <summary aria-label="Mais opções de organização" className="grid size-9 cursor-pointer list-none place-items-center rounded-full text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden"><MoreGlyph/></summary>
-        <div className="absolute left-0 top-full z-30 mt-1 w-56 rounded-control border border-nite-border-soft bg-nite-surface p-1 shadow-nite-floating" aria-label="Opções de organização">
-          {details&&<>
-            <SelectionAction variant="menu" label="Duplicar" disabledReason={item&&itemCapabilities(item)?.canCopy&&onDuplicate?oneItemReason:unavailable("Duplicação não autorizada.")} onClick={item&&onDuplicate?()=>onDuplicate(item):undefined}><OneDriveMenuIcon name="duplicate"/></SelectionAction>
-            <SelectionAction variant="menu" label="Mover para" disabledReason={canMove?undefined:unavailable("Este item não pode ser movido neste contexto.")} onClick={item&&canMove?()=>onMove(item):undefined}><OneDriveMenuIcon name="move-to"/></SelectionAction>
-            <SelectionAction variant="menu" label="Copiar para" disabledReason={item&&itemCapabilities(item)?.canCopy&&onCopy?oneItemReason:unavailable("Cópia não autorizada.")} onClick={item&&onCopy?()=>onCopy(item):undefined}><OneDriveMenuIcon name="copy-to"/></SelectionAction>
-          </>}
+        <div role="menu" className="absolute right-0 top-full z-30 mt-1 w-[232px] rounded-control border border-nite-border-soft bg-nite-surface p-1 shadow-nite-floating" aria-label="Opções de organização">
+          {items.length>1&&<SelectionAction variant="menu" label="Operações em lote" disabledReason={onBatch?undefined:"Operações em lote indisponíveis."} onClick={onBatch}><MoreGlyph/></SelectionAction>}
           <SelectionAction variant="menu" label="Renomear" disabledReason={canRename?undefined:unavailable("Este item não pode ser renomeado neste contexto.")} onClick={item&&canRename?()=>onRename(item):undefined}><OneDriveMenuIcon name="rename"/></SelectionAction>
+          {onAutomate&&<SelectionAction variant="menu" label="Automatizar" disabledReason={item&&itemCapabilities(item)?.canView?oneItemReason:unavailable("Item indisponível para automação.")} onClick={item?()=>onAutomate(item):undefined}><MoreGlyph/></SelectionAction>}
         </div>
       </details>
     </div>
-    <div className="ml-auto flex shrink-0 items-center gap-2">
-      <button type="button" onClick={onClear} aria-label="Limpar seleção" className="inline-flex min-h-9 items-center gap-2 rounded-control border border-nite-border-soft px-3 text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus"><svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m5 5 10 10m0-10L5 15"/></svg>{items.length} selecionado{items.length===1?"":"s"}</button>
-      <button type="button" onClick={onDetails} aria-expanded={details} className={`inline-flex min-h-9 items-center gap-2 rounded-control border border-nite-border-soft px-3 text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus ${details?"border-nite-brand-primary text-nite-brand-primary":""}`}><OneDriveMenuIcon name="details"/>Detalhes</button>
+    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <button type="button" onClick={onClear} aria-label="Limpar seleção" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control border border-nite-border-soft px-3 font-semibold text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus"><svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m5 5 10 10m0-10L5 15"/></svg>{items.length} selecionado{items.length===1?"":"s"}</button>
+      <button type="button" onClick={onDetails} aria-expanded={details} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control px-3 font-semibold text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus ${details?"bg-nite-surface-elevated text-nite-text-primary":""}`}><OneDriveMenuIcon name="details"/>Detalhes</button>
     </div>
   </div>;
 }
@@ -228,6 +222,7 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
   ],[listing,receivedItems,sentResults]);
   const displayedItems=items;
   const selectedItems=items.filter((item)=>selected.includes(item.id));
+  const allItemsSelected=items.length>0&&items.every((item)=>selected.includes(item.id));
   const query={search:params.search,type:params.type,sort:params.sort,direction:params.direction};
   const rootHref=queryString(view,undefined,query);
   async function refreshCurrent() {
@@ -242,6 +237,11 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
   }
   function select(id:string,checked:boolean) {
     const next=checked?[...new Set([...selected,id])]:selected.filter((item)=>item!==id);
+    setSelected(next);
+    if(details)void(next[0]?showDetails(items.find((item)=>item.id===next[0])):showDetails(undefined,true));
+  }
+  function selectAll(checked:boolean) {
+    const next=checked?items.map((item)=>item.id):[];
     setSelected(next);
     if(details)void(next[0]?showDetails(items.find((item)=>item.id===next[0])):showDetails(undefined,true));
   }
@@ -430,7 +430,7 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
   function toggleType(mime:string) {
     router.push(queryString(view,folderId,{...query,type:params.type===mime?undefined:mime}));
   }
-  return <section className="h-[calc(100svh-6.5rem)] min-w-0 overflow-hidden sm:h-[calc(100svh-7rem)] lg:mb-[-1.75rem] lg:h-[calc(100svh-5.75rem)]" aria-label="Meus arquivos">
+  return <section className="h-[calc(100svh-6.5rem)] min-w-0 overflow-hidden sm:h-[calc(100svh-7rem)] lg:mb-[-1.75rem] lg:h-[calc(100svh-6.25rem)]" aria-label="Meus arquivos">
     <div ref={explorerGridRef} style={desktopPaneLayout?{gridTemplateColumns:sidePaneOpen?"minmax(0, 1fr) minmax(18rem, 22rem)":"minmax(0, 1fr) 0px",columnGap:sidePaneOpen?"1rem":"0px"}:undefined} className={`grid h-full min-h-0 min-w-0 items-stretch gap-4 transition-[grid-template-columns,column-gap] duration-200 ease-in-out motion-reduce:transition-none ${sidePaneOpen?"lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]":"grid-cols-1 lg:grid-cols-[minmax(0,1fr)_0px] lg:gap-0"}`}>
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-5">
     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -472,7 +472,7 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
       <button type="button" onClick={()=>{setAutomationTarget(current?.capabilities?.canView?{id:current.id,name:current.name,kind:"folder",folder:current}:null);setAutomationOpen(true);}} className="min-h-10 rounded-t-control px-4 text-nite-text-secondary hover:bg-nite-surface-subtle">Automações</button>
     </nav>
 
-    <div className="relative flex min-h-11 flex-wrap items-center justify-between gap-3" aria-label="Ferramentas dos arquivos">
+    <div className={`relative flex ${selected.length>0?"min-h-[52px] flex-nowrap":"min-h-11 flex-wrap"} items-center justify-between gap-3`} aria-label="Ferramentas dos arquivos">
       {selected.length>0?<SelectionToolbar items={selectedItems} view={view} details={details} canArchivePersonal={canArchivePersonal} onShare={setShareTarget} onCopyLink={(item)=>void copyLink(item)} onDownload={(item)=>void downloadItems([item])} onZip={(items)=>void downloadItems(items)} onArchive={setArchiveTarget} onRename={(item)=>{setManagementMode("organize");setManagementTarget(item);}} onMove={(item)=>{setManagementMode("organize");setManagementTarget(item);}} onCopy={(item)=>{setManagementMode("copy");setManagementTarget(item);}} onDuplicate={setDuplicateTarget} onFavorite={(item)=>void toggleFavorite(item)} onRequest={setRequestFolder} onBatch={()=>setBatchOpen(true)} onAutomate={(item)=>{setAutomationTarget(item);setAutomationOpen(true);}} onClear={clearSelection} onDetails={()=>toggleDetailsPanel(details,()=>void showDetails(),()=>setDetails(false))}/>:<>
       <div className="flex min-w-0 items-center gap-2">
         {view!=="sent"&&<button type="button" aria-label="Filtros" aria-expanded={filtersOpen} onClick={()=>{setDetails(false);setFiltersOpen((open)=>!open);}} className={`grid size-10 shrink-0 place-items-center rounded-full border border-nite-border-soft text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${filtersOpen?"bg-nite-surface-elevated":""}`}>
@@ -511,27 +511,27 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
 
     {issue&&<div role="alert" className="grid min-h-72 place-content-center gap-2 rounded-panel border border-nite-border-soft bg-nite-surface px-4 text-center"><p className="font-medium text-nite-text-primary">{issue==="access"?"Você não tem acesso a esta pasta.":issue==="not-found"?"A pasta não existe ou não está disponível para sua conta.":"Não foi possível carregar os arquivos."}</p><p className="text-type-body-compact text-nite-text-secondary">{issue==="access"||issue==="not-found"?"Volte para uma área compartilhada com você.":"Verifique a conexão com o serviço documental e tente novamente."}</p><button onClick={()=>router.refresh()} className="mx-auto min-h-10 rounded-control border border-nite-border-control px-4 text-nite-text-primary">Tentar novamente</button></div>}
     {!issue&&(listing||view!=="personal")&&<div className="min-h-0 min-w-0 flex-1">
-      <div className="flex h-full min-w-0 min-h-0 flex-col overflow-hidden bg-nite-background">
-        {displayedItems.length===0?<div className="grid min-h-80 flex-1 place-content-center gap-2 px-5 text-center"><p className="font-display text-type-section-title text-nite-text-primary">{params.search||params.type?"Nenhum resultado encontrado":view==="shared"?"Nenhum arquivo compartilhado com você":view==="sent"?"Nenhum arquivo compartilhado por você":"Esta pasta está vazia"}</p><p className="max-w-md text-type-body-compact text-nite-text-secondary">{params.search||params.type?"Ajuste a pesquisa ou remova o filtro para ver outros arquivos.":view==="shared"?"Quando alguém compartilhar um arquivo ou pasta com você, o item aparecerá aqui.":view==="sent"?"Os itens que você compartilhar aparecerão aqui.":"Crie uma pasta ou carregue arquivos para começar."}</p>{canAddContent&&!params.search&&!params.type&&<button onClick={()=>setDialog("files")} className="mx-auto min-h-10 rounded-control bg-nite-brand-primary px-4 text-white">Carregar arquivos</button>}</div>
+      <div className="flex h-full min-w-0 min-h-0 flex-col overflow-hidden rounded-[8px] bg-[color-mix(in_srgb,var(--nite-background)_88%,var(--nite-text-primary))]" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
+        {displayedItems.length===0?<div className="grid min-h-80 flex-1 place-content-center gap-2 px-5 text-center"><p className="font-display text-[20px] font-semibold leading-[27px] text-nite-text-primary">{params.search||params.type?"Nenhum resultado encontrado":view==="shared"?"Nenhum arquivo compartilhado com você":view==="sent"?"Nenhum arquivo compartilhado por você":"Esta pasta está vazia"}</p><p className="max-w-md text-xs leading-4 text-nite-text-secondary">{params.search||params.type?"Ajuste a pesquisa ou remova o filtro para ver outros arquivos.":view==="shared"?"Quando alguém compartilhar um arquivo ou pasta com você, o item aparecerá aqui.":view==="sent"?"Os itens que você compartilhar aparecerão aqui.":"Crie uma pasta ou carregue arquivos para começar."}</p>{canAddContent&&!params.search&&!params.type&&<button onClick={()=>setDialog("files")} className="mx-auto min-h-10 rounded-control bg-nite-brand-primary px-4 text-white">Carregar arquivos</button>}</div>
           :layout==="grid"?<div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-4 sm:grid-cols-2 xl:grid-cols-3">{displayedItems.map((item)=><button key={item.id} onClick={()=>select(item.id,!selected.includes(item.id))} onDoubleClick={()=>openItem(item)} className={`rounded-panel border p-4 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${selected.includes(item.id)?"border-nite-brand-primary bg-nite-brand-soft":"border-nite-border-soft hover:bg-nite-surface-subtle"}`}><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-control bg-nite-surface-subtle"><ItemIcon item={item}/></span><span className="min-w-0 truncate font-medium text-nite-text-primary">{item.name}</span></span><span className="mt-3 block text-type-metadata text-nite-text-muted">{item.kind==="folder"?"Pasta":item.file?bytes(item.file.size):"Arquivo"}</span></button>)}</div>
           :<div ref={tableContainerRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"><table className={`w-full min-w-0 table-fixed text-left ${layout==="compact"?"text-type-metadata":"text-type-body-compact"}`}>
             <colgroup>
-              <col className="w-[3.55%] 2xl:w-[55px]"/><col className="w-[2.55%] 2xl:w-[39px]"/>
+              <col className="w-[3.55%] 2xl:w-[56px]"/><col className="w-[2.55%] 2xl:w-[40px]"/>
               <col className="w-[93.9%] md:w-[51.9%] lg:w-[39.9%] xl:w-[31.9%] 2xl:w-auto" style={{width:wideLayout?`${flexibleColumnWidths[0]}px`:undefined}}/>
-              <col className="hidden md:table-column md:w-[42%] lg:w-[25%] xl:w-[12.65%] 2xl:w-[195px]"/>
+              <col className="hidden md:table-column md:w-[42%] lg:w-[25%] xl:w-[12.65%] 2xl:w-[200px]"/>
               <col className="hidden xl:table-column xl:w-[26%] 2xl:w-auto" style={{width:wideLayout?`${flexibleColumnWidths[1]}px`:undefined}}/>
-              <col className="hidden lg:table-column lg:w-[29%] xl:w-[6.96%] 2xl:w-[107px]"/>
-              <col className="hidden xl:table-column xl:w-[16.39%] 2xl:w-[107px]"/>
+              <col className="hidden lg:table-column lg:w-[29%] xl:w-[6.96%] 2xl:w-[140px]"/>
+              <col className="hidden xl:table-column xl:w-[16.39%] 2xl:w-[160px]"/>
               <col className="hidden 2xl:table-column 2xl:w-auto" style={{width:wideLayout?`${flexibleColumnWidths[2]}px`:undefined}}/>
             </colgroup>
-            <thead className="sticky top-0 z-10 border-b border-nite-border-soft bg-nite-background text-sm text-nite-text-muted"><tr>
-              <th aria-hidden="true" className="px-3 py-3"/><th className="px-2 py-3"><svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 text-nite-text-muted" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M5 2.5h6l4 4v10A1.5 1.5 0 0 1 13.5 18h-8A1.5 1.5 0 0 1 4 16.5v-12A2 2 0 0 1 5 2.5Z"/><path d="M11 2.5v4h4"/></svg></th>
-              <th className="min-w-0 overflow-hidden px-3 py-3">{view==="sent"?"Nome":<SortLink label="Nome" sort="name" {...{view,folderId,query}}/>}</th>
-              <th className="hidden min-w-0 overflow-hidden px-3 py-3 md:table-cell">{view==="sent"?"Compartilhado":<SortLink label="Modificado" sort="modifiedAt" {...{view,folderId,query}}/>}</th>
-              <th className="hidden min-w-0 overflow-hidden px-3 py-3 xl:table-cell"><span className="block truncate" title="Modificado por">Modificado por</span></th>
-              <th className="hidden min-w-0 overflow-hidden px-3 py-3 lg:table-cell">{view==="shared"&&!listing||view==="sent"?<span className="block truncate" title="Tamanho do arquivo">Tamanho do arquivo</span>:<SortLink label="Tamanho do arquivo" sort="size" {...{view,folderId,query}}/>}</th>
-              <th className="hidden min-w-0 overflow-hidden px-3 py-3 xl:table-cell"><span aria-label="Compartilhamento" className="block truncate" title="Compartilhamento">Compar...</span></th>
-              <th className="hidden min-w-0 overflow-hidden px-3 py-3 2xl:table-cell"><span className="block truncate" title="Atividade">Atividade</span></th>
+            <thead className="sticky top-0 z-10 border-b border-nite-border-soft bg-inherit text-sm font-semibold text-nite-text-secondary"><tr className="h-[49px]">
+              <th className="h-[49px] px-3 py-0">{selected.length>0&&<SelectionCheckbox label="Selecionar todas as linhas" checked={allItemsSelected} indeterminate={!allItemsSelected} onChange={selectAll}/>}</th><th className="h-[49px] px-2 py-0"><OneDriveMenuIcon name="page"/></th>
+              <th className="h-[49px] min-w-0 px-3 py-0">{view==="sent"?"Nome":<SortLink label="Nome" sort="name" {...{view,folderId,query}}/>}</th>
+              <th className="hidden h-[49px] min-w-0 px-3 py-0 md:table-cell">{view==="sent"?"Compartilhado":<SortLink label="Modificado" sort="modifiedAt" {...{view,folderId,query}}/>}</th>
+              <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 xl:table-cell"><span className="block truncate" title="Modificado por">Modificado por</span></th>
+              <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 lg:table-cell">{view==="shared"&&!listing||view==="sent"?<span className="block truncate" title="Tamanho do arquivo">Tamanho do arquivo</span>:<SortLink label="Tamanho do arquivo" sort="size" {...{view,folderId,query}}/>}</th>
+              <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 xl:table-cell"><span aria-label="Compartilhamento" title="Compartilhamento" className="block truncate">Compartilhamento</span></th>
+              <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 2xl:table-cell"><span className="block truncate" title="Atividade">Atividade</span></th>
             </tr></thead>
             <tbody>{displayedItems.map((item)=>{const isSelected=selected.includes(item.id);return <tr key={item.id} tabIndex={0} aria-selected={isSelected} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();select(item.id,!isSelected);}if(event.key==="ArrowRight")openItem(item);}} onDoubleClick={()=>openItem(item)} onClick={()=>select(item.id,!isSelected)} style={{backgroundColor:isSelected?"color-mix(in srgb, var(--nite-brand-primary) 24%, var(--nite-background))":undefined}} className="group cursor-pointer border-b border-nite-border-soft/70 transition-colors hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus">
               <td className="px-3 py-2"><SelectionCheckbox label={`Selecionar ${item.name}`} checked={isSelected} onChange={(checked)=>select(item.id,checked)} className={`transition-opacity focus-within:opacity-100 ${isSelected?"opacity-100":"opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}/></td>
@@ -618,7 +618,7 @@ function TrashDialog({item,returnTo,onClose}:{item:Item;returnTo:string;onClose:
 
 function SortLink({label,sort,view,folderId,query}:{label:string;sort:string;view:View;folderId:string|undefined;query:Record<string,string|undefined>}) {
   const direction=query.sort===sort&&query.direction!=="desc"?"desc":"asc";
-  return <Link href={queryString(view,folderId,{...query,sort,direction})} aria-label={`Ordenar por ${label}${query.sort===sort?query.direction==="desc"?", decrescente":", crescente":""}`} className="flex min-w-0 max-w-full items-center gap-1 hover:text-nite-text-primary"><span className="min-w-0 truncate">{label}</span><svg aria-hidden="true" viewBox="0 0 16 16" className={`size-3 shrink-0 transition-transform ${query.sort===sort&&query.direction==="desc"?"rotate-180":""}`} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 6 4 4 4-4"/></svg></Link>;
+  return <Link href={queryString(view,folderId,{...query,sort,direction})} aria-label={`Ordenar por ${label}${query.sort===sort?query.direction==="desc"?", decrescente":", crescente":""}`} className="flex min-w-0 max-w-full items-center gap-1 font-semibold hover:text-nite-text-primary"><span className="min-w-0 truncate">{label}</span><svg aria-hidden="true" viewBox="0 0 16 16" className={`size-3 shrink-0 transition-transform ${query.sort===sort&&query.direction==="desc"?"rotate-180":""}`} fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m4 6 4 4 4-4"/></svg></Link>;
 }
 
 function activityGroups(activity:ActivityListing) {
