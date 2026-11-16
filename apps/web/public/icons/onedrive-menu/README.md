@@ -2,7 +2,7 @@
 
 SVGs extraídos dos glifos exibidos no menu autenticado do OneDrive em 14/11/2026. Os ícones de ação usam os contornos das fontes ODSP servidas pela Microsoft: `odsp-next-icons-11c89b6d.woff` (fonte principal) e `odsp-next-icons-5-88ca8fec.woff` (Move to). `duplicate.svg` veio do símbolo SVG `AddSquareMultipleRegular` presente na página.
 
-Os SVGs usam `currentColor` para permitir aplicar a cor pelo CSS.
+Os ícones monocromáticos de ação e controle usam `currentColor` para permitir aplicar a cor pelo CSS. `page.svg` é o contorno usado no cabeçalho da coluna Nome. Os ícones `upload-file.svg`, `upload-folder.svg` e `options.svg` vieram do pacote oficial [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons/tree/main/packages/svg-icons).
 
 | Arquivo | Nome do ícone | Unicode | Fonte |
 |---|---|---:|---|
@@ -19,5 +19,9 @@ Os SVGs usam `currentColor` para permitir aplicar a cor pelo CSS.
 | `duplicate.svg` | AddSquareMultipleRegular | — | SVG embutido |
 | `folder-color.svg` | Color | U+E790 | ODSP principal |
 | `details.svg` | OpenPane | U+E8A0 | ODSP principal |
+| `options.svg` | Options Regular 24 | — | Fluent UI System Icons |
+| `page.svg` | Page | U+E7C3 | ODSP principal |
+| `upload-file.svg` | Document Arrow Up Regular 24 | — | Fluent UI System Icons |
+| `upload-folder.svg` | Folder Arrow Up Regular 24 | — | Fluent UI System Icons |
 
 Fontes das fontes: `https://res.public.onecdn.static.microsoft/files/sp-client/odsp-media-49ffc1dd/fluenthybridfont/odsp-next-icons-11c89b6d.woff` e `https://res.public.onecdn.static.microsoft/files/sp-client/odsp-media-49ffc1dd/fluenthybridfont/odsp-next-icons-5-88ca8fec.woff`.

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect,useMemo,useRef,useState,type ChangeEvent,type FormEvent,type KeyboardEvent,type ReactNode } from "react";
+import { useEffect,useMemo,useRef,useState,type ChangeEvent,type FormEvent,type KeyboardEvent,type MouseEvent,type ReactNode } from "react";
 import { parseActivityListing,parseDocumentInformation,parseLibraryFile,parseLibraryListing,parseSharedListing,parseSentListing,parseVersionPage,resourceOwnerLabel,type ActivityListing,type DocumentCapabilities,type DocumentInformation,type LibraryActivity,type LibraryFile,type LibraryFolder,type LibraryListing,type LibraryTemplate,type SharedItem,type SentItem,type DocumentVersionPage } from "../../lib/documents/library-contracts";
 import { copyLibraryItem,createLibraryFolder,createPersonalTemplateCopy,organizeLibraryFile,trashLibraryItem,updateLibraryFolder } from "../../lib/documents/library-actions";
 import { partitionUploadEntries } from "../../lib/documents/upload-batches";
@@ -94,12 +94,6 @@ function FolderGlyph({color,className="size-5"}:{color:string;className?:string}
   return <svg aria-hidden="true" viewBox="0 0 32 26" className={`${className} shrink-0`} fill="none"><path d="M2.5 5A2.5 2.5 0 0 1 5 2.5h7.1l3 3H27A2.5 2.5 0 0 1 29.5 8v13A2.5 2.5 0 0 1 27 23.5H5A2.5 2.5 0 0 1 2.5 21z" fill={color} stroke="color-mix(in srgb, currentColor 18%, transparent)" strokeWidth=".7"/><path d="M2.8 8h26.4" stroke="white" strokeOpacity=".48" strokeWidth="1"/></svg>;
 }
 
-function UploadGlyph({kind}:{kind:"file"|"folder"}) {
-  return kind==="file"
-    ? <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5 shrink-0 text-nite-text-secondary" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 2.5h6l4 4V12M11 2.5v4h4M5 2.5a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 5 17.5h5"/><path d="M14 17v-7m-3 3 3-3 3 3"/></svg>
-    : <svg aria-hidden="true" viewBox="0 0 20 20" className="size-5 shrink-0 text-nite-text-secondary" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h4l1.5 1.7h6.5A1.5 1.5 0 0 1 17.5 7.7v5.8A1.5 1.5 0 0 1 16 15H8"/><path d="M5.5 17v-7m-3 3 3-3 3 3"/></svg>;
-}
-
 function ListGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10"/><circle cx="3.5" cy="4" r=".7" fill="currentColor"/><circle cx="3.5" cy="8" r=".7" fill="currentColor"/><circle cx="3.5" cy="12" r=".7" fill="currentColor"/><circle cx="3.5" cy="16" r=".7" fill="currentColor"/></svg>;
 }
@@ -112,14 +106,22 @@ function MoreGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor"><circle cx="4" cy="10" r="1.35"/><circle cx="10" cy="10" r="1.35"/><circle cx="16" cy="10" r="1.35"/></svg>;
 }
 
-type OneDriveMenuIconName="share"|"copy-link"|"request-files"|"manage-access"|"delete"|"add-to-favorites"|"download"|"rename"|"move-to"|"copy-to"|"duplicate"|"folder-color"|"details"|"page";
+type OneDriveMenuIconName="share"|"copy-link"|"request-files"|"manage-access"|"delete"|"add-to-favorites"|"download"|"rename"|"move-to"|"copy-to"|"duplicate"|"folder-color"|"details"|"options"|"page"|"upload-file"|"upload-folder";
 function OneDriveMenuIcon({name}:{name:OneDriveMenuIconName}) {
   const source=`/icons/onedrive-menu/${name}.svg`;
   return <span aria-hidden="true" className="inline-block size-4 shrink-0 bg-current" style={{maskImage:`url("${source}")`,WebkitMaskImage:`url("${source}")`,maskRepeat:"no-repeat",WebkitMaskRepeat:"no-repeat",maskPosition:"center",WebkitMaskPosition:"center",maskSize:"contain",WebkitMaskSize:"contain"}}/>;
 }
 
-function RequestGlyph() {
-  return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4l1.5 1.5h5A1.5 1.5 0 0 1 16.5 8v7A1.5 1.5 0 0 1 15 16.5H4.5A1.5 1.5 0 0 1 3 15z"/><path d="M10 9v5m-2.5-2.5L10 9l2.5 2.5"/></svg>;
+export function CreateMenuActions({variant,onClose,onCreateFolder,onUploadFiles,onUploadFolder}:{variant:"title"|"primary";onClose:(event:MouseEvent<HTMLButtonElement>)=>void;onCreateFolder:()=>void;onUploadFiles:()=>void;onUploadFolder:()=>void}) {
+  const buttonClassName="flex h-9 w-full items-center gap-2 rounded-[4px] px-2 text-left text-[14px] font-normal leading-5 text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus";
+  const buttonStyle={fontSize:"14px",lineHeight:"20px"};
+  const run=(event:MouseEvent<HTMLButtonElement>,action:()=>void)=>{onClose(event);action();};
+  return <>
+    <button type="button" role="menuitem" onClick={(event)=>run(event,onCreateFolder)} className={buttonClassName} style={buttonStyle}><FolderGlyph color="#f6c445" className="size-4"/>{variant==="title"?"Nova pasta":"Pasta"}</button>
+    <div className="my-1 border-t border-nite-border-soft" aria-hidden="true"/>
+    <button type="button" role="menuitem" onClick={(event)=>run(event,onUploadFiles)} className={buttonClassName} style={buttonStyle}><OneDriveMenuIcon name="upload-file"/>Carregamento de arquivos</button>
+    <button type="button" role="menuitem" onClick={(event)=>run(event,onUploadFolder)} className={buttonClassName} style={buttonStyle}><OneDriveMenuIcon name="upload-folder"/>Carregamento de pasta</button>
+  </>;
 }
 
 function SelectionAction({label,disabledReason,onClick,children,variant="toolbar"}:{label:string;disabledReason?:string;onClick?:()=>void;children:ReactNode;variant?:"toolbar"|"menu"}) {
@@ -184,13 +186,17 @@ export function SelectionToolbar({items,view,details,canArchivePersonal=false,on
 export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems=EMPTY_SHARED,sentItems=EMPTY_SENT,hasMore=false,nextCursor=null,issue,view,memberId="",canArchivePersonal=false,templates,params}:Props) {
   const tableContainerRef=useRef<HTMLDivElement>(null);
   const explorerGridRef=useRef<HTMLDivElement>(null);
+  const titleMenuRef=useRef<HTMLDetailsElement>(null);
+  const createMenuRef=useRef<HTMLDivElement>(null);
+  const filesInputRef=useRef<HTMLInputElement>(null);
+  const directoryInputRef=useRef<HTMLInputElement>(null);
   const [tableWidth,setTableWidth]=useState(0);
   const [gridWidth,setGridWidth]=useState(0);
   const [wideLayout,setWideLayout]=useState(false);
   const [desktopPaneLayout,setDesktopPaneLayout]=useState(false);
   const router=useRouter();
   const [selected,setSelected]=useState<string[]>([]),[layout,setLayout]=useState<"list"|"compact"|"grid">("list");
-  const [createMenu,setCreateMenu]=useState(false),[dialog,setDialog]=useState<"folder"|"files"|"directory"|null>(null);
+  const [createMenu,setCreateMenu]=useState(false),[dialog,setDialog]=useState<"folder"|null>(null);
   const [filtersOpen,setFiltersOpen]=useState(false),[quickFiltersVisible,setQuickFiltersVisible]=useState(true),[folderColor,setFolderColor]=useState(folderColors[0]!.value),[folderName,setFolderName]=useState("");
   const [details,setDetails]=useState(false),[detailItem,setDetailItem]=useState<Item|null>(null),[detailPayload,setDetailPayload]=useState<{file?:LibraryFile;folder?:LibraryFolder;info?:DocumentInformation;activity?:ActivityListing}|null>(null);
   const [shareTarget,setShareTarget]=useState<Item|null>(null),[shareDialogMode,setShareDialogMode]=useState<"share"|"manage">("share"),[managementTarget,setManagementTarget]=useState<Item|null>(null),[managementMode,setManagementMode]=useState<"organize"|"copy">("organize"),[duplicateTarget,setDuplicateTarget]=useState<Item|null>(null),[requestFolder,setRequestFolder]=useState<Item|null>(null),[archiveTarget,setArchiveTarget]=useState<Item|null>(null),[folderColorUpdating,setFolderColorUpdating]=useState(false),[openItemMenu,setOpenItemMenu]=useState<string|null>(null),[openFolderColorMenu,setOpenFolderColorMenu]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null);
@@ -212,6 +218,20 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
     document.addEventListener("pointerdown",closeWhenOutside);
     return()=>document.removeEventListener("pointerdown",closeWhenOutside);
   },[openItemMenu]);
+  useEffect(()=>{
+    function closeMenus(event:globalThis.PointerEvent) {
+      if(!(event.target instanceof Node))return;
+      if(!titleMenuRef.current?.contains(event.target))titleMenuRef.current?.removeAttribute("open");
+      if(!createMenuRef.current?.contains(event.target))setCreateMenu(false);
+    }
+    function closeOnEscape(event:globalThis.KeyboardEvent) {
+      if(event.key!=="Escape")return;
+      titleMenuRef.current?.removeAttribute("open");setCreateMenu(false);
+    }
+    document.addEventListener("pointerdown",closeMenus);
+    document.addEventListener("keydown",closeOnEscape);
+    return()=>{document.removeEventListener("pointerdown",closeMenus);document.removeEventListener("keydown",closeOnEscape);};
+  },[]);
   const listing=loadedListing;
   const current=listing?.folder,folderId=current?.id;
   const items=useMemo<Item[]>(()=>[
@@ -337,6 +357,11 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
     const entries=files.map((file)=>({file,path:hierarchical?relativePath(file):file.name}));
     await uploadEntries(entries);
   }
+  function openFolderDialog() {
+    setFolderName("");setFolderColor(folderColors[0]!.value);setDialog("folder");
+  }
+  function openFilesPicker() {filesInputRef.current?.click();}
+  function openDirectoryPicker() {void pickDirectory();}
   async function uploadEntries(entries:Array<{file:File;path:string}>) {
     if(!folderId)return;
     const {batches,rejected}=partitionUploadEntries(entries),acceptedCount=batches.reduce((sum,batch)=>sum+batch.length,0);
@@ -357,7 +382,7 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
     const statusCounts=failedStatuses.reduce<Record<string,number>>((counts,status)=>({...counts,[String(status)]:(counts[String(status)]??0)+1}),{});
     const apiErrors=[statusCounts["400"]?`${statusCounts["400"]} lote(s) inválido(s)`:null,statusCounts["401"]||statusCounts["403"]?`${(statusCounts["401"]??0)+(statusCounts["403"]??0)} lote(s) sem autorização`:null,statusCounts["404"]?`${statusCounts["404"]} pasta(s) indisponível(is)`:null,statusCounts["409"]?`${statusCounts["409"]} conflito(s) de nome`:null,statusCounts["413"]?`${statusCounts["413"]} lote(s) acima do limite da requisição`:null,statusCounts["0"]?`${statusCounts["0"]} falha(s) de conexão`:null,failedStatuses.some((status)=>status>=500)?"serviço documental indisponível":null].filter((reason):reason is string=>reason!==null);
     const failureSummary=failed?`${failed} de ${entries.length} arquivo(s) não foram enviados.${reasons.length?` Rejeitados antes do envio: ${reasons.join(", ")}.`:""}${apiErrors.length?` Resultado dos lotes: ${apiErrors.join(", ")}.`:""}${batches.length>1?` Foram processados ${batches.length} lotes independentes.`:""}`:null;
-    setProgress(null);setDialog(null);setUploadSummary(failureSummary);
+    setProgress(null);setUploadSummary(failureSummary);
     if(sent>0) {
       const refreshParams=new URLSearchParams({view,folder:folderId});for(const [key,value] of Object.entries(query))if(value)refreshParams.set(key,value);
       try {const response=await fetch(`/api/library/listing?${refreshParams.toString()}`);const payload:unknown=response.ok?await response.json():null;const updated=parseLibraryListing(payload);if(updated)setLoadedListing(updated);else setMessage("Não foi possível atualizar a listagem após o envio.");}
@@ -366,7 +391,8 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
   }
   async function pickDirectory() {
     const picker:unknown=Reflect.get(window,"showDirectoryPicker");
-    if(typeof picker!=="function"||!folderId){setMessage("Este navegador não oferece seleção de pastas vazias. Use o seletor de pasta tradicional.");return;}
+    if(!folderId)return;
+    if(typeof picker!=="function") {directoryInputRef.current?.setAttribute("webkitdirectory","");directoryInputRef.current?.click();return;}
     type DirectoryHandle={kind:"directory";name:string;values:()=>AsyncIterable<unknown>};
     type FileHandle={kind:"file";name:string;getFile:()=>Promise<File>};
     const isDirectory=(value:unknown):value is DirectoryHandle=>typeof value==="object"&&value!==null&&"kind" in value&&value.kind==="directory"&&"name" in value&&typeof value.name==="string"&&"values" in value&&typeof value.values==="function";
@@ -388,7 +414,7 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
         if(!response.ok)throw new Error(`Falha ao criar diretórios (${response.status}). Parte da pasta pode ter sido enviada.`);
       }
       if(entries.length)await uploadEntries(entries);
-      else {setDialog(null);router.refresh();setMessage(`${directories.length} pasta(s) criada(s), inclusive vazias.`);}
+      else {router.refresh();setMessage(`${directories.length} pasta(s) criada(s), inclusive vazias.`);}
     }catch(cause){if(cause instanceof Error&&cause.name==="AbortError")return;setMessage(cause instanceof Error?cause.message:"Não foi possível carregar a pasta.");}
   }
   const baseAction=queryString(view,folderId,{});
@@ -441,35 +467,44 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
           <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5 text-nite-text-muted" fill="none" stroke="currentColor"><path d="m6 3 5 5-5 5"/></svg>
           <span aria-current="page" className="truncate font-semibold text-nite-text-primary">{pageTitle}</span>
         </nav>}
-        {canAddContent?<details className="group relative w-fit">
+        {canAddContent?<details ref={titleMenuRef} className="group relative w-fit" onClick={()=>setCreateMenu(false)}>
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-control py-1 font-display text-type-page-title font-semibold text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden">
             {pageTitle}<svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m5 7 5 5 5-5"/></svg>
           </summary>
-          <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-control border border-nite-border-soft bg-nite-surface-elevated p-1 shadow-nite-floating" role="group" aria-label="Criar ou carregar">
-            <button type="button" onClick={(event)=>{event.currentTarget.closest("details")?.removeAttribute("open");setFolderName("");setFolderColor(folderColors[0]!.value);setDialog("folder");}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nite-focus"><FolderGlyph color="#f6c445"/>Nova pasta</button>
-            <button type="button" onClick={(event)=>{event.currentTarget.closest("details")?.removeAttribute("open");setDialog("files");}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nite-focus"><UploadGlyph kind="file"/>Carregar arquivos</button>
-            <button type="button" onClick={(event)=>{event.currentTarget.closest("details")?.removeAttribute("open");setDialog("directory");}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-nite-focus"><UploadGlyph kind="folder"/>Carregar pasta</button>
+          <div className="absolute left-0 top-full z-30 mt-0.5 w-[245px] rounded-[8px] bg-[color-mix(in_srgb,var(--nite-background)_88%,var(--nite-text-primary))] p-1 shadow-nite-floating" role="menu" aria-label="Criar ou carregar pelo título" style={{fontFamily:'"Segoe UI",Tahoma,Arial,sans-serif'}}>
+            <CreateMenuActions
+              variant="title"
+              onClose={(event)=>event.currentTarget.closest("details")?.removeAttribute("open")}
+              onCreateFolder={openFolderDialog}
+              onUploadFiles={openFilesPicker}
+              onUploadFolder={openDirectoryPicker}
+            />
           </div>
-        </details>:<h1 className="font-display text-type-page-title font-semibold text-nite-text-primary">{pageTitle}</h1>}
+        </details>:<h1 className="py-1 font-display text-type-page-title font-semibold text-nite-text-primary">{pageTitle}</h1>}
       </div>
-      <div className="relative">
-        <button type="button" disabled={!canAddContent} onClick={()=>setCreateMenu((open)=>!open)} aria-expanded={canAddContent&&createMenu} title={canAddContent?undefined:"Você não tem permissão para adicionar arquivos nesta pasta."} style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif',fontSize:"14px",lineHeight:"20px",fontWeight:600}} className="inline-flex min-h-9 items-center gap-2.5 rounded-xl bg-nite-brand-primary py-2 pl-2.5 pr-3 text-sm font-semibold text-white shadow-sm hover:brightness-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:opacity-60">
+      <div ref={createMenuRef} className="relative">
+        <button type="button" disabled={!canAddContent} onClick={()=>{titleMenuRef.current?.removeAttribute("open");setCreateMenu((open)=>!open);}} aria-expanded={canAddContent&&createMenu} title={canAddContent?undefined:"Você não tem permissão para adicionar arquivos nesta pasta."} style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif',fontSize:"14px",lineHeight:"20px",fontWeight:600}} className="inline-flex min-h-9 items-center gap-2.5 rounded-xl bg-nite-brand-primary py-2 pl-2.5 pr-3 text-sm font-semibold text-white shadow-sm hover:brightness-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:opacity-60">
           <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 3v14M3 10h14"/></svg>Criar ou carregar
         </button>
-        {canAddContent&&createMenu&&<div className="absolute right-0 z-30 mt-2 max-h-[min(70vh,32rem)] w-72 overflow-y-auto rounded-control border border-nite-border-soft bg-nite-surface p-1 shadow-nite-floating" role="group" aria-label="Criar ou carregar">
-          <button type="button" onClick={()=>{setFolderName("");setFolderColor(folderColors[0]!.value);setDialog("folder");setCreateMenu(false);}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle"><FolderGlyph color="#f6c445"/>Nova pasta</button>
-          <button type="button" onClick={()=>{setDialog("files");setCreateMenu(false);}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle"><UploadGlyph kind="file"/>Carregar arquivos</button>
-          <button type="button" onClick={()=>{setDialog("directory");setCreateMenu(false);}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle"><UploadGlyph kind="folder"/>Carregar pasta</button>
-          {current&&<button type="button" onClick={()=>{setRequestFolder({id:current.id,name:current.name,kind:"folder",folder:current});setCreateMenu(false);}} className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle"><RequestGlyph/>Solicitar arquivos</button>}
-          {templates.length>0&&<div className="mt-1 border-t border-nite-border-soft pt-1"><p className="px-3 py-2 text-type-metadata text-nite-text-muted">Modelos disponíveis</p>{templates.map((template)=><form key={template.id} action={createPersonalTemplateCopy}><input type="hidden" name="templateId" value={template.id}/><input type="hidden" name="returnTo" value={baseAction}/><button onClick={()=>setCreateMenu(false)} className="w-full truncate rounded-control px-3 py-2 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle">{template.title}</button></form>)}</div>}
+        {canAddContent&&createMenu&&<div className="absolute right-0 top-full z-30 mt-1 w-[245px] rounded-[8px] bg-[color-mix(in_srgb,var(--nite-background)_88%,var(--nite-text-primary))] p-1 shadow-nite-floating" role="menu" aria-label="Criar ou carregar" style={{fontFamily:'"Segoe UI",Tahoma,Arial,sans-serif'}}>
+          <CreateMenuActions
+            variant="primary"
+            onClose={()=>setCreateMenu(false)}
+            onCreateFolder={openFolderDialog}
+            onUploadFiles={openFilesPicker}
+            onUploadFolder={openDirectoryPicker}
+          />
         </div>}
       </div>
     </div>
+    <input ref={filesInputRef} type="file" multiple accept=".docx,.pdf,.png,.jpg,.jpeg" className="hidden" aria-label="Selecionar arquivos para carregar" onChange={(event)=>void loadFiles(event,false)}/>
+    <input ref={directoryInputRef} type="file" multiple className="hidden" aria-label="Selecionar pasta para carregar" onChange={(event)=>void loadFiles(event,true)}/>
 
     <nav aria-label="Perspectivas dos arquivos" className="flex flex-wrap gap-1 border-b border-nite-border-soft text-type-body-compact">
       {([["personal","Meus arquivos"],["shared","Com você"],["sent","Por você"]] as const).map(([perspective,label])=><Link key={perspective} href={queryString(perspective,undefined,query)} aria-current={view===perspective?"page":undefined} className={`min-h-10 rounded-t-control px-4 py-2.5 focus-visible:outline-2 focus-visible:outline-nite-focus ${view===perspective?"border-b-2 border-nite-brand-primary font-semibold text-nite-brand-primary":"text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>{label}</Link>)}
       <button type="button" onClick={()=>setRequestsOpen(true)} className="ml-auto min-h-10 rounded-t-control px-4 text-nite-text-secondary hover:bg-nite-surface-subtle">Solicitações</button>
       <button type="button" onClick={()=>{setAutomationTarget(current?.capabilities?.canView?{id:current.id,name:current.name,kind:"folder",folder:current}:null);setAutomationOpen(true);}} className="min-h-10 rounded-t-control px-4 text-nite-text-secondary hover:bg-nite-surface-subtle">Automações</button>
+      {canAddContent&&templates.length>0&&<details className="group relative"><summary className="flex min-h-10 cursor-pointer list-none items-center rounded-t-control px-4 text-nite-text-secondary hover:bg-nite-surface-subtle [&::-webkit-details-marker]:hidden">Modelos</summary><div className="absolute right-0 top-full z-30 w-60 rounded-control border border-nite-border-soft bg-nite-surface p-1 shadow-nite-floating">{templates.map((template)=><form key={template.id} action={createPersonalTemplateCopy}><input type="hidden" name="templateId" value={template.id}/><input type="hidden" name="returnTo" value={baseAction}/><button type="submit" className="w-full truncate rounded-control px-3 py-2 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle">{template.title}</button></form>)}</div></details>}
     </nav>
 
     <div className={`relative flex ${selected.length>0?"min-h-[52px] flex-nowrap":"min-h-11 flex-wrap"} items-center justify-between gap-3`} aria-label="Ferramentas dos arquivos">
@@ -492,11 +527,11 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
         <Link href="/documentos?advanced=1" className="min-h-10 rounded-control px-3 py-2 text-type-body-compact text-nite-brand-primary hover:bg-nite-surface-subtle">Pesquisa avançada</Link>
         <div className="relative flex items-center gap-2">
           <details className="group relative">
-            <summary aria-label="Opções de visualização e classificação" className="grid size-10 cursor-pointer list-none place-items-center rounded-full border border-nite-border-soft text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden"><svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="var(--nite-background)"/><circle cx="15" cy="12" r="2" fill="var(--nite-background)"/><circle cx="11" cy="18" r="2" fill="var(--nite-background)"/></svg></summary>
+            <summary aria-label="Opções de visualização e classificação" className="grid size-10 cursor-pointer list-none place-items-center rounded-full border border-nite-border-soft text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden"><OneDriveMenuIcon name="options"/></summary>
             <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-control border border-nite-border-soft bg-nite-surface p-2 shadow-nite-floating"><p className="px-2 py-2 text-type-metadata font-semibold text-nite-text-muted">Visualização</p>{([["list","Lista"],["compact","Lista compacta"],["grid","Blocos"]] as const).map(([value,label])=><button key={value} type="button" aria-pressed={layout===value} onClick={()=>setLayout(value)} className={`flex min-h-10 w-full items-center gap-3 rounded-control px-2 text-left text-type-body-compact ${layout===value?"bg-nite-brand-soft text-nite-brand-primary":"text-nite-text-primary hover:bg-nite-surface-subtle"}`}>{value==="grid"?<GridGlyph/>:<ListGlyph/>}{label}</button>)}{view!=="sent"&&<><div className="my-2 border-t border-nite-border-soft"/><p className="px-2 py-2 text-type-metadata font-semibold text-nite-text-muted">Classificar por</p>{([["name","Nome"],["modifiedAt","Modificado"],["createdAt","Criado"],["size","Tamanho do arquivo"]] as const).map(([sort,label])=><Link key={sort} href={queryString(view,folderId,{...query,sort,direction:query.sort===sort&&query.direction!=="desc"?"desc":"asc"})} className="flex min-h-9 items-center rounded-control px-2 text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle">{label}</Link>)}</>}</div>
           </details>
           <button type="button" aria-expanded={details} aria-label="Detalhes" onClick={()=>{setFiltersOpen(false);if(details){setDetails(false);return;}void showDetails();}} className={`inline-flex min-h-10 items-center gap-2 rounded-control border border-nite-border-soft px-3 text-type-body-compact text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${details?"border-nite-brand-primary text-nite-brand-primary":""}`}>
-            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2.5" y="3" width="15" height="14" rx="2"/><path d="M7 3v14M10 7h5m-5 3h5m-5 3h4"/></svg>Detalhes
+            <OneDriveMenuIcon name="details"/>Detalhes
           </button>
         </div>
       </div>
@@ -510,9 +545,9 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
     {progress&&<div role="status" aria-live="polite" className="rounded-panel border border-nite-border-soft bg-nite-surface p-4"><div className="mb-2 flex justify-between text-type-body-compact text-nite-text-primary"><span>Enviando arquivos · {progress.sent} de {progress.total}</span><span>{progress.percent}%</span></div><progress className="h-2 w-full accent-nite-brand-primary" max={100} value={progress.percent}/></div>}
 
     {issue&&<div role="alert" className="grid min-h-72 place-content-center gap-2 rounded-panel border border-nite-border-soft bg-nite-surface px-4 text-center"><p className="font-medium text-nite-text-primary">{issue==="access"?"Você não tem acesso a esta pasta.":issue==="not-found"?"A pasta não existe ou não está disponível para sua conta.":"Não foi possível carregar os arquivos."}</p><p className="text-type-body-compact text-nite-text-secondary">{issue==="access"||issue==="not-found"?"Volte para uma área compartilhada com você.":"Verifique a conexão com o serviço documental e tente novamente."}</p><button onClick={()=>router.refresh()} className="mx-auto min-h-10 rounded-control border border-nite-border-control px-4 text-nite-text-primary">Tentar novamente</button></div>}
-    {!issue&&(listing||view!=="personal")&&<div className="min-h-0 min-w-0 flex-1">
-      <div className="flex h-full min-w-0 min-h-0 flex-col overflow-hidden rounded-[8px] bg-[color-mix(in_srgb,var(--nite-background)_88%,var(--nite-text-primary))]" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
-        {displayedItems.length===0?<div className="grid min-h-80 flex-1 place-content-center gap-2 px-5 text-center"><p className="font-display text-[20px] font-semibold leading-[27px] text-nite-text-primary">{params.search||params.type?"Nenhum resultado encontrado":view==="shared"?"Nenhum arquivo compartilhado com você":view==="sent"?"Nenhum arquivo compartilhado por você":"Esta pasta está vazia"}</p><p className="max-w-md text-xs leading-4 text-nite-text-secondary">{params.search||params.type?"Ajuste a pesquisa ou remova o filtro para ver outros arquivos.":view==="shared"?"Quando alguém compartilhar um arquivo ou pasta com você, o item aparecerá aqui.":view==="sent"?"Os itens que você compartilhar aparecerão aqui.":"Crie uma pasta ou carregue arquivos para começar."}</p>{canAddContent&&!params.search&&!params.type&&<button onClick={()=>setDialog("files")} className="mx-auto min-h-10 rounded-control bg-nite-brand-primary px-4 text-white">Carregar arquivos</button>}</div>
+    {!issue&&(listing||view!=="personal")&&<div className={`min-h-0 min-w-0 flex-1 ${view==="personal"?"-mt-[5px]":"-mt-[8px]"}`}>
+      <div className="flex h-full min-w-0 min-h-0 flex-col overflow-hidden rounded-[8px] bg-[#292827]" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
+        {displayedItems.length===0?<div className="grid min-h-80 flex-1 place-content-center gap-2 px-5 text-center"><p className="font-display text-[20px] font-semibold leading-[27px] text-nite-text-primary">{params.search||params.type?"Nenhum resultado encontrado":view==="shared"?"Nenhum arquivo compartilhado com você":view==="sent"?"Nenhum arquivo compartilhado por você":"Esta pasta está vazia"}</p><p className="max-w-md text-xs leading-4 text-nite-text-secondary">{params.search||params.type?"Ajuste a pesquisa ou remova o filtro para ver outros arquivos.":view==="shared"?"Quando alguém compartilhar um arquivo ou pasta com você, o item aparecerá aqui.":view==="sent"?"Os itens que você compartilhar aparecerão aqui.":"Crie uma pasta ou carregue arquivos para começar."}</p>{canAddContent&&!params.search&&!params.type&&<button onClick={openFilesPicker} className="mx-auto min-h-10 rounded-control bg-nite-brand-primary px-4 text-white">Carregar arquivos</button>}</div>
           :layout==="grid"?<div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-4 sm:grid-cols-2 xl:grid-cols-3">{displayedItems.map((item)=><button key={item.id} onClick={()=>select(item.id,!selected.includes(item.id))} onDoubleClick={()=>openItem(item)} className={`rounded-panel border p-4 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${selected.includes(item.id)?"border-nite-brand-primary bg-nite-brand-soft":"border-nite-border-soft hover:bg-nite-surface-subtle"}`}><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-control bg-nite-surface-subtle"><ItemIcon item={item}/></span><span className="min-w-0 truncate font-medium text-nite-text-primary">{item.name}</span></span><span className="mt-3 block text-type-metadata text-nite-text-muted">{item.kind==="folder"?"Pasta":item.file?bytes(item.file.size):"Arquivo"}</span></button>)}</div>
           :<div ref={tableContainerRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"><table className={`w-full min-w-0 table-fixed text-left ${layout==="compact"?"text-type-metadata":"text-type-body-compact"}`}>
             <colgroup>
@@ -582,16 +617,15 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
     {details&&!filtersOpen&&<DetailsPanel item={detailItem??selectedItems[0]??{id:current?.id??"",name:pageTitle,kind:"folder",folder:current??undefined}} file={detailPayload?.file} folder={detailPayload?.folder} info={detailPayload?.info} activity={detailPayload?.activity} activityOnly={!detailItem&&selectedItems.length===0} loading={loadingDetails} currentFolder={current} ancestors={ancestors} view={view} atRoot={!inFolder} onClose={()=>setDetails(false)} onLoadMoreActivity={()=>void loadMoreActivity()} onChanged={()=>{void refreshCurrent();void showDetails(detailItem??undefined);}}/>}
     </div>
 
-    {dialog&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDialog(null);}}>
-      <section role="dialog" aria-modal="true" aria-labelledby="my-files-dialog-title" onKeyDown={(event)=>containDialogFocus(event,()=>setDialog(null))} className="w-full max-w-lg rounded-control border border-nite-border-soft bg-nite-surface p-6 shadow-nite-modal">
-        <div className="mb-5 flex items-start justify-between gap-3"><div><h2 id="my-files-dialog-title" className="font-display text-type-section-title text-nite-text-primary">{dialog==="folder"?"Crie uma pasta":dialog==="files"?"Carregar arquivos":"Carregar pasta"}</h2>{dialog!=="folder"&&<p className="mt-1 text-type-body-compact text-nite-text-secondary">Destino: {current?.name??"Meus arquivos"}</p>}</div><button autoFocus onClick={()=>setDialog(null)} aria-label="Fechar diálogo" className="grid size-9 place-items-center rounded-control text-nite-text-secondary hover:bg-nite-surface-subtle">×</button></div>
-        {dialog==="folder"?<form action={createLibraryFolder} className="grid gap-5">
+    {dialog==="folder"&&<div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)setDialog(null);}}>
+      <section role="dialog" aria-modal="true" aria-labelledby="my-files-dialog-title" onKeyDown={(event)=>containDialogFocus(event,()=>setDialog(null))} className="w-full max-w-[440px] rounded-[8px] bg-[color-mix(in_srgb,var(--nite-background)_94%,var(--nite-text-primary))] p-6 shadow-nite-modal" style={{fontFamily:'"Segoe UI",Tahoma,Arial,sans-serif',fontSize:"14px"}}>
+        <div className="mb-5 flex items-start justify-between gap-3"><h2 id="my-files-dialog-title" className="text-xl font-semibold leading-6 text-nite-text-primary">Crie uma pasta</h2><button type="button" onClick={()=>setDialog(null)} aria-label="Fechar diálogo" className="grid size-6 place-items-center rounded-[4px] text-xl leading-none text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus">×</button></div>
+        <form action={createLibraryFolder} className="grid gap-7">
           <input type="hidden" name="parentId" value={folderId??""}/><input type="hidden" name="color" value={folderColor}/><input type="hidden" name="returnTo" value={baseAction}/>
-          <label className="grid gap-2 text-type-body-compact font-medium text-nite-text-secondary">Nome<input name="name" autoFocus value={folderName} onChange={(event)=>setFolderName(event.target.value)} maxLength={190} className="min-h-11 rounded-control border border-nite-border-control bg-nite-background px-3 text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"/></label>
-          <fieldset><legend className="mb-3 text-type-body-compact font-medium text-nite-text-secondary">Cor da pasta</legend><div className="grid max-w-[22rem] grid-cols-8 gap-2">{folderColors.map((color)=><label key={color.value} title={color.name} className={`grid size-8 cursor-pointer place-items-center rounded-full focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-nite-focus ${folderColor===color.value?"ring-2 ring-nite-brand-primary ring-offset-2 ring-offset-nite-surface":""}`} style={{backgroundColor:color.value}}><input type="radio" name="folder-color" value={color.value} checked={folderColor===color.value} onChange={()=>setFolderColor(color.value)} aria-label={color.name} className="sr-only"/>{folderColor===color.value&&<svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 text-white drop-shadow" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="m4 10 4 4 8-8"/></svg>}</label>)}</div></fieldset>
-          <div className="flex justify-end gap-2 border-t border-nite-border-soft pt-4"><button type="button" onClick={()=>setDialog(null)} className="min-h-10 rounded-control px-4 text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle">Cancelar</button><button type="submit" disabled={!folderName.trim()} className="min-h-10 rounded-control bg-nite-brand-primary px-4 text-type-body-compact font-medium text-white disabled:cursor-not-allowed disabled:opacity-55">Criar pasta</button></div>
+          <label className="grid gap-2 text-sm font-semibold text-nite-text-primary">Nome<input name="name" autoFocus value={folderName} onChange={(event)=>setFolderName(event.target.value)} maxLength={190} className="h-8 rounded-[3px] border border-nite-border-control bg-nite-background px-2 font-normal text-nite-text-primary focus-visible:outline-2 focus-visible:outline-nite-focus"/></label>
+          <fieldset><legend className="mb-3 text-sm font-semibold text-nite-text-primary">Cor da pasta</legend><div className="grid grid-cols-[repeat(8,32px)] justify-between gap-y-2.5">{folderColors.map((color)=><label key={color.value} title={color.name} className="grid size-8 cursor-pointer place-items-center rounded-full focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-nite-focus"><input type="radio" name="folder-color" value={color.value} checked={folderColor===color.value} onChange={()=>setFolderColor(color.value)} aria-label={color.name} className="sr-only"/><span aria-hidden="true" className={`size-6 rounded-full ${folderColor===color.value?"ring-2 ring-nite-brand-primary ring-offset-2 ring-offset-nite-background":"hover:ring-2 hover:ring-nite-border-strong hover:ring-offset-2 hover:ring-offset-nite-background"}`} style={{backgroundColor:color.value}}/></label>)}</div></fieldset>
+          <div className="flex justify-end gap-2"><button type="submit" disabled={!folderName.trim()} className="h-8 min-w-20 rounded-full bg-nite-brand-primary px-4 text-sm font-semibold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:bg-nite-surface-elevated disabled:text-nite-text-muted disabled:hover:brightness-100">Criar</button><button type="button" onClick={()=>setDialog(null)} className="h-8 min-w-[88px] rounded-full border border-nite-border-control px-4 text-sm font-semibold text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Cancelar</button></div>
         </form>
-          :<div className="grid gap-4"><label className="grid min-h-32 cursor-pointer place-content-center gap-2 rounded-panel border border-dashed border-nite-border-strong bg-nite-surface-subtle p-5 text-center hover:bg-nite-surface-focus"><span className="font-medium text-nite-text-primary">{dialog==="files"?"Selecionar arquivos":"Selecionar uma pasta"}</span><span className="text-type-body-compact text-nite-text-secondary">DOCX, PDF, PNG e JPEG · até 8 MiB por arquivo</span><input type="file" multiple accept=".docx,.pdf,.png,.jpg,.jpeg" className="sr-only" onClick={(event)=>{if(dialog==="directory")event.currentTarget.setAttribute("webkitdirectory","");}} onChange={(event)=>void loadFiles(event,dialog==="directory")}/></label>{dialog==="directory"&&<button type="button" onClick={()=>void pickDirectory()} className="min-h-10 rounded-control border border-nite-border-control px-3 text-type-body-compact text-nite-text-primary">Selecionar pasta incluindo diretórios vazios</button>}<p className="text-type-metadata text-nite-text-muted">Pastas são enviadas em lotes independentes de até 100 itens e 32 MiB. Erros por lote são informados no resultado.</p><div className="flex justify-end"><button type="button" onClick={()=>setDialog(null)} className="min-h-10 rounded-control px-4 text-nite-text-secondary">Fechar</button></div></div>}
       </section>
     </div>}
     {shareTarget&&<ShareDialog item={shareTarget} mode={shareDialogMode} onClose={()=>setShareTarget(null)} onMessage={setMessage} onChanged={()=>void refreshCurrent()}/>}
