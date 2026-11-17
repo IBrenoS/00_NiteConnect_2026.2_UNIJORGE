@@ -7,10 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ActivityAuthorizationTest extends ActivityTestSupport {
-    @Test void personalOwnerCannotDistributeWorkAndDelegatedCreatorLosesManagement() throws Exception {
+    @Test void personalCreatorCanDistributeWorkAndDelegatedCreatorLosesGeneralManagement() throws Exception {
         UUID id=activity(MEMBER,null,MEMBER);
         mvc.perform(post("/api/v1/activities/"+id+"/collaborators").with(token(MEMBER)).contentType("application/json")
-                .content(command(id,",\"memberId\":\""+OTHER+"\""))).andExpect(status().isForbidden());
+                .content(command(id,",\"memberId\":\""+OTHER+"\""))).andExpect(status().isCreated());
         mvc.perform(put("/api/v1/activities/"+id+"/executor").with(token(ADMIN)).contentType("application/json")
                 .content(command(id,",\"memberId\":\""+OTHER+"\",\"confirmed\":true"))).andExpect(status().isOk());
         mvc.perform(get("/api/v1/activities/"+id).with(token(MEMBER))).andExpect(status().isOk());

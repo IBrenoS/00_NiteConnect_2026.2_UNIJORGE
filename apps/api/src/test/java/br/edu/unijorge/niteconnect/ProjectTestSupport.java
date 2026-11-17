@@ -21,7 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "nite.entra.enabled=true",
         "nite.entra.tenant-id=11111111-1111-4111-8111-111111111111",
         "nite.entra.audience=22222222-2222-4222-8222-222222222222",
-        "nite.entra.required-scope=access_as_user"
+        "nite.entra.required-scope=access_as_user",
+        "nite.activities.evidence-deletion-poll-delay-ms=3600000"
 })
 abstract class ProjectTestSupport {
     // Singleton lifecycle: subclasses share the Spring context and this database.

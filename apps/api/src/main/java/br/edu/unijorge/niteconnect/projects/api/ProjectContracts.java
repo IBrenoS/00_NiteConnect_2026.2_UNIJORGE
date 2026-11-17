@@ -20,4 +20,10 @@ public final class ProjectContracts {
     /** memberId null requests an explicit administrative vacancy. */
     public record Transfer(UUID memberId, @NotNull @PositiveOrZero Long expectedVersion,
                            @NotBlank @Size(max=1000) String reason) {}
+    public record MembershipRequest(@Size(max=2000) String message) {}
+    public record MembershipDecision(@NotNull Boolean approve, @Size(max=2000) String message,
+                                     @NotNull @PositiveOrZero Long expectedVersion) {}
+    public record Availability(@NotNull Boolean acceptingMembers, @NotNull @PositiveOrZero Long expectedVersion) {}
+    public record Interest(@Size(max=2000) String message) {}
+    public record RequestClosure(@NotNull @PositiveOrZero Long expectedVersion) {}
 }

@@ -11,7 +11,7 @@ class ActivityCapabilitiesTest extends ActivityTestSupport {
         mvc.perform(get("/api/v1/me/activities/capabilities").with(token(MEMBER))).andExpect(status().isOk()).andExpect(jsonPath("$.createIndependent").value(true));
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(MEMBER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.edit").value(true)).andExpect(jsonPath("$.history").value(true))
-                .andExpect(jsonPath("$.manageAssignees").value(false)).andExpect(jsonPath("$.addEvidence").value(true))
+                .andExpect(jsonPath("$.manageAssignees").value(true)).andExpect(jsonPath("$.collaborate").value(true)).andExpect(jsonPath("$.addEvidence").value(true))
                 .andExpect(jsonPath("$.upload").value(false)).andExpect(jsonPath("$.transitions[0]").value("EM_EXECUCAO"));
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(OTHER))).andExpect(status().isNotFound());
         state(id,MEMBER,"CANCELADA");
@@ -28,7 +28,8 @@ class ActivityCapabilitiesTest extends ActivityTestSupport {
                 .andExpect(jsonPath("$.addEvidence").value(true)).andExpect(jsonPath("$.transitions.length()").value(0));
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(LEADER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.edit").value(true)).andExpect(jsonPath("$.history").value(true))
-                .andExpect(jsonPath("$.manageAssignees").value(true));
+                .andExpect(jsonPath("$.manageAssignees").value(true)).andExpect(jsonPath("$.changePriority").value(true))
+                .andExpect(jsonPath("$.collaborate").value(true)).andExpect(jsonPath("$.canDelete").value(true));
     }
     @Test void delegationHistoryRemovesPersonalOwnerAndAdministratorKeepsManagement() throws Exception {
         UUID id=activity(MEMBER,null,MEMBER);

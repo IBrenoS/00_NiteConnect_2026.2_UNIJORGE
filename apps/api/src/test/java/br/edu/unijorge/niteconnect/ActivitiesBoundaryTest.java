@@ -8,15 +8,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ActivitiesBoundaryTest extends ActivityTestSupport {
-    @Test void memberCreatesIndependentActivityAndCannotAssignAnotherPerson() throws Exception {
+    @Test void memberCreatesIndependentActivityForAnotherActivePerson() throws Exception {
         UUID id = activity(MEMBER, null, MEMBER);
         mvc.perform(get("/api/v1/activities/" + id).with(token(MEMBER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.projectId").isEmpty()).andExpect(jsonPath("$.primaryExecutorName").value("Teste"));
         mvc.perform(post("/api/v1/activities").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"Teste\",\"description\":\"Teste\",\"primaryExecutorId\":\"" + OTHER + "\",\"reason\":\"Teste\"}"))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/activities/" + id).with(token(OTHER))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/activities").with(token(OTHER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+                .andExpect(status().isCreated());
+        UUID assigned = jdbc.queryForObject("select id from nite_connect.activities where title='Teste'", UUID.class);
+        mvc.perform(get("/api/v1/activities/" + assigned).with(token(OTHER))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/activities").with(token(OTHER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
     }
     @Test void leaderCreatesOnlyForCurrentTeamAndCannotReadAnotherProjectActivity() throws Exception {
         UUID p = activeProject(); UUID id = activity(LEADER, p, MEMBER);

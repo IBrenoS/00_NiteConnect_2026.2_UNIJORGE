@@ -56,8 +56,10 @@ public class ActivityPolicy {
         else execute(actor,a);
     }
     public void assign(UUID actor,Activity a) {
-        manage(actor,a);editable(a);
-        if(a.projectId()==null) access.requireAdministrator(actor);
+        read(actor,a);editable(a);
+        if(a.projectId()==null) {
+            if(!access.isAdministrator(actor) && !a.createdBy().equals(actor)) throw ApiException.forbidden();
+        } else manage(actor,a);
     }
     public void withdraw(UUID actor,Activity a,UUID author) {
         context(a,false);

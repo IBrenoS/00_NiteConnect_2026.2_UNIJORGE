@@ -36,7 +36,12 @@ public class ActivityCapabilities {
     @Transactional(readOnly=true) public View read(UUID actor, UUID id) {
         access.requireActive(actor);
         var activity=activities.require(id);
-        policy.read(actor,activity);
+        boolean canDelete=activity.createdBy().equals(actor);
+        try { policy.read(actor,activity); }
+        catch(ApiException e) {
+            if(canDelete && (e.status()==HttpStatus.FORBIDDEN || e.status()==HttpStatus.NOT_FOUND)) return View.deletionOnly();
+            throw e;
+        }
         boolean manage=allows(() -> policy.manage(actor,activity));
         boolean edit=manage && allows(() -> policy.editable(activity));
         boolean assign=allows(() -> policy.assign(actor,activity));
@@ -44,7 +49,7 @@ public class ActivityCapabilities {
         List<ActivityStatus> transitions=Arrays.stream(ActivityStatus.values()).filter(activity.status()::canTransitionTo).filter(next -> {
             return allows(() -> policy.transition(actor,activity,next));
         }).toList();
-        return new View(edit,transitions,manage,assign,contribute,contribute && storage.enabled());
+        return new View(edit,edit,transitions,manage,assign,assign,contribute,contribute && storage.enabled(),canDelete);
     }
     private static boolean allows(Runnable check) {
         try { check.run();return true; }
@@ -55,5 +60,8 @@ public class ActivityCapabilities {
     }
     public record Personal(boolean createIndependent) {}
     public record EvidenceView(boolean withdraw) {}
-    public record View(boolean edit,List<ActivityStatus> transitions,boolean history,boolean manageAssignees,boolean addEvidence,boolean upload) {}
+    public record View(boolean edit,boolean changePriority,List<ActivityStatus> transitions,boolean history,
+                       boolean manageAssignees,boolean collaborate,boolean addEvidence,boolean upload,boolean canDelete) {
+        private static View deletionOnly() { return new View(false,false,List.of(),false,false,false,false,false,true); }
+    }
 }
