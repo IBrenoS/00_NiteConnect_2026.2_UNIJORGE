@@ -19,11 +19,13 @@ class Block03RulesTest {
         assertThat(activity(ActivityStatus.CONCLUIDA,today.minusDays(1)).overdue(today)).isFalse();
         assertThat(activity(ActivityStatus.CANCELADA,today.minusDays(1)).overdue(today)).isFalse();
     }
-    @Test void completionRequiresExecutionAndReopeningNeverErasesAPlanningStep() {
-        assertThat(ActivityStatus.PLANEJADA.canTransitionTo(ActivityStatus.CONCLUIDA)).isFalse();
+    @Test void routineStatusTransitionsAllowDirectCompletionAndRepeatedReopening() {
+        assertThat(ActivityStatus.PLANEJADA.canTransitionTo(ActivityStatus.CONCLUIDA)).isTrue();
         assertThat(ActivityStatus.PLANEJADA.canTransitionTo(ActivityStatus.EM_EXECUCAO)).isTrue();
+        assertThat(ActivityStatus.EM_EXECUCAO.canTransitionTo(ActivityStatus.PLANEJADA)).isTrue();
         assertThat(ActivityStatus.EM_EXECUCAO.canTransitionTo(ActivityStatus.CONCLUIDA)).isTrue();
-        assertThat(ActivityStatus.CONCLUIDA.canTransitionTo(ActivityStatus.PLANEJADA)).isFalse();
+        assertThat(ActivityStatus.CONCLUIDA.canTransitionTo(ActivityStatus.PLANEJADA)).isTrue();
+        assertThat(ActivityStatus.CONCLUIDA.canTransitionTo(ActivityStatus.EM_EXECUCAO)).isTrue();
         assertThat(ActivityStatus.CANCELADA.canTransitionTo(ActivityStatus.EM_EXECUCAO)).isTrue();
         for(ActivityStatus s:ActivityStatus.values()) assertThat(s.canTransitionTo(s)).isFalse();
     }

@@ -39,14 +39,18 @@ class ActivityCapabilitiesTest extends ActivityTestSupport {
                 .content(command(id,",\"memberId\":\""+MEMBER+"\",\"confirmed\":true"))).andExpect(status().isOk());
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(MEMBER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.edit").value(false)).andExpect(jsonPath("$.history").value(false))
-                .andExpect(jsonPath("$.transitions.length()").value(1));
+                .andExpect(jsonPath("$.transitions.length()").value(2))
+                .andExpect(jsonPath("$.transitions[0]").value("EM_EXECUCAO"))
+                .andExpect(jsonPath("$.transitions[1]").value("CONCLUIDA"));
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(ADMIN))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.edit").value(true)).andExpect(jsonPath("$.manageAssignees").value(true));
         state(id,MEMBER,"EM_EXECUCAO");state(id,MEMBER,"CONCLUIDA");
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(MEMBER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.transitions.length()").value(0)).andExpect(jsonPath("$.addEvidence").value(false));
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(ADMIN))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.transitions[0]").value("EM_EXECUCAO"));
+                .andExpect(jsonPath("$.transitions.length()").value(2))
+                .andExpect(jsonPath("$.transitions[0]").value("PLANEJADA"))
+                .andExpect(jsonPath("$.transitions[1]").value("EM_EXECUCAO"));
     }
     @Test void evidenceWithdrawalIsSpecificToAuthorAndCurrentContext() throws Exception {
         UUID p=activeProject(), id=activity(LEADER,p,MEMBER);

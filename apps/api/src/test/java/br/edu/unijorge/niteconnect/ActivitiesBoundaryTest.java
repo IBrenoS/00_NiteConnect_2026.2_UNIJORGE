@@ -30,15 +30,15 @@ class ActivitiesBoundaryTest extends ActivityTestSupport {
         UUID other = activity(ADMIN, null, ADMIN);
         mvc.perform(get("/api/v1/activities/" + other).with(token(LEADER))).andExpect(status().isNotFound());
     }
-    @Test void lifecycleRequiresExplicitTransitionsAndPreservesCompletionWhenReopened() throws Exception {
+    @Test void lifecycleAllowsDirectCompletionAndPreservesCompletionWhenReopened() throws Exception {
         UUID id = activity(MEMBER, null, MEMBER);
         mvc.perform(patch("/api/v1/activities/" + id + "/status").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
-                .content(command(id, ",\"status\":\"CONCLUIDA\""))).andExpect(status().isConflict());
-        state(id, MEMBER, "EM_EXECUCAO"); state(id, MEMBER, "CONCLUIDA");
+                .content(command(id, ",\"status\":\"CONCLUIDA\""))).andExpect(status().isOk());
         mvc.perform(get("/api/v1/activities/" + id).with(token(MEMBER))).andExpect(jsonPath("$.completedAt").isNotEmpty());
-        state(id, MEMBER, "EM_EXECUCAO");
+        state(id, MEMBER, "PLANEJADA");
         mvc.perform(get("/api/v1/activities/" + id).with(token(MEMBER))).andExpect(jsonPath("$.completedAt").isEmpty());
-        assertThat(jdbc.queryForObject("select count(*) from nite_connect.activity_events where activity_id=? and action='STATUS_CHANGED'", Integer.class, id)).isEqualTo(3);
+        state(id, MEMBER, "EM_EXECUCAO"); state(id, MEMBER, "CONCLUIDA"); state(id, MEMBER, "EM_EXECUCAO");
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.activity_events where activity_id=? and action='STATUS_CHANGED'", Integer.class, id)).isEqualTo(5);
     }
     @Test void collaboratorCannotCompleteAndExecutorTransferPreservesPeriods() throws Exception {
         UUID p = activeProject(); UUID id = activity(LEADER, p, MEMBER);

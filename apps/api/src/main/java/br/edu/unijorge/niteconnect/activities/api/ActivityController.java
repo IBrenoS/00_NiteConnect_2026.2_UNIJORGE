@@ -38,9 +38,10 @@ public class ActivityController {
             @RequestParam(required=false) LocalDate dueTo,@RequestParam(required=false) Boolean overdue,
             @RequestParam(required=false) String q,@RequestParam(required=false) String priority,
             @RequestParam(required=false) LocalDate startFrom,@RequestParam(required=false) LocalDate startTo,
-            @RequestParam(defaultValue="createdAt") String sort,@RequestParam(defaultValue="desc") String direction) {
+            @RequestParam(defaultValue="createdAt") String sort,@RequestParam(defaultValue="desc") String direction,
+            @RequestParam(required=false) UUID planningId) {
         boolean own=request.getRequestURI().equals("/api/v1/me/activities");
-        return service.list(identities.member(jwt),own,new Filter(status,projectId,executorId,dueFrom,dueTo,overdue,own?q:null,priority,startFrom,startTo,sort,direction),page,size);
+        return service.list(identities.member(jwt),own,new Filter(status,projectId,executorId,dueFrom,dueTo,overdue,own?q:null,priority,startFrom,startTo,sort,direction,planningId),page,size);
     }
     @GetMapping("/api/v1/projects/{id}/activities")
     PageResult<View> project(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestParam(defaultValue="0") int page,
@@ -49,8 +50,8 @@ public class ActivityController {
             @RequestParam(required=false) LocalDate dueTo,@RequestParam(required=false) Boolean overdue,
             @RequestParam(required=false) String priority,@RequestParam(required=false) LocalDate startFrom,
             @RequestParam(required=false) LocalDate startTo,@RequestParam(defaultValue="createdAt") String sort,
-            @RequestParam(defaultValue="desc") String direction) {
-        return service.projectList(identities.member(jwt),id,new Filter(status,id,executorId,dueFrom,dueTo,overdue,null,priority,startFrom,startTo,sort,direction),page,size);
+            @RequestParam(defaultValue="desc") String direction,@RequestParam(required=false) UUID planningId) {
+        return service.projectList(identities.member(jwt),id,new Filter(status,id,executorId,dueFrom,dueTo,overdue,null,priority,startFrom,startTo,sort,direction,planningId),page,size);
     }
     @GetMapping("/api/v1/activities/{id}/assignees")
     PageResult<Assignee> assignees(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) { return service.assignees(identities.member(jwt),id,page,size); }

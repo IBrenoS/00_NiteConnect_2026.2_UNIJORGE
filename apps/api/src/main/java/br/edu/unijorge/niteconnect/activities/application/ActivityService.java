@@ -103,7 +103,7 @@ public class ActivityService {
         return new PageResult<>(result.items().stream().map(a->view(a,today,names.get(a.primaryExecutorId()))).toList(),page,size,result.total());
     }
     @Transactional(readOnly=true) public PageResult<View> projectList(UUID actor,UUID project,Filter f,int page,int size) {
-        projectAccess.requireRead(actor,project);return list(actor,false,new Filter(f.status(),project,f.executorId(),f.dueFrom(),f.dueTo(),f.overdue(),f.q(),f.priority(),f.startFrom(),f.startTo(),f.sort(),f.direction()),page,size);
+        projectAccess.requireRead(actor,project);return list(actor,false,new Filter(f.status(),project,f.executorId(),f.dueFrom(),f.dueTo(),f.overdue(),f.q(),f.priority(),f.startFrom(),f.startTo(),f.sort(),f.direction(),f.planningId()),page,size);
     }
     @Transactional(readOnly=true) public PageResult<Assignee> assignees(UUID actor,UUID id,int page,int size) {
         Activity a=load(actor,id);policy.read(actor,a);var p=repo.assignments(id,false,page,size);
@@ -164,11 +164,11 @@ public class ActivityService {
     }
     private View view(Activity a,LocalDate today,String executorName) {
         boolean passed=a.dueOn()!=null && a.dueOn().isBefore(today);boolean overdue=a.overdue(today);
-        return new View(a.id(),a.title(),a.description(),a.projectId(),a.status(),a.startOn(),a.dueOn(),a.priority(),a.primaryExecutorId(),executorName,
+        return new View(a.id(),a.title(),a.description(),a.projectId(),a.planningId(),a.status(),a.startOn(),a.dueOn(),a.priority(),a.primaryExecutorId(),executorName,
                 available(a.primaryExecutorId(),a.projectId()),a.createdBy(),a.version(),a.createdAt(),a.updatedAt(),a.completedAt(),passed,overdue,
                 overdue && (a.projectId()==null || projects.require(a.projectId()).status()==ProjectStatus.ATIVO));
     }
-    public record View(UUID id,String title,String description,UUID projectId,ActivityStatus status,LocalDate startOn,LocalDate dueOn,String priority,UUID primaryExecutorId,
+    public record View(UUID id,String title,String description,UUID projectId,UUID planningId,ActivityStatus status,LocalDate startOn,LocalDate dueOn,String priority,UUID primaryExecutorId,
                        String primaryExecutorName,boolean executorAvailable,UUID createdBy,long version,Instant createdAt,Instant updatedAt,
                        Instant completedAt,boolean deadlinePassed,boolean overdue,boolean attentionRequired) {}
     public record Assignee(UUID id,UUID memberId,String memberName,String role,Instant startedAt,boolean available) {}

@@ -18,7 +18,7 @@ public class ActivityRepository {
     private final JdbcTemplate jdbc;
     private static final String SELECT = "select a.*, x.member_id as executor_id from nite_connect.activities a join nite_connect.activity_assignments x on x.activity_id=a.id and x.role='EXECUTOR' and x.ended_at is null";
     private static final RowMapper<Activity> ACTIVITY = (r,n) -> new Activity(r.getObject("id",UUID.class),r.getString("title"),
-            r.getString("description"),r.getObject("project_id",UUID.class),ActivityStatus.valueOf(r.getString("status")),
+            r.getString("description"),r.getObject("project_id",UUID.class),r.getObject("planning_id",UUID.class),ActivityStatus.valueOf(r.getString("status")),
             r.getObject("start_on",LocalDate.class),r.getObject("due_on",LocalDate.class),r.getString("priority"),
             r.getObject("created_by",UUID.class),r.getLong("version"),
             r.getTimestamp("created_at").toInstant(),r.getTimestamp("updated_at").toInstant(),
@@ -90,6 +90,7 @@ public class ActivityRepository {
         if(own) { w.append(" and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments s where s.activity_id=a.id and s.member_id=? and s.ended_at is null))");args.add(actor);args.add(actor); }
         if(f.status()!=null) { w.append(" and a.status=?");args.add(f.status().name()); }
         if(f.projectId()!=null) { w.append(" and a.project_id=?");args.add(f.projectId()); }
+        if(f.planningId()!=null) { w.append(" and a.planning_id=?");args.add(f.planningId()); }
         if(f.priority()!=null) { w.append(" and a.priority=?");args.add(f.priority()); }
         if(f.executorId()!=null) { w.append(" and x.member_id=?");args.add(f.executorId()); }
         if(f.startFrom()!=null) { w.append(" and a.start_on>=?");args.add(f.startFrom()); }
@@ -114,12 +115,16 @@ public class ActivityRepository {
     }
     private String historyReason(String reason) { return reason==null || reason.isBlank()?"Operação rotineira":reason.strip(); }
     public record Filter(ActivityStatus status,UUID projectId,UUID executorId,LocalDate dueFrom,LocalDate dueTo,Boolean overdue,String q,
-                         String priority,LocalDate startFrom,LocalDate startTo,String sort,String direction) {
+                         String priority,LocalDate startFrom,LocalDate startTo,String sort,String direction,UUID planningId) {
+        public Filter(ActivityStatus status,UUID projectId,UUID executorId,LocalDate dueFrom,LocalDate dueTo,Boolean overdue,String q,
+                      String priority,LocalDate startFrom,LocalDate startTo,String sort,String direction) {
+            this(status,projectId,executorId,dueFrom,dueTo,overdue,q,priority,startFrom,startTo,sort,direction,null);
+        }
         public Filter(ActivityStatus status,UUID projectId,UUID executorId,LocalDate dueFrom,LocalDate dueTo,Boolean overdue) {
-            this(status,projectId,executorId,dueFrom,dueTo,overdue,null,null,null,null,null,null);
+            this(status,projectId,executorId,dueFrom,dueTo,overdue,null,null,null,null,null,null,null);
         }
         public Filter(ActivityStatus status,UUID projectId,UUID executorId,LocalDate dueFrom,LocalDate dueTo,Boolean overdue,String q) {
-            this(status,projectId,executorId,dueFrom,dueTo,overdue,q,null,null,null,null,null);
+            this(status,projectId,executorId,dueFrom,dueTo,overdue,q,null,null,null,null,null,null);
         }
         public void validate() {
             if(dueFrom!=null && dueTo!=null && dueFrom.isAfter(dueTo)) throw ApiException.invalid("Intervalo de prazo inválido");

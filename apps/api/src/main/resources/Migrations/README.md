@@ -47,6 +47,7 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V40 | [`V40__activity_simplified_management.sql`](V40__activity_simplified_management.sql) | B08.1: início/prioridade opcionais, descrição vazia compatível e motivo opcional em eventos rotineiros de atividade; preserva registros e IDs existentes. |
 | V41 | [`V41__permanent_activity_deletion.sql`](V41__permanent_activity_deletion.sql) | B08.1B: exclusão permanente autorizada pelo criador, reconciliação de referências históricas e outbox para remoção idempotente de evidências privadas. |
 | V42 | [`V42__project_discovery_and_participation.sql`](V42__project_discovery_and_participation.sql) | B08.2: disponibilidade de ingresso, pedidos e manifestações de interesse, e notificações persistidas idempotentes, sem recriar vínculos ou armazenamentos de atividades/documentos. |
+| V43 | [`V43__activity_planning_hierarchy.sql`](V43__activity_planning_hierarchy.sql) | B08.2B: agrupamentos de planejamento versionados e relação opcional/restritiva de tarefas existentes, mantendo escopo de projeto compatível e sem converter registros legados. |
 
 ## Aplicação
 
