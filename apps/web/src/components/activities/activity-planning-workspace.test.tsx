@@ -1,11 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ActivityPlanningWorkspace, type ActivityPlanningTask } from "./activity-planning-workspace";
+import { TaskEditor } from "../activity-planning-preview/activity-planning-preview";
+import { PlanningDeleteMenu } from "./planning-delete-menu";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock("../../lib/activities/planning-actions", () => ({
   createPlanningTaskAction: vi.fn(), deletePlanningAction: vi.fn(), deletePlanningTaskAction: vi.fn(),
   getPlanningTaskEditorAction: vi.fn(), movePlanningTaskAction: vi.fn(), updatePlanningTaskAction: vi.fn(),
+  getPlanningCreationCandidatesAction: vi.fn(), searchPlanningTaskCandidatesAction: vi.fn(),
 }));
 
 const planning = {
@@ -29,6 +32,21 @@ const statistics = {
 };
 
 describe("workspace de planejamento integrado", () => {
+  it("oferece exclusão contextual somente com canDelete", () => {
+    expect(renderToStaticMarkup(<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete/>)).toContain("Excluir atividade");
+    expect(renderToStaticMarkup(<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete={false}/>)).toBe("");
+  });
+
+  it("mostra exclusão da tarefa mesmo sem edição quando canDelete permite", () => {
+    const markup = renderToStaticMarkup(<TaskEditor task={{ id: row.activity.id, title: "Tarefa", description: "", status: "Planejada", priority: "Alta", owner: "Nome", start: "Sem data", due: "Sem prazo" }} onClose={() => undefined} onUpdate={() => undefined} onCreate={() => undefined} canEdit={false} canDelete onDelete={async () => null}/>);
+    expect(markup).toContain("Excluir tarefa");
+  });
+
+  it("mostra situação e colaboradores na criação integrada", () => {
+    const markup = renderToStaticMarkup(<TaskEditor task={null} onClose={() => undefined} onUpdate={() => undefined} onCreate={() => undefined} onCreateServer={async () => null} ownerOptions={[{ id: "owner", name: "Nome" }]} collaboratorOptions={[{ id: "other", name: "Colaborador elegível" }]} initialOwnerId="owner" initialOwnerName="Nome"/>);
+    expect(markup).toContain("Situação");
+    expect(markup).toContain("Colaborador elegível");
+  });
   it("reutiliza os componentes aprovados com tarefas, responsável e indicadores reais", () => {
     const markup = renderToStaticMarkup(<ActivityPlanningWorkspace
       planning={planning} tasks={[row]} statistics={statistics} nextDue="2026-11-24" projectTitle={null} view="status"

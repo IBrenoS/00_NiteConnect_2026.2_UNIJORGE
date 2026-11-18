@@ -19,6 +19,7 @@ import type { MeetingJoinFeedback } from "../../lib/meetings/meeting-join-feedba
 import { Button } from "../ui/button";
 import { DialogFrame } from "../ui/dialog-frame";
 import { InlineFeedback } from "../ui/inline-feedback";
+import { TransientFeedback } from "../ui/transient-feedback";
 import { MeetingEditorDialog } from "./meeting-editor-dialog";
 
 type Props = {
@@ -443,7 +444,7 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
   </section> : null;
 
   return <div className="mx-auto w-full max-w-6xl min-w-0 space-y-7 px-4 py-5 sm:px-7 sm:py-8 lg:px-9">
-    {feedback ? <InlineFeedback className="mb-1" variant="warning" description={feedback} announcement="polite" /> : null}
+    {feedback ? <TransientFeedback messageKey={initialJoinFeedback && feedback === issueMessage(initialJoinFeedback) ? initialJoinFeedback : feedback} queryParam="feedback" onDismiss={() => setFeedback("")}><InlineFeedback className="mb-1" variant="warning" description={feedback} announcement="polite" /></TransientFeedback> : null}
     <header className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 space-y-2">
         <h1 className="font-display text-type-page-title text-nite-text-primary">Reuniões</h1>
@@ -532,7 +533,7 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
 
         {detail.cancelConfirm ? <InlineFeedback variant="warning" title="Cancelar reunião?" description="O evento será cancelado no calendário Microsoft e os convidados receberão uma atualização." action={<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={previewMode || detail.busy} onClick={() => setDetail((current) => current ? { ...current, cancelConfirm: false } : current)}>Voltar</Button><Button type="button" variant="destructive" loading={detail.busy} disabled={previewMode || graphAvailability !== "available"} onClick={() => void confirmCancel()}>Confirmar cancelamento</Button></div>} announcement="assertive" /> : null}
 
-        {detail.feedback ? <InlineFeedback variant={detail.feedback.includes("não") || detail.feedback.includes("indisponíveis") ? "warning" : "success"} description={detail.feedback} announcement="polite" /> : null}
+        {detail.feedback ? <TransientFeedback messageKey={detail.feedback} onDismiss={() => setDetail((current) => current ? { ...current, feedback: "" } : current)}><InlineFeedback variant={detail.feedback.includes("não") || detail.feedback.includes("indisponíveis") ? "warning" : "success"} description={detail.feedback} announcement="polite" /></TransientFeedback> : null}
 
         <section aria-labelledby="meeting-guests-heading" className="grid gap-2">
           <div>
@@ -556,7 +557,7 @@ export function MeetingsWorkspace({ viewerId, previewMode = false, previewCandid
             <Button type="button" variant="secondary" className="w-full whitespace-normal px-2 text-type-metadata leading-tight sm:w-auto sm:whitespace-nowrap sm:px-3 sm:text-type-label sm:leading-normal" disabled={previewMode} loading={sharingId === detail.meeting.id} onClick={() => void shareMeeting(detail.meeting)}>Compartilhar pelo WhatsApp</Button>
           </div>
           <p className="text-type-metadata text-nite-text-muted">A entrada segue as regras e o lobby do Teams.</p>
-          {copyFeedback ? <p role="status" className="text-type-body-compact text-nite-text-secondary">{copyFeedback}</p> : null}
+          {copyFeedback ? <TransientFeedback messageKey={copyFeedback} onDismiss={() => setCopyFeedback("")}><p role="status" className="text-type-body-compact text-nite-text-secondary">{copyFeedback}</p></TransientFeedback> : null}
         </section> : null}
 
         {!detail.cancelConfirm && detail.meeting.organizerMemberId === viewerId && detail.meeting.provider === "GRAPH" && detail.meeting.status !== "CANCELADA" && (previewMode || graphAvailability === "available") ? <section aria-label="Gerenciar reunião" className="flex flex-wrap justify-end gap-2 border-t border-nite-border-soft pt-4">

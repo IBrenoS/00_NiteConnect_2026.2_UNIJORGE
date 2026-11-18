@@ -17,7 +17,7 @@ export type ActivityCapabilities = { edit: boolean; changePriority: boolean; can
 export type PersonalActivityCapabilities = { createIndependent: boolean };
 export type ActivityAssignee = { id: string; memberId: string; memberName: string | null; role: "EXECUTOR" | "COLLABORATOR"; startedAt: string; available: boolean };
 export type ActivityCandidate = { id: string; name: string };
-export type ActivityHistoryEvent = { id: string; activityId: string; actorId: string; action: string; reason: string; occurredAt: string; activityVersion: number; before: string | null; after: string | null };
+export type ActivityHistoryEvent = { id: string; activityId: string; actorId: string; action: string; reason: string | null; occurredAt: string; activityVersion: number; before: string | null; after: string | null };
 export type ActivityEvidence = {
   id: string; activityId: string; authorId: string; authorName: string | null; assignmentId: string | null;
   type: "TEXT" | "TECHNICAL" | "LINK" | "FILE" | "IMAGE"; content: string | null; url: string | null;
@@ -92,7 +92,7 @@ export function parseActivityCandidate(value: unknown): ActivityCandidate | null
   return record(value) && typeof value.id === "string" && typeof value.name === "string" ? { id: value.id, name: value.name } : null;
 }
 export function parseActivityHistoryEvent(value: unknown): ActivityHistoryEvent | null {
-  if (!record(value) || typeof value.id !== "string" || typeof value.activityId !== "string" || typeof value.actorId !== "string" || typeof value.action !== "string" || typeof value.reason !== "string" || typeof value.occurredAt !== "string" || !count(value.activityVersion) || !nullableString(value.before) || !nullableString(value.after)) return null;
+  if (!record(value) || typeof value.id !== "string" || typeof value.activityId !== "string" || typeof value.actorId !== "string" || typeof value.action !== "string" || !nullableString(value.reason) || typeof value.occurredAt !== "string" || !count(value.activityVersion) || !nullableString(value.before) || !nullableString(value.after)) return null;
   return { id: value.id, activityId: value.activityId, actorId: value.actorId, action: value.action, reason: value.reason, occurredAt: value.occurredAt, activityVersion: value.activityVersion, before: value.before, after: value.after };
 }
 export function parseActivityEvidence(value: unknown): ActivityEvidence | null {

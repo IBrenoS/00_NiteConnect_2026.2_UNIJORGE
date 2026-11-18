@@ -4,7 +4,7 @@ const { getApiJson } = vi.hoisted(() => ({ getApiJson: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("../api/server", () => ({ getApiJson }));
 
-import { getActivityCandidates } from "./data";
+import { getActivityCandidates, getAllActivityAssignees } from "./data";
 
 describe("consulta de candidatos de atividade", () => {
   it("envia busca e página nos parâmetros aceitos pelo backend", async () => {
@@ -18,4 +18,14 @@ describe("consulta de candidatos de atividade", () => {
       expect.any(Function),
     );
   });
+});
+
+it("loads every assignee page and rejects incomplete snapshots", async () => {
+ getApiJson.mockReset();
+ getApiJson.mockResolvedValueOnce({data:{items:[{memberId:"a"}],page:0,size:1,total:2},issue:null});
+ getApiJson.mockResolvedValueOnce({data:{items:[{memberId:"b"}],page:1,size:1,total:2},issue:null});
+ await expect(getAllActivityAssignees("bearer","id")).resolves.toEqual({data:[{memberId:"a"},{memberId:"b"}],issue:null});
+ getApiJson.mockResolvedValueOnce({data:{items:[{memberId:"a"}],page:0,size:1,total:2},issue:null});
+ getApiJson.mockResolvedValueOnce({data:null,issue:"unavailable"});
+ await expect(getAllActivityAssignees("bearer","id")).resolves.toEqual({data:null,issue:"unavailable"});
 });

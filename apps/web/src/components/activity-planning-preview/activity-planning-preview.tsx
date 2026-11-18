@@ -1,6 +1,8 @@
 "use client";
 
+import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
+import { AlertDialog } from "../ui/alert-dialog";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 
@@ -71,6 +73,7 @@ const subtle = "border border-nite-border-soft bg-nite-surface";
 const iconButton = "grid size-8 shrink-0 place-items-center rounded-control text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus";
 
 function Chevron({ className = "" }: { className?: string }) { return <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className={`size-4 ${className}`}><path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
+function CalendarIcon({ className = "" }: { className?: string }) { return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className={`size-4 ${className}`}><rect x="3" y="4.5" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M6.5 2.75v3.5M13.5 2.75v3.5M3 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M6.5 11h.01M10 11h.01M13.5 11h.01M6.5 14.25h.01M10 14.25h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>; }
 function Dots() { return <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className="size-4"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>; }
 function Plus() { return <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 
@@ -134,7 +137,7 @@ export function Toolbar({ view, planningId, query, setQuery, statusFilter, setSt
     <div className="flex items-center gap-1">
       {searchOpen ? <label className="flex h-8 items-center gap-1.5 rounded-control border border-nite-border-soft bg-nite-surface px-2"><span className="sr-only">Buscar tarefas</span><span aria-hidden="true" className="text-nite-text-muted">⌕</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar tarefas" className="w-32 bg-transparent text-type-metadata text-nite-text-primary outline-none placeholder:text-nite-text-muted"/></label> : <button type="button" onClick={() => setSearchOpen(true)} className={iconButton} aria-label="Pesquisar">⌕</button>}
       <div className="relative"><button type="button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen} className={iconButton} aria-label="Filtrar tarefas">≡</button>{filterOpen ? <div className="absolute right-0 top-full z-20 mt-1 grid w-44 gap-2 rounded-panel border border-nite-border-soft bg-nite-surface p-3 shadow-nite-floating"><label className="grid gap-1 text-type-metadata text-nite-text-secondary">Situação<select aria-label="Filtrar por situação" className="h-8 rounded-control border border-nite-border-soft bg-nite-surface px-2 text-type-metadata text-nite-text-primary" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>Todas</option>{statusOrder.map((status) => <option key={status}>{status}</option>)}</select></label><button type="button" onClick={() => setFilterOpen(false)} className="min-h-8 rounded-control bg-nite-surface-subtle text-type-metadata font-medium text-nite-text-secondary">{applyLabel}</button></div> : null}</div>
-      <label className="sr-only" htmlFor="preview-sort">Ordenação</label><select id="preview-sort" value={sort} onChange={(event) => setSort(event.target.value)} className="h-8 max-w-36 rounded-control border border-nite-border-soft bg-nite-surface px-2 text-type-metadata text-nite-text-secondary"><option>Atualizado recentemente</option><option>Prioridade</option><option>Prazo</option><option>Título</option></select>
+      <label className="sr-only" htmlFor="preview-sort">Ordenação</label><div className="relative"><select id="preview-sort" value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 w-64 max-w-[65vw] appearance-none rounded-control border border-nite-border-soft bg-nite-surface py-1 pl-3 pr-9 text-type-metadata font-medium text-nite-text-primary shadow-sm transition-colors hover:border-nite-border-strong hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"><option>Atualizado recentemente</option><option>Prioridade</option><option>Prazo</option><option>Título</option></select><Chevron className="pointer-events-none absolute right-3 top-1/2 size-3 -translate-y-1/2 rotate-90 text-nite-text-muted"/></div>
       {showOptions ? <button type="button" className={iconButton} aria-label="Opções de visualização"><Dots/></button> : null}
     </div>
   </div>;
@@ -254,7 +257,7 @@ export function TaskTable({ tasks, onEdit, onAdd, canCreateTasks = true }: { tas
   </table>{creating || !canCreateTasks ? null : <button type="button" onClick={() => setCreating(true)} className="flex min-h-9 items-center gap-2 px-3 text-type-metadata text-nite-text-muted hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"><Plus/> Nova tarefa</button>}</div>;
 }
 const propertySelectClass = "min-h-8 w-full max-w-sm rounded-control border border-transparent bg-transparent px-2 text-type-body-compact text-nite-text-primary outline-none hover:bg-nite-surface-subtle focus:border-nite-brand-primary focus:bg-nite-surface";
-const propertyDateClass = "min-h-8 w-full max-w-sm rounded-control border border-transparent bg-transparent px-2 text-type-body-compact text-nite-text-primary outline-none hover:bg-nite-surface-subtle focus:border-nite-brand-primary focus:bg-nite-surface";
+const propertyDateClass = "h-10 w-full min-w-0 rounded-control border border-nite-border-soft bg-nite-background px-3 pr-10 text-type-body-compact text-nite-text-primary shadow-sm transition-colors hover:border-nite-border-strong hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:opacity-60 [&::-webkit-calendar-picker-indicator]:opacity-0";
 const demoOwners = ["Marina Costa", "Rafael Lima", "João Alves", "Bianca Reis", "Lucas Rocha"] as const;
 
 type PlanningDraft = Pick<Planning, "title" | "description" | "project">;
@@ -388,12 +391,13 @@ export function ProjectFilter({ options, value, onChange, labels = {} }: { optio
 
 type TaskEditorValues = { title: string; description: string; status: Status; priority: Priority; ownerId: string; collaboratorIds: string[]; startOn: string | null; dueOn: string | null };
 type TaskEditorOwner = { id: string; name: string };
-export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, initialOwnerId, initialOwnerName, collaboratorOptions = [], initialCollaboratorIds = [], onSave, onCreateServer, canEdit = true, canManageAssignees = true, canDelete = false, allowedStatuses, onDelete }: {
+export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, initialOwnerId, initialOwnerName, collaboratorOptions = [], initialCollaboratorIds = [], onSave, onCreateServer, canEdit = true, canManageAssignees = true, canDelete = false, allowedStatuses, onDelete, onSearchMembers }: {
   task: Task | null; onClose: () => void; onUpdate: (taskId: TaskId, changes: Partial<Omit<Task, "id">>) => void;
   onCreate: (draft: NewTaskDraft) => void; ownerOptions?: readonly TaskEditorOwner[]; initialOwnerId?: string; initialOwnerName?: string;
   collaboratorOptions?: readonly TaskEditorOwner[]; initialCollaboratorIds?: readonly string[];
   onSave?: (values: TaskEditorValues) => Promise<string | null>; onCreateServer?: (values: TaskEditorValues) => Promise<string | null>;
   canEdit?: boolean; canManageAssignees?: boolean; canDelete?: boolean; allowedStatuses?: readonly Status[]; onDelete?: () => Promise<string | null>;
+  onSearchMembers?: (query: string) => Promise<string | null>;
 }) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
@@ -406,9 +410,13 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
   const [dueDate, setDueDate] = useState(task?.due === "Sem prazo" ? "" : task?.due ?? "");
   const [ownerSearch, setOwnerSearch] = useState("");
   const [ownerSearchOpen, setOwnerSearchOpen] = useState(false);
+  const [memberSearching, setMemberSearching] = useState(false);
+  const [memberSearchError, setMemberSearchError] = useState<string | null>(null);
+  const memberSearchRequest = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const ids = useId();
   const ownerListId = ids + "-owners";
   const titleId = ids + "-title";
@@ -429,7 +437,7 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
     event.preventDefault();
     if (saving) return;
     setError(null);
-    const values = { title: title.trim(), description: description.trim(), status, priority, ownerId, collaboratorIds, startOn: startDate || null, dueOn: dueDate || null };
+    const values = { title: title.trim(), description: description.trim(), status, priority, ownerId, collaboratorIds: collaboratorIds.filter((id) => id !== ownerId), startOn: startDate || null, dueOn: dueDate || null };
     if (task && onSave) {
       setSaving(true);
       try {
@@ -463,7 +471,7 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }
-  return <div role="presentation" className="fixed inset-0 z-50 bg-black/25" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return <><div role="presentation" className="fixed inset-0 z-50 bg-black/25" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby={headingId} onKeyDown={handleDialogKeyDown} className="ml-auto flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-nite-border-soft bg-nite-surface p-5 shadow-nite-modal sm:p-7">
       <header className="flex items-center justify-between gap-4">
         <div><p className="text-type-metadata text-nite-text-muted">Tasks</p><h2 id={headingId} className="sr-only">{task ? "Editar tarefa" : "Criar tarefa"}</h2></div>
@@ -475,37 +483,71 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
           <input id={titleId} autoFocus required maxLength={200} disabled={Boolean(task) && !canEdit} value={title} onChange={(event) => { const value = event.target.value; setTitle(value); if (!onSave) commit({ title: value }); }} placeholder="Título da tarefa" className="w-full border-0 border-b border-transparent bg-transparent px-0 py-2 font-display text-type-page-title font-semibold text-nite-text-primary outline-none placeholder:text-nite-text-muted/70 focus:border-nite-brand-primary disabled:opacity-70"/>
         </label>
         <div className="mt-6 divide-y divide-nite-border-soft border-y border-nite-border-soft">
-          {task || !onCreateServer ? <label htmlFor={statusId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Situação</span><select id={statusId} value={status} onChange={(event) => { const next = statusOrder.find((item) => item === event.target.value); if (next) { setStatus(next); if (!onSave) commit({ status: next }); } }} className={propertySelectClass}>{(task && allowedStatuses ? Array.from(new Set([status, ...allowedStatuses])) : statusOrder).map((item) => <option key={item}>{item}</option>)}</select></label> : null}
+          <label htmlFor={statusId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Situação</span><select id={statusId} value={status} onChange={(event) => { const next = statusOrder.find((item) => item === event.target.value); if (next) { setStatus(next); if (!onSave) commit({ status: next }); } }} className={propertySelectClass}>{(task && allowedStatuses ? Array.from(new Set([status, ...allowedStatuses])) : statusOrder).map((item) => <option key={item}>{item}</option>)}</select></label>
           <label htmlFor={priorityId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prioridade</span><select id={priorityId} disabled={Boolean(task) && !canEdit} value={priority} onChange={(event) => { const next = priorityOrder.find((item) => item === event.target.value); if (next) { setPriority(next); if (!onSave) commit({ priority: next }); } }} className={propertySelectClass}>{priorityOrder.map((item) => <option key={item}>{item}</option>)}</select></label>
           <div className="relative grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact">
             <label htmlFor={ownerInputId} className="text-nite-text-muted">Responsável</label>
-            <input id={ownerInputId} disabled={Boolean(task) && !canManageAssignees} role="combobox" aria-autocomplete="list" aria-expanded={ownerSearchOpen} aria-controls={ownerListId} value={ownerSearchOpen ? ownerSearch : owner} onFocus={() => { setOwnerSearch(""); setOwnerSearchOpen(true); }} onChange={(event) => setOwnerSearch(event.target.value)} onBlur={(event) => { if (!(event.relatedTarget instanceof HTMLElement) || !event.currentTarget.parentElement?.contains(event.relatedTarget)) setOwnerSearchOpen(false); }} className={propertySelectClass} autoComplete="off"/>
+            <input id={ownerInputId} disabled={Boolean(task) && !canManageAssignees} role="combobox" aria-autocomplete="list" aria-expanded={ownerSearchOpen} aria-controls={ownerListId} value={ownerSearchOpen ? ownerSearch : owner} onFocus={() => { setOwnerSearch(""); setOwnerSearchOpen(true); }} onChange={(event) => {
+              const query = event.target.value;
+              setOwnerSearch(query);
+              setMemberSearchError(null);
+              const request = ++memberSearchRequest.current;
+              setMemberSearching(Boolean(onSearchMembers && query.trim().length >= 2));
+              if (onSearchMembers && query.trim().length >= 2) void onSearchMembers(query.trim()).then((issue) => {
+                if (request === memberSearchRequest.current) { setMemberSearchError(issue); setMemberSearching(false); }
+              }).catch(() => {
+                if (request === memberSearchRequest.current) { setMemberSearchError("Não foi possível buscar integrantes. Tente novamente."); setMemberSearching(false); }
+              });
+            }} onBlur={(event) => { if (!(event.relatedTarget instanceof HTMLElement) || !event.currentTarget.parentElement?.contains(event.relatedTarget)) setOwnerSearchOpen(false); }} className={propertySelectClass} autoComplete="off"/>
             {ownerSearchOpen ? <div id={ownerListId} role="listbox" aria-label={ownerOptions ? "Integrantes autorizados" : "Integrantes fictícios"} className="absolute left-[7.75rem] right-0 top-full z-20 mt-1 grid max-h-52 overflow-y-auto rounded-panel border border-nite-border-soft bg-nite-surface p-1 shadow-nite-floating">
+              {memberSearching ? <p role="status" className="px-2 py-2 text-type-metadata text-nite-text-muted">Buscando integrantes…</p> : null}
               {ownerMatches.length ? ownerMatches.map((candidate) => {
                 const candidateName = typeof candidate === "string" ? candidate : candidate.name;
                 const candidateId = typeof candidate === "string" ? "" : candidate.id;
-                return <button key={candidateId || candidateName} type="button" role="option" aria-selected={owner === candidateName} onMouseDown={(event) => event.preventDefault()} onClick={() => { setOwner(candidateName); setOwnerId(candidateId); setOwnerSearch(""); setOwnerSearchOpen(false); if (!onSave) commit({ owner: candidateName, ownerId: candidateId }); }} className="flex min-h-9 items-center justify-between gap-3 rounded-control px-2 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus"><span>{candidateName}</span>{ownerOptions ? null : <span className="text-type-metadata text-nite-text-muted">Fictício</span>}</button>;
+                return <button key={candidateId || candidateName} type="button" role="option" aria-selected={owner === candidateName} onMouseDown={(event) => event.preventDefault()} onClick={() => { setOwner(candidateName); setOwnerId(candidateId); setOwnerSearch(""); setOwnerSearchOpen(false); ++memberSearchRequest.current; setMemberSearching(false); if (!onSave) commit({ owner: candidateName, ownerId: candidateId }); }} className="flex min-h-9 items-center justify-between gap-3 rounded-control px-2 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus"><span>{candidateName}</span>{ownerOptions ? null : <span className="text-type-metadata text-nite-text-muted">Fictício</span>}</button>;
               }) : <p className="px-2 py-2 text-type-metadata text-nite-text-muted">{ownerOptions ? "Nenhum integrante autorizado disponível." : "Nenhum resultado local."}</p>}
             </div> : null}
           </div>
-          <label htmlFor={startId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Início</span><input id={startId} disabled={Boolean(task) && !canEdit} type="date" value={startDate} onChange={(event) => { const value = event.target.value; setStartDate(value); if (!onSave) commit({ start: value || "Sem data" }); }} className={propertyDateClass}/></label>
-          <label htmlFor={dueId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prazo</span><input id={dueId} disabled={Boolean(task) && !canEdit} type="date" value={dueDate} onChange={(event) => { const value = event.target.value; setDueDate(value); if (!onSave) commit({ due: value || "Sem prazo" }); }} className={propertyDateClass}/></label>
+          <label htmlFor={startId} className="grid min-h-14 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Início</span><span className="relative block min-w-0"><input id={startId} disabled={Boolean(task) && !canEdit} type="date" value={startDate} onChange={(event) => { const value = event.target.value; setStartDate(value); if (!onSave) commit({ start: value || "Sem data" }); }} className={propertyDateClass}/><CalendarIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-nite-brand-primary"/></span></label>
+          <label htmlFor={dueId} className="grid min-h-14 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prazo</span><span className="relative block min-w-0"><input id={dueId} disabled={Boolean(task) && !canEdit} type="date" value={dueDate} onChange={(event) => { const value = event.target.value; setDueDate(value); if (!onSave) commit({ due: value || "Sem prazo" }); }} className={propertyDateClass}/><CalendarIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-nite-brand-primary"/></span></label>
         </div>
-        {task && canManageAssignees ? <fieldset className="mt-4 grid gap-2">
+        {canManageAssignees && (task || onCreateServer) ? <fieldset className="mt-4 grid gap-2">
           <legend className="text-type-metadata font-medium text-nite-text-secondary">Colaboradores</legend>
-          {collaboratorOptions.length ? collaboratorOptions.map((person) => <label key={person.id} className="flex min-h-8 items-center gap-2 text-type-body-compact text-nite-text-primary">
+          {onSearchMembers ? <p className="text-type-metadata text-nite-text-muted">Pesquise pelo responsável para localizar integrantes.</p> : null}
+          {collaboratorOptions.length ? collaboratorOptions.filter((person) => person.id !== ownerId).map((person) => <label key={person.id} className="flex min-h-8 items-center gap-2 text-type-body-compact text-nite-text-primary">
             <input type="checkbox" checked={collaboratorIds.includes(person.id)} onChange={(event) => setCollaboratorIds((current) => event.target.checked ? [...current, person.id] : current.filter((id) => id !== person.id))} className="size-4 accent-nite-brand-primary"/>{person.name}
           </label>) : <p className="text-type-metadata text-nite-text-muted">Nenhum integrante elegível foi retornado.</p>}
         </fieldset> : null}
         <label htmlFor={descriptionId} className="mt-6 grid gap-2 text-type-body-compact text-nite-text-muted"><span>Descrição</span><textarea id={descriptionId} disabled={Boolean(task) && !canEdit} rows={5} maxLength={10000} value={description} onChange={(event) => { const value = event.target.value; setDescription(value); if (!onSave) commit({ description: value }); }} placeholder="Adicionar descrição" className="w-full resize-y border-0 bg-transparent px-0 py-1 text-type-body text-nite-text-primary outline-none placeholder:text-nite-text-muted focus:ring-0"/></label>
-        {error ? <p role="alert" className="mt-4 text-type-body-compact text-status-error">{error}</p> : null}
+        {memberSearchError ? <p role="alert" className="mt-4 text-type-body-compact text-status-error">{memberSearchError}</p> : null}
+        {error && !deleteOpen ? <TransientFeedback messageKey={error} onDismiss={() => setError(null)}><p role="alert" className="mt-4 text-type-body-compact text-status-error">{error}</p></TransientFeedback> : null}
         <div className="mt-auto flex justify-end border-t border-nite-border-soft pt-5">
-          {canDelete && onDelete ? <button type="button" disabled={deleting || saving} onClick={async () => { if (!window.confirm("Excluir permanentemente esta tarefa? Esta ação não usa a Lixeira documental.")) return; setDeleting(true); const issue = await onDelete(); setDeleting(false); if (issue) setError(issue); else onClose(); }} className="mr-auto min-h-9 rounded-control px-3 text-type-body-compact font-medium text-status-error">{deleting ? "Excluindo…" : "Excluir tarefa"}</button> : null}
+          {canDelete && onDelete ? <button type="button" disabled={deleting || saving} aria-haspopup="dialog" onClick={() => { setError(null); setDeleteOpen(true); }} className="mr-auto min-h-9 rounded-control px-3 text-type-body-compact font-medium text-status-error">{deleting ? "Excluindo…" : "Excluir tarefa"}</button> : null}
           {task ? <button type="submit" disabled={saving || deleting} className="min-h-9 rounded-control bg-nite-brand-primary px-3 text-type-body-compact font-medium text-nite-action-text">{saving ? "Salvando…" : onSave ? "Salvar alterações" : "Fechar"}</button> : <PrimaryButton type="submit">{saving ? "Criando…" : "Criar tarefa"}</PrimaryButton>}
         </div>
       </form>
     </section>
-  </div>;
+  </div>
+    {canDelete && onDelete ? <AlertDialog open={deleteOpen} onOpenChange={(next) => { if (!deleting) setDeleteOpen(next); }}
+      title="Excluir esta tarefa?" description="A tarefa será excluída permanentemente. Esta ação não pode ser desfeita."
+      confirmLabel="Excluir tarefa" pending={deleting} className="max-w-md" onConfirm={async () => {
+        if (deleting) return;
+        setDeleting(true);
+        setError(null);
+        try {
+          const issue = await onDelete();
+          if (issue) { setError(issue); return; }
+          setDeleteOpen(false);
+          onClose();
+        } catch { setError("Não foi possível excluir a tarefa. Tente novamente."); }
+        finally { setDeleting(false); }
+      }}>
+      <p className="break-words font-medium text-nite-text-primary">{task?.title}</p>
+      <p className="mt-3 text-type-body-compact text-nite-text-secondary">O planejamento será mantido. Esta tarefa e seus dados vinculados não poderão ser recuperados pela Lixeira.</p>
+      {error && deleteOpen ? <TransientFeedback messageKey={error} onDismiss={() => setError(null)}><p role="alert" className="mt-4 text-type-body-compact text-status-error">{error}</p></TransientFeedback> : null}
+    </AlertDialog> : null}
+  </>;
+
 }
 export function ActivityPlanningPreview({ screen, planningId }: { screen: Screen; planningId: number }) {
   const router = useRouter();

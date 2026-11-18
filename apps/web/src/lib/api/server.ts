@@ -27,10 +27,15 @@ export async function getApiJson<T>(path: string, bearer: string, parse: (value:
       redirect: "error",
       signal: AbortSignal.timeout(8_000),
     });
-    if (!response.ok) return { data: null, issue: apiIssueFromStatus(response.status) };
+    if (!response.ok) {
+      console.warn("NITE API request failed " + JSON.stringify({ method: "GET", path: url.pathname, status: response.status }));
+      return { data: null, issue: apiIssueFromStatus(response.status) };
+    }
     const data = parse(await response.json());
+    if (!data) console.warn("NITE API invalid response " + JSON.stringify({ path: url.pathname }));
     return data ? { data, issue: null } : { data: null, issue: "invalid" };
-  } catch {
+  } catch (error) {
+    console.warn("NITE API unavailable " + JSON.stringify({ path: url.pathname, errorType: error instanceof Error ? error.name : "unknown" }));
     return { data: null, issue: "unavailable" };
   }
 }

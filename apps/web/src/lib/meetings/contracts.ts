@@ -71,7 +71,7 @@ export type MeetingOperation = {
   retryAfter: string | null;
 };
 export type MeetingWriteResult = { kind: "meeting"; meeting: Meeting } | { kind: "operation"; operation: MeetingOperation };
-export type MeetingIssue = "access" | "not-found" | "unavailable" | "invalid" | "conflict" | "consent-required" | "admin-approval-required" | "graph-unavailable" | "configuration" | "timeout" | "connection" | `server-error-${number}` | `request-error-${number}`;
+export type MeetingIssue = "unauthenticated" | "access" | "not-found" | "unavailable" | "invalid" | "conflict" | "consent-required" | "admin-approval-required" | "graph-unavailable" | "configuration" | "timeout" | "connection" | `server-error-${number}` | `request-error-${number}`;
 export type MeetingGraphAvailability = "checking" | "available" | "consent-required" | "admin-approval-required" | "not-configured" | "teams-unavailable" | "session-required" | "unavailable";
 export type MeetingGraphAvailabilityResult = {
   state: Exclude<MeetingGraphAvailability, "checking">;

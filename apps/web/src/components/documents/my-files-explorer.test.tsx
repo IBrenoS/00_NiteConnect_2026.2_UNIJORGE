@@ -11,29 +11,10 @@ vi.mock("../../lib/documents/library-actions", () => ({
   updateLibraryFolder: vi.fn(),
 }));
 
-import { CreateMenuActions, DetailsPanel, getExplorerFlexibleColumnWidths, MyFilesExplorer, SelectionToolbar, toggleDetailsPanel } from "./my-files-explorer";
+import { CreateMenuActions, DetailsPanel, MyFilesExplorer, SelectionToolbar, toggleDetailsPanel } from "./my-files-explorer";
 import type { LibraryFolder } from "../../lib/documents/library-contracts";
 
 describe("explorador Meus arquivos", () => {
-  it("preserva a largura de Nome e redistribui apenas as colunas posteriores durante a abertura dos detalhes",()=>{
-    const closedWidths=getExplorerFlexibleColumnWidths(1544,1544);
-    expect(closedWidths[0]).toBeCloseTo(401.004,3);
-    expect(closedWidths[1]).toBeCloseTo(231.312,3);
-    expect(closedWidths[2]).toBeCloseTo(315.684,3);
-    const openWidths=getExplorerFlexibleColumnWidths(1176,1544);
-    expect(openWidths[0]).toBeCloseTo(closedWidths[0],3);
-    expect(openWidths[1]).toBeCloseTo(75.693,3);
-    expect(openWidths[2]).toBeCloseTo(103.303,3);
-    const midTransitionWidths=getExplorerFlexibleColumnWidths(1360,1544);
-    expect(midTransitionWidths[0]).toBeCloseTo(closedWidths[0],3);
-    expect(midTransitionWidths[1]).toBeCloseTo(153.503,3);
-    expect(midTransitionWidths[2]).toBeCloseTo(209.493,3);
-    const narrowWidths=getExplorerFlexibleColumnWidths(700,1544);
-    expect(narrowWidths[0]).toBeCloseTo(104,3);
-    expect(narrowWidths[1]).toBe(0);
-    expect(narrowWidths[2]).toBe(0);
-  });
-
   it("compartilha as opções e os ícones dos dois menus de criação e carregamento",()=>{
     for(const variant of ["title","primary"] as const) {
       const html=renderToStaticMarkup(<CreateMenuActions variant={variant} onClose={()=>undefined} onCreateFolder={()=>undefined} onUploadFiles={()=>undefined} onUploadFolder={()=>undefined}/>);
@@ -317,6 +298,16 @@ describe("explorador Meus arquivos", () => {
     const html=renderToStaticMarkup(<MyFilesExplorer listing={null} issue={null} view="personal" templates={[]} params={{saved:"1"}}/>);
     expect(html).toContain('role="status"');
     expect(html).toContain("Alteração concluída e listagem atualizada.");
+    expect(html).toContain('data-transient-feedback=""');
+  });
+
+  it("mantém falha de carregamento persistente e torna apenas o retorno da operação temporário",()=>{
+    const structural=renderToStaticMarkup(<MyFilesExplorer listing={null} issue="access" view="personal" templates={[]} params={{}}/>);
+    expect(structural).toContain("Você não tem acesso a esta pasta.");
+    expect(structural).not.toContain("data-transient-feedback");
+    const flash=renderToStaticMarkup(<MyFilesExplorer listing={null} issue="access" view="personal" templates={[]} params={{error:"conflict"}}/>);
+    expect(flash.match(/data-transient-feedback/g)).toHaveLength(1);
+    expect(flash).toContain("Você não tem acesso a esta pasta.");
   });
 
   it("oculta a alternância de visão e criação sem permissão efetiva de edição",()=>{

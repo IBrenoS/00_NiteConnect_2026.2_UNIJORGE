@@ -98,6 +98,7 @@ public class ActivityService {
     }
     @Transactional(readOnly=true) public PageResult<View> list(UUID actor,boolean own,Filter f,int page,int size) {
         access.requireActive(actor);f.validate();LocalDate today=LocalDate.now(clock);
+        if(f.projectId()!=null) projectAccess.requireRead(actor,f.projectId());
         var result=repo.list(actor,access.isAdministrator(actor),projects.currentProjectIds(actor),own,f,today,page,size);
         var names=members.names(result.items().stream().map(Activity::primaryExecutorId).distinct().toList());
         return new PageResult<>(result.items().stream().map(a->view(a,today,names.get(a.primaryExecutorId()))).toList(),page,size,result.total());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseActivityPage, parseActivityCapabilities, parseActivityPlanning, parseActivityPlanningCapabilities, parseActivityStatistics } from "./contracts";
+import { parseActivityHistoryEvent, parsePage, parseActivityPage, parseActivityCapabilities, parseActivityPlanning, parseActivityPlanningCapabilities, parseActivityStatistics } from "./contracts";
 
 const activity = { id: "a", title: "Atividade", description: "Descrição", projectId: null, planningId: null, status: "PLANEJADA", startOn: null, dueOn: null, priority: null, primaryExecutorId: "m", primaryExecutorName: "Pessoa", executorAvailable: true, createdBy: "m", version: 0, createdAt: "2026-10-31T00:00:00Z", updatedAt: "2026-10-31T00:00:00Z", completedAt: null, deadlinePassed: false, overdue: false, attentionRequired: false };
 
@@ -28,4 +28,11 @@ describe("activity API contract", () => {
     expect(parseActivityPage({ items: [{ ...activity, status: "ATRASADA" }], page: 0, size: 20, total: 1 })).toBeNull();
     expect(parseActivityPage({ items: [], page: -1, size: 20, total: 0 })).toBeNull();
   });
+});
+
+it("accepts optional reasons in a mixed persisted history page without losing events", () => {
+ const event = {id:"event",activityId:"task",actorId:"actor",action:"CREATED",reason:null,occurredAt:"2026-11-18T00:00:00Z",activityVersion:0,before:null,after:"{}"};
+ const payload = {items:[event,{...event,id:"second",reason:"Registro informado",activityVersion:1}],page:0,size:20,total:2};
+ expect(parsePage(payload,parseActivityHistoryEvent)).toEqual(payload);
+ expect(parseActivityHistoryEvent({...event,reason:42})).toBeNull();
 });

@@ -1,9 +1,10 @@
 "use server";
 
+import { getApiJson } from "../api/server";
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedNiteSession } from "../auth/server-session";
-import { getActivity, getActivityAssignees, getAllActivityCandidates, getActivityPlanning, getActivityPlanningCapabilities, getActivityCapabilities } from "./data";
-import { parseActivity, parseActivityAssignee, parseActivityPlanning, type ActivityAssignee, type ActivityCandidate, type ActivityCapabilities, type ActivityStatus } from "./contracts";
+import { getActivity, getAllActivityAssignees, getAllActivityCandidates, getActivityPlanning, getActivityPlanningCapabilities, getActivityCapabilities } from "./data";
+import { parseActivity, parseActivityPlanning, type ActivityAssignee, type ActivityCandidate, type ActivityCapabilities, type ActivityStatus, parseActivityCandidate, parsePage, type Activity } from "./contracts";
 import { mutateActivity, type ActivityMutationIssue } from "./mutations";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -14,7 +15,7 @@ type PlanningActionResult<T> = { data: T; issue: null } | { data: null; issue: A
 
 export async function createPlanningAction(input: { title: string; description: string; projectId: string | null }): Promise<PlanningActionResult<{ id: string }>> {
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   if (!input.title.trim() || input.title.length > 200 || input.description.length > 10_000 || (input.projectId && !uuidPattern.test(input.projectId))) return { data: null, issue: "invalid" };
   const created = await mutateActivity("/api/v1/activity-plannings", session.bearer, "POST", {
     title: input.title.trim(), description: input.description.trim(), projectId: input.projectId,
@@ -25,11 +26,11 @@ export async function createPlanningAction(input: { title: string; description: 
 }
 
 export async function createPlanningTaskAction(planningId: string, input: {
-  title: string; description: string; startOn: string | null; dueOn: string | null; priority: string | null;
+  title: string; description: string; startOn: string | null; dueOn: string | null; priority: string | null; status?: ActivityStatus; primaryExecutorId?: string; collaboratorIds?: string[]; confirmed?: boolean;
 }): Promise<PlanningActionResult<{ id: string }>> {
   if (!uuidPattern.test(planningId) || !input.title.trim() || input.title.length > 200 || input.description.length > 10_000) return { data: null, issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   const [planning, capabilities] = await Promise.all([
     getActivityPlanning(session.bearer, planningId),
     getActivityPlanningCapabilities(session.bearer, planningId),
@@ -38,7 +39,7 @@ export async function createPlanningTaskAction(planningId: string, input: {
   if (capabilities.issue || !capabilities.data?.canCreateTasks) return { data: null, issue: capabilities.issue === "not-found" ? "not-found" : "forbidden" };
   const result = await mutateActivity(`/api/v1/activity-plannings/${encodeURIComponent(planningId)}/tasks`, session.bearer, "POST", {
     title: input.title.trim(), description: input.description.trim(), startOn: input.startOn, dueOn: input.dueOn,
-    priority: input.priority, primaryExecutorId: session.member.id, expectedVersion: capabilities.data.version,
+    priority: input.priority, primaryExecutorId: input.primaryExecutorId || session.member.id, status: input.status ?? "PLANEJADA", collaboratorIds: input.collaboratorIds ?? [], confirmed: input.confirmed ?? false, expectedVersion: capabilities.data.version,
   }, (value) => {
     if (!isRecord(value)) return null;
     const activity = parseActivity(value.activity);
@@ -52,10 +53,10 @@ export async function createPlanningTaskAction(planningId: string, input: {
 
 export async function updatePlanningTaskAction(planningId: string, activityId: string, input: {
   expectedVersion: number; title: string; description: string; startOn: string | null; dueOn: string | null; priority: string | null; ownerId: string; collaboratorIds: string[]; status: ActivityStatus; confirmed?: boolean;
-}): Promise<PlanningActionResult<{ version: number }>> {
+}): Promise<PlanningActionResult<{ version: number; activity: Activity }>> {
   if (!uuidPattern.test(planningId) || !uuidPattern.test(activityId) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0 || !input.title.trim() || input.title.length > 200 || input.description.length > 10_000) return { data: null, issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   const [current, capabilities] = await Promise.all([
     getActivity(session.bearer, activityId),
     getActivityCapabilities(session.bearer, activityId),
@@ -64,65 +65,22 @@ export async function updatePlanningTaskAction(planningId: string, activityId: s
   if (current.data.planningId !== planningId) return { data: null, issue: "not-found" };
   if (capabilities.issue || !capabilities.data?.edit) return { data: null, issue: capabilities.issue === "not-found" ? "not-found" : "forbidden" };
   if (current.data.version !== input.expectedVersion) return { data: null, issue: "conflict" };
-  let expectedVersion = current.data.version;
-  if (input.ownerId && input.ownerId !== current.data.primaryExecutorId) {
-    if (!capabilities.data.manageAssignees) return { data: null, issue: "forbidden" };
-    const candidates = await getAllActivityCandidates(session.bearer, activityId);
-    if (candidates.issue || !candidates.data) return { data: null, issue: candidates.issue ?? "unavailable" };
-    if (!candidates.data.some((candidate) => candidate.id === input.ownerId)) return { data: null, issue: "forbidden" };
-    const assigned = await mutateActivity(`/api/v1/activities/${encodeURIComponent(activityId)}/executor`, session.bearer, "PUT", {
-      memberId: input.ownerId, expectedVersion,
-    }, parseActivityAssignee);
-    if (assigned.issue) return { data: null, issue: assigned.issue };
-    const refreshed = await getActivity(session.bearer, activityId);
-    if (refreshed.issue || !refreshed.data) return { data: null, issue: refreshed.issue ?? "unavailable" };
-    expectedVersion = refreshed.data.version;
-  }
-  const result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(activityId)}`, session.bearer, "PATCH", {
-    title: input.title.trim(), description: input.description.trim(), startOn: input.startOn,
-    dueOn: input.dueOn, priority: input.priority, expectedVersion,
+  const result = await mutateActivity(`/api/v1/activity-plannings/${encodeURIComponent(planningId)}/tasks/${encodeURIComponent(activityId)}`, session.bearer, "PATCH", {
+    expectedVersion: input.expectedVersion, title: input.title.trim(), description: input.description.trim(),
+    startOn: input.startOn, dueOn: input.dueOn, priority: input.priority,
+    primaryExecutorId: input.ownerId || current.data.primaryExecutorId,
+    collaboratorIds: input.collaboratorIds, status: input.status, confirmed: input.confirmed ?? false,
   }, parseActivity);
   if (result.issue || !result.data) return { data: null, issue: result.issue ?? "unavailable" };
-  let version = result.data.version;
-  if (capabilities.data.manageAssignees) {
-    const [assignees, candidates] = await Promise.all([
-      getActivityAssignees(session.bearer, activityId),
-      getAllActivityCandidates(session.bearer, activityId),
-    ]);
-    if (assignees.issue || !assignees.data || candidates.issue || !candidates.data) return { data: null, issue: "unavailable" };
-    const existing = assignees.data.items.filter((assignee) => assignee.role === "COLLABORATOR").map((assignee) => assignee.memberId);
-    const desired = Array.from(new Set(input.collaboratorIds.filter((memberId) => uuidPattern.test(memberId) && memberId !== input.ownerId)));
-    if (desired.some((memberId) => !existing.includes(memberId) && !candidates.data.some((candidate) => candidate.id === memberId))) return { data: null, issue: "forbidden" };
-    for (const memberId of desired.filter((member) => !existing.includes(member))) {
-      const latest = await getActivity(session.bearer, activityId);
-      if (latest.issue || !latest.data) return { data: null, issue: latest.issue ?? "unavailable" };
-      const added = await mutateActivity(`/api/v1/activities/${encodeURIComponent(activityId)}/collaborators`, session.bearer, "POST", { memberId, expectedVersion: latest.data.version }, parseActivityAssignee);
-      if (added.issue) return { data: null, issue: added.issue };
-    }
-    for (const memberId of existing.filter((member) => !desired.includes(member))) {
-      const latest = await getActivity(session.bearer, activityId);
-      if (latest.issue || !latest.data) return { data: null, issue: latest.issue ?? "unavailable" };
-      const removed = await mutateActivity(`/api/v1/activities/${encodeURIComponent(activityId)}/collaborators/${encodeURIComponent(memberId)}`, session.bearer, "DELETE", { expectedVersion: latest.data.version });
-      if (removed.issue) return { data: null, issue: removed.issue };
-    }
-    const latest = await getActivity(session.bearer, activityId);
-    if (latest.issue || !latest.data) return { data: null, issue: latest.issue ?? "unavailable" };
-    version = latest.data.version;
-  }
-  if (input.status !== result.data.status) {
-    const moved = await movePlanningTaskAction(planningId, activityId, version, "status", input.status, input.confirmed);
-    if (moved.issue || !moved.data) return { data: null, issue: moved.issue ?? "unavailable" };
-    version = moved.data.version;
-  }
   revalidatePath("/atividades");
   revalidatePath(`/atividades/planejamentos/${planningId}`);
-  return { data: { version }, issue: null };
+  return { data: { version: result.data.version, activity: result.data }, issue: null };
 }
 
-export async function movePlanningTaskAction(planningId: string, activityId: string, expectedVersion: number, field: "status" | "priority", value: string | null, confirmed = false): Promise<PlanningActionResult<{ version: number }>> {
+export async function movePlanningTaskAction(planningId: string, activityId: string, expectedVersion: number, field: "status" | "priority", value: string | null, confirmed = false): Promise<PlanningActionResult<{ version: number; activity: Activity }>> {
   if (!uuidPattern.test(planningId) || !uuidPattern.test(activityId) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return { data: null, issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   const [current, capabilities] = await Promise.all([
     getActivity(session.bearer, activityId),
     getActivityCapabilities(session.bearer, activityId),
@@ -146,13 +104,13 @@ export async function movePlanningTaskAction(planningId: string, activityId: str
   if (result.issue || !result.data) return { data: null, issue: result.issue ?? "unavailable" };
   revalidatePath("/atividades");
   revalidatePath(`/atividades/planejamentos/${planningId}`);
-  return { data: { version: result.data.version }, issue: null };
+  return { data: { version: result.data.version, activity: result.data }, issue: null };
 }
 
 export async function deletePlanningTaskAction(planningId: string, activityId: string, expectedVersion: number): Promise<PlanningActionResult<null>> {
   if (!uuidPattern.test(planningId) || !uuidPattern.test(activityId) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return { data: null, issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   const [current, capabilities] = await Promise.all([
     getActivity(session.bearer, activityId),
     getActivityCapabilities(session.bearer, activityId),
@@ -172,7 +130,7 @@ export async function getPlanningTaskEditorAction(planningId: string, activityId
 }>> {
   if (!uuidPattern.test(planningId) || !uuidPattern.test(activityId)) return { data: null, issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   const [activity, capabilities] = await Promise.all([
     getActivity(session.bearer, activityId),
     getActivityCapabilities(session.bearer, activityId),
@@ -181,18 +139,15 @@ export async function getPlanningTaskEditorAction(planningId: string, activityId
   if (activity.data.planningId !== planningId) return { data: null, issue: "not-found" };
   if (capabilities.issue || !capabilities.data) return { data: null, issue: capabilities.issue ?? "unavailable" };
   if (!capabilities.data.manageAssignees) return { data: { capabilities: capabilities.data, candidates: [], assignees: [] }, issue: null };
-  const [candidates, assigneePage] = await Promise.all([
-    getAllActivityCandidates(session.bearer, activityId),
-    getActivityAssignees(session.bearer, activityId),
-  ]);
-  if (candidates.issue || !candidates.data || assigneePage.issue || !assigneePage.data) return { data: null, issue: "unavailable" };
-  return { data: { capabilities: capabilities.data, candidates: [...candidates.data], assignees: assigneePage.data.items }, issue: null };
+  const assigneePage = await getAllActivityAssignees(session.bearer, activityId);
+  if (assigneePage.issue) return { data: null, issue: assigneePage.issue };
+  return { data: { capabilities: capabilities.data, candidates: [], assignees: [...assigneePage.data] }, issue: null };
 }
 
 export async function deletePlanningAction(planningId: string, expectedVersion: number): Promise<PlanningActionResult<null>> {
   if (!uuidPattern.test(planningId) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return { data: null, issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { data: null, issue: "access" };
+  if (!session) return { data: null, issue: "unauthenticated" };
   const capabilities = await getActivityPlanningCapabilities(session.bearer, planningId);
   if (capabilities.issue || !capabilities.data?.canDelete) return { data: null, issue: capabilities.issue === "not-found" ? "not-found" : "forbidden" };
   const result = await mutateActivity(`/api/v1/activity-plannings/${encodeURIComponent(planningId)}`, session.bearer, "DELETE", { expectedVersion, confirmed: true });
@@ -200,4 +155,46 @@ export async function deletePlanningAction(planningId: string, expectedVersion: 
   revalidatePath("/atividades");
   revalidatePath(`/atividades/planejamentos/${planningId}`);
   return { data: null, issue: null };
+}
+
+export async function getPlanningCreationCandidatesAction(planningId: string, query = ""): Promise<PlanningActionResult<ActivityCandidate[]>> {
+  if (!uuidPattern.test(planningId)) return { data: null, issue: "invalid" };
+  const session = await getAuthenticatedNiteSession();
+  if (!session) return { data: null, issue: "unauthenticated" };
+  const [planning, capabilities] = await Promise.all([
+    getActivityPlanning(session.bearer, planningId), getActivityPlanningCapabilities(session.bearer, planningId),
+  ]);
+  if (planning.issue) return { data: null, issue: planning.issue };
+  if (capabilities.issue || !capabilities.data.canCreateTasks) return { data: null, issue: capabilities.issue ?? "forbidden" };
+  if (query.trim().length < 2) return { data: planning.data.projectId ? [] : [{ id: session.member.id, name: session.member.name }], issue: null };
+  if (query.length > 160) return { data: null, issue: "invalid" };
+  // The independent candidate directory is administrative; ordinary members can still create their own work.
+  if (!planning.data.projectId && !session.roles.some((role) => role === "COORDENADOR" || role === "GESTOR_GERAL")) {
+    return { data: [{ id: session.member.id, name: session.member.name }], issue: null };
+  }
+  const base = planning.data.projectId
+    ? `/api/v1/projects/${encodeURIComponent(planning.data.projectId)}/activity-assignee-candidates`
+    : "/api/v1/activities/independent-assignee-candidates";
+  const load = (page: number) => getApiJson(`${base}?page=${page}&size=100&query=${encodeURIComponent(query.trim())}`, session.bearer, (value) => parsePage(value, parseActivityCandidate));
+  const first = await load(0);
+  if (first.issue) return { data: null, issue: first.issue };
+  const rest = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(first.data.total / first.data.size) - 1) }, (_, index) => load(index + 1)));
+  const failed = rest.find((result) => result.issue);
+  if (failed?.issue) return { data: null, issue: failed.issue };
+  return { data: [...first.data.items, ...rest.flatMap((result) => result.data?.items ?? [])], issue: null };
+}
+
+export async function searchPlanningTaskCandidatesAction(planningId: string, activityId: string | null, query: string): Promise<PlanningActionResult<ActivityCandidate[]>> {
+  if (query.trim().length < 2 || query.length > 160) return { data: null, issue: "invalid" };
+  if (activityId === null) return getPlanningCreationCandidatesAction(planningId, query);
+  if (!uuidPattern.test(planningId) || !uuidPattern.test(activityId)) return { data: null, issue: "invalid" };
+  const session = await getAuthenticatedNiteSession();
+  if (!session) return { data: null, issue: "unauthenticated" };
+  const [activity, capabilities] = await Promise.all([getActivity(session.bearer, activityId), getActivityCapabilities(session.bearer, activityId)]);
+  if (activity.issue) return { data: null, issue: activity.issue };
+  if (activity.data.planningId !== planningId) return { data: null, issue: "not-found" };
+  if (capabilities.issue || !capabilities.data.manageAssignees) return { data: null, issue: capabilities.issue ?? "forbidden" };
+  const result = await getAllActivityCandidates(session.bearer, activityId, query);
+  if (result.issue) return { data: null, issue: result.issue };
+  return { data: [...result.data], issue: null };
 }

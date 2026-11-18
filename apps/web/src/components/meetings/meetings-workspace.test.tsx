@@ -14,6 +14,18 @@ vi.mock("../../lib/meetings/actions", () => ({
 }));
 
 describe("MeetingsWorkspace", () => {
+  it("keeps the existing action feedback announced before automatic dismissal", () => {
+    const html = renderToStaticMarkup(
+      <MeetingsWorkspace viewerId={previewViewerId} previewMode initialJoinFeedback="unavailable"
+        upcoming={previewUpcoming} past={previewPast} cancelled={previewCancelled} notifications={null}
+        upcomingIssue={null} pastIssue={null} cancelledIssue={null} notificationIssue={null}
+        upcomingPage={0} pastPage={0} cancelledPage={0} initialGraphAvailability="available" />,
+    );
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain("O serviço de reuniões está indisponível no momento.");
+  });
+
   it("uses one temporal filter and keeps canceled meetings out of the upcoming list", () => {
     const upcomingWithDuplicateCancellation = {
       ...previewUpcoming,

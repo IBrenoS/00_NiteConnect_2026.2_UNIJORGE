@@ -14,6 +14,7 @@ import {
   Textarea,
   TextField,
 } from "./ui";
+import { TransientFeedback } from "./ui/transient-feedback";
 import { AdminDataQueryLab } from "./admin-data-query-lab";
 
 export function ComponentLibraryLab() {
@@ -154,7 +155,7 @@ export function ComponentLibraryLab() {
               <Button type="submit">Validar formulário</Button>
               <Button type="reset" variant="quiet" onClick={() => setFormMessage("Formulário demonstrativo limpo.")}>Limpar</Button>
             </div>
-            <p className="text-type-metadata text-nite-text-secondary" role="status" aria-live="polite">{formMessage}</p>
+            {formMessage ? <TransientFeedback messageKey={formMessage} onDismiss={() => setFormMessage("")}> <p className="text-type-metadata text-nite-text-secondary" role="status" aria-live="polite">{formMessage}</p> </TransientFeedback> : null}
           </form>
         </div>
       </section>
@@ -302,7 +303,7 @@ export function ComponentLibraryLab() {
           </div>
           <div className="flex flex-wrap items-center gap-4 sm:col-span-2">
             <Button type="submit">Validar composição</Button>
-            <p className="text-type-metadata text-nite-text-secondary" role="status" aria-live="polite">{compositionMessage}</p>
+            {compositionMessage ? <TransientFeedback messageKey={compositionMessage} onDismiss={() => setCompositionMessage("")}> <p className="text-type-metadata text-nite-text-secondary" role="status" aria-live="polite">{compositionMessage}</p> </TransientFeedback> : null}
           </div>
         </form>
       </section>
@@ -319,13 +320,12 @@ export function ComponentLibraryLab() {
           <InlineFeedback variant="warning" title="Atenção" description="Revise os campos sinalizados antes de continuar." />
           <InlineFeedback variant="error" title="Erro" description="Não foi possível concluir a ação demonstrativa. Tente novamente." />
           <Surface variant="subtle" padding="compact" className="flex flex-wrap items-center justify-between gap-3">
-            <InlineFeedback
-              className="min-w-0 flex-1"
+            {feedbackMessage ? <TransientFeedback className="min-w-0 flex-1" messageKey={feedbackMessage} onDismiss={() => setFeedbackMessage("")}><InlineFeedback
               variant="info"
               title="Atualização dinâmica"
               description={feedbackMessage}
               announcement="polite"
-            />
+            /></TransientFeedback> : null}
             <Button
               type="button"
               variant="secondary"
@@ -394,7 +394,7 @@ export function ComponentLibraryLab() {
         <Surface variant="subtle" className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={() => setDialogOpen(true)}>Abrir diálogo de edição</Button>
           <Button type="button" variant="destructive" onClick={() => setAlertDialogOpen(true)}>Abrir confirmação sensível</Button>
-          <p className="w-full text-type-metadata text-nite-text-secondary" role="status" aria-live="polite">{dialogMessage} {alertMessage}</p>
+          {dialogMessage || alertMessage ? <TransientFeedback className="w-full" messageKey={`${dialogMessage}:${alertMessage}`} onDismiss={() => { setDialogMessage(""); setAlertMessage(""); }}><p className="text-type-metadata text-nite-text-secondary" role="status" aria-live="polite">{dialogMessage} {alertMessage}</p></TransientFeedback> : null}
         </Surface>
         <Dialog
           open={dialogOpen}

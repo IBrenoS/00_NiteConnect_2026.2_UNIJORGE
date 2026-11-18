@@ -110,9 +110,10 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities", "/api/v1/activities/*/collaborators").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/activity-plannings", "/api/v1/activity-plannings/*", "/api/v1/activity-plannings/*/capabilities",
                                 "/api/v1/activity-plannings/*/tasks", "/api/v1/activity-plannings/*/stats", "/api/v1/me/activities/stats",
-                                "/api/v1/projects/*/activity-stats").access(authenticatedJwt)
+                                "/api/v1/projects/*/activity-stats", "/api/v1/projects/*/activity-plannings",
+                                "/api/v1/admin/activity-plannings", "/api/v1/members/*/activity-stats").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/activity-plannings", "/api/v1/activity-plannings/*/tasks").access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/activity-plannings/*").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/activity-plannings/*", "/api/v1/activity-plannings/*/tasks/*").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/activity-plannings/*").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/activities/*", "/api/v1/activities/*/status").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.PUT, "/api/v1/activities/*/executor").access(authenticatedJwt)

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getActivityAssignees: vi.fn(), mutateActivity: vi.fn(), revalidatePath: vi.fn(),
 }));
 
+vi.mock("../api/server", () => ({ getApiJson: vi.fn() }));
 vi.mock("../auth/server-session", () => ({ getAuthenticatedNiteSession: mocks.getAuthenticatedNiteSession }));
 vi.mock("./data", () => ({
   getActivity: mocks.getActivity, getActivityCapabilities: mocks.getActivityCapabilities,
@@ -15,7 +16,7 @@ vi.mock("./data", () => ({
 vi.mock("./mutations", () => ({ mutateActivity: mocks.mutateActivity }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { createPlanningAction, movePlanningTaskAction } from "./planning-actions";
+import { getPlanningCreationCandidatesAction, createPlanningAction, createPlanningTaskAction, updatePlanningTaskAction, movePlanningTaskAction } from "./planning-actions";
 
 const planningId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const activityId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -46,7 +47,7 @@ describe("activity planning actions", () => {
     mocks.mutateActivity.mockImplementation(async (_path, _bearer, _method, _body, parse) => ({ data: parse({ ...activity, status: "EM_EXECUCAO", version: 5, completedAt: null }), issue: null }));
     const result = await movePlanningTaskAction(planningId, activityId, 4, "status", "EM_EXECUCAO", true);
     expect(mocks.mutateActivity).toHaveBeenCalledWith(`/api/v1/activities/${activityId}/status`, "server-only", "PATCH", { status: "EM_EXECUCAO", expectedVersion: 4, confirmed: true }, expect.any(Function));
-    expect(result).toEqual({ data: { version: 5 }, issue: null });
+    expect(result).toMatchObject({ data: { version: 5, activity: { version: 5, status: "EM_EXECUCAO" } }, issue: null });
   });
 
   it("returns a conflict without pretending that a stale move persisted", async () => {
@@ -56,4 +57,38 @@ describe("activity planning actions", () => {
     const result = await movePlanningTaskAction(planningId, activityId, 4, "priority", "MEDIA");
     expect(result).toEqual({ data: null, issue: "conflict" });
   });
+});
+
+it("updates all editor properties atomically", async () => {
+ mocks.getActivity.mockResolvedValue({ data: activity, issue: null });
+ mocks.getActivityCapabilities.mockResolvedValue({ data: { edit: true, manageAssignees: true }, issue: null });
+ mocks.mutateActivity.mockImplementation(async (_p,_b,_m,_body,parse) => ({data:parse({...activity,version:8}),issue:null}));
+ const result = await updatePlanningTaskAction(planningId,activityId,{expectedVersion:4,title:"Updated",description:"Details",startOn:null,dueOn:null,priority:"ALTA",ownerId:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",collaboratorIds:[],status:"EM_EXECUCAO",confirmed:true});
+ expect(mocks.mutateActivity).toHaveBeenCalledTimes(1);
+ expect(mocks.mutateActivity).toHaveBeenCalledWith(`/api/v1/activity-plannings/${planningId}/tasks/${activityId}`,"server-only","PATCH",expect.objectContaining({expectedVersion:4,primaryExecutorId:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",collaboratorIds:[],status:"EM_EXECUCAO",confirmed:true}),expect.any(Function));
+ expect(result.data?.version).toBe(8);
+});
+it("preserves quick creation column and properties", async () => {
+ mocks.getActivityPlanning.mockResolvedValue({data:{id:planningId},issue:null});
+ mocks.getActivityPlanningCapabilities.mockResolvedValue({data:{canCreateTasks:true,version:2},issue:null});
+ mocks.mutateActivity.mockImplementation(async (_p,_b,_m,_body,parse) => ({data:parse({activity,planningVersion:3}),issue:null}));
+ await createPlanningTaskAction(planningId,{title:"Task",description:"Details",startOn:null,dueOn:null,priority:"ALTA",status:"EM_EXECUCAO",primaryExecutorId:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",collaboratorIds:[]});
+ expect(mocks.mutateActivity).toHaveBeenCalledWith(expect.any(String),"server-only","POST",expect.objectContaining({priority:"ALTA",status:"EM_EXECUCAO",primaryExecutorId:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",collaboratorIds:[]}),expect.any(Function));
+});
+
+it("does not block independent creation by requiring the administrative member directory", async () => {
+ mocks.getAuthenticatedNiteSession.mockResolvedValue({bearer:"server-only",member:{id:"member-1",name:"Pessoa"},roles:["INTEGRANTE"]});
+ mocks.getActivityPlanning.mockResolvedValue({data:{id:planningId,projectId:null},issue:null});
+ mocks.getActivityPlanningCapabilities.mockResolvedValue({data:{canCreateTasks:true},issue:null});
+ await expect(getPlanningCreationCandidatesAction(planningId)).resolves.toEqual({data:[{id:"member-1",name:"Pessoa"}],issue:null});
+});
+
+it("defaults an empty editor owner to the authenticated member", async () => {
+ vi.clearAllMocks();
+ mocks.getAuthenticatedNiteSession.mockResolvedValue({bearer:"server-only",member:{id:"member-1"},roles:[]});
+ mocks.getActivityPlanning.mockResolvedValue({data:{id:planningId,projectId:"project"},issue:null});
+ mocks.getActivityPlanningCapabilities.mockResolvedValue({data:{canCreateTasks:true,version:0},issue:null});
+ mocks.mutateActivity.mockImplementation(async (_p,_b,_m,_body,parse) => ({data:parse({activity,planningVersion:1}),issue:null}));
+ await createPlanningTaskAction(planningId,{title:"Task",description:"",startOn:null,dueOn:null,priority:null,primaryExecutorId:""});
+ expect(mocks.mutateActivity).toHaveBeenCalledWith(expect.any(String),expect.any(String),"POST",expect.objectContaining({primaryExecutorId:"member-1"}),expect.any(Function));
 });

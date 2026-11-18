@@ -696,3 +696,30 @@ h1 { font-size: 32px; line-height: 1.15; letter-spacing: -.035em; margin: 0; col
   .typography-sample-table { grid-column: auto; }
   .typography-token-properties code { width: 100%; }
 }
+
+/* Keep the details timeline scrollable without native arrow controls. */
+.document-details-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+.document-details-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+.document-details-scroll::-webkit-scrollbar-track { background: transparent; }
+.document-details-scroll::-webkit-scrollbar-thumb { background: var(--nite-text-muted); border-radius: 999px; }
+.document-details-scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+@supports not selector(::-webkit-scrollbar) {
+  .document-details-scroll { scrollbar-width: thin; scrollbar-color: var(--nite-text-muted) transparent; }
+}
+
+/* Resolve column widths in the same layout pass as the animated details grid.
+   The query container is the full explorer, so Name keeps its baseline width. */
+
+@media (min-width: 1536px) {
+  .document-explorer table {
+    --document-name-width: min(calc((var(--document-baseline-width) - 596px) * 0.423), max(0px, calc(100cqw - 596px)));
+    --document-remaining-width: max(0px, calc(100cqw - 596px - var(--document-name-width)));
+  }
+  .document-explorer .document-column-name { width: var(--document-name-width); }
+  .document-explorer .document-column-owner { width: calc(var(--document-remaining-width) * 0.4228769497); }
+  .document-explorer .document-column-activity { width: calc(var(--document-remaining-width) * 0.5771230503); }
+}

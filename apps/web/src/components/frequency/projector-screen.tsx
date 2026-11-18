@@ -1,5 +1,6 @@
 "use client";
 
+import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -18,6 +19,7 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
   const [qrExpiresAt, setQrExpiresAt] = useState(initialQrExpiresAt);
   const [clock, setClock] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
+  const [transientMessage, setTransientMessage] = useState(false);
   const [rotationNotice, setRotationNotice] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const renewalInFlight = useRef(false);
@@ -43,6 +45,7 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
       void pollFrequencyProjector(list.listId, list.version).then((snapshot) => {
         if (stopped) return;
         if (!snapshot.ok) {
+          setTransientMessage(false);
           setMessage(snapshot.message);
           return;
         }
@@ -73,6 +76,7 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
         if (!active) return;
         if (!result.ok) {
           setSvg(null);
+          setTransientMessage(false);
           setMessage(result.message);
           return;
         }
@@ -117,6 +121,7 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
       if (document.fullscreenElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen();
     } catch {
+      setTransientMessage(true);
       setMessage("Não foi possível ativar a tela cheia neste navegador.");
     }
   }
@@ -147,7 +152,7 @@ export function ProjectorScreen({ initialList, initialSvg, initialQrExpiresAt }:
           <span className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-white sm:text-5xl lg:text-6xl">{globalRemaining === null ? "--:--" : remainingLabel(globalRemaining)}</span>
         </div>
         <p role="status" aria-live="polite" className="pt-1 text-type-body-compact font-semibold text-sky-200">{presentationState}</p>
-        {message ? <p role="alert" className="max-w-xl text-type-metadata text-amber-200">{message}</p> : null}
+        {message ? transientMessage ? <TransientFeedback messageKey={message} onDismiss={() => setMessage(null)}><p role="alert" className="max-w-xl text-type-metadata text-amber-200">{message}</p></TransientFeedback> : <p role="alert" className="max-w-xl text-type-metadata text-amber-200">{message}</p> : null}
       </section>
     </div>
   </main>;

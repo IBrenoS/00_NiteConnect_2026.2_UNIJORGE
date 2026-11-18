@@ -148,3 +148,10 @@ describe("detalhe pessoal de atividade", () => {
     expect(markup).toContain("Descrição");
   });
 });
+
+it("renders persisted history events when no optional reason was supplied", () => {
+ const markup = renderToStaticMarkup(<ActivityDetail {...authorizedProps} history={{...history,items:history.items.map(event=>({...event,reason:null}))}} />);
+ expect(markup).not.toContain("Não foi possível carregar o histórico");
+ expect(markup).not.toContain("undefined");
+ expect(markup).toContain("Histórico");
+});
