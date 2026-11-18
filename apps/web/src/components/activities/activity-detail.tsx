@@ -5,6 +5,7 @@ import {
   addActivityCollaboratorAction,
   addActivityEvidenceAction,
   changeActivityExecutorAction,
+  deleteActivityAction,
   removeActivityCollaboratorAction,
   transitionActivityAction,
   updateActivityAction,
@@ -47,6 +48,7 @@ const summaryClass = "flex min-h-11 cursor-pointer items-center justify-between 
 
 const feedbackMessages: Record<string, { variant: "success" | "error" | "warning"; title: string; description: string }> = {
   created: { variant: "success", title: "Atividade criada", description: "A atividade foi atribuída a você." },
+  deleted: { variant: "success", title: "Atividade excluída", description: "A atividade foi removida permanentemente." },
   updated: { variant: "success", title: "Alterações salvas", description: "Os dados da atividade foram atualizados." },
   status: { variant: "success", title: "Situação atualizada", description: "A mudança foi registrada no histórico." },
   evidence: { variant: "success", title: "Evidência registrada", description: "O registro foi associado à atividade." },
@@ -71,7 +73,7 @@ function ActivityFeedback({ code }: { code?: string }) {
 }
 
 function FormReason() {
-  return <label className={labelClass}>Motivo da alteração<textarea className={`${controlClass} min-h-20 resize-y`} name="reason" required maxLength={1_000} /></label>;
+  return <label className={labelClass}>Motivo <span className="font-normal text-nite-text-muted">Opcional</span><textarea className={`${controlClass} min-h-16 resize-y`} name="reason" maxLength={1_000} /></label>;
 }
 
 function VersionAndReturn({ activity, returnTo }: Pick<ActivityDetailProps, "activity" | "returnTo">) {
@@ -231,9 +233,8 @@ function HistorySection({ props }: { props: Pick<ActivityDetailProps, "activity"
 
 function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity" | "capabilities" | "candidates" | "candidateIssue" | "candidateQuery" | "candidatePage" | "candidateSearchInvalid" | "participantsOpen" | "assignees" | "returnTo" | "evidencePage" | "historyPage"> }) {
   const { activity, capabilities, candidates, candidateIssue, candidateQuery, candidatePage, candidateSearchInvalid, participantsOpen, assignees, returnTo } = props;
-  if (!capabilities || (!capabilities.edit && capabilities.transitions.length === 0 && !capabilities.manageAssignees)) return null;
+  if (!capabilities || (!capabilities.edit && !capabilities.manageAssignees && !capabilities.canDelete)) return null;
   const update = updateActivityAction.bind(null, activity.id);
-  const transition = transitionActivityAction.bind(null, activity.id);
   const assignExecutor = changeActivityExecutorAction.bind(null, activity.id);
   const addCollaborator = addActivityCollaboratorAction.bind(null, activity.id);
   const collaborators = assignees?.items.filter((assignee) => assignee.role === "COLLABORATOR") ?? [];
@@ -255,19 +256,16 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
       <form action={update} className="grid min-w-0 gap-4">
         <VersionAndReturn activity={activity} returnTo={returnTo} />
         <label className={labelClass}>Título<input className={controlClass} name="title" required maxLength={200} defaultValue={activity.title} /></label>
-        <label className={labelClass}>Descrição<textarea className={`${controlClass} min-h-28 resize-y`} name="description" required maxLength={10_000} defaultValue={activity.description} /></label>
-        <label className={labelClass}>Prazo<input className={controlClass} type="date" name="dueOn" defaultValue={activity.dueOn ?? ""} /></label>
+        <label className={labelClass}>Descrição<textarea className={`${controlClass} min-h-24 resize-y`} name="description" maxLength={10_000} defaultValue={activity.description} /></label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className={labelClass}>Início<input className={controlClass} type="date" name="startOn" defaultValue={activity.startOn ?? ""} /></label>
+          <label className={labelClass}>Prazo<input className={controlClass} type="date" name="dueOn" defaultValue={activity.dueOn ?? ""} /></label>
+        </div>
+        <label className={labelClass}>Prioridade<select className={controlClass} name="priority" defaultValue={activity.priority ?? ""}><option value="">Sem prioridade</option><option value="ALTA">Alta</option><option value="MEDIA">Média</option><option value="BAIXA">Baixa</option></select></label>
         <FormReason />
         <div className="flex justify-end"><Button type="submit" variant="secondary">Salvar alterações</Button></div>
       </form>
     </ActivityActionDialog> : null}
-    {capabilities.transitions.length > 0 ? <ActivityStatusDialog
-      action={transition}
-      current={activity.status}
-      transitions={capabilities.transitions}
-      expectedVersion={activity.version}
-      returnTo={returnTo}
-    /> : null}
     {capabilities.manageAssignees && !participantQueryActive ? <Link href={candidateHref(0)} className={summaryClass}>Gerenciar participantes</Link> : null}
     {capabilities.manageAssignees && participantQueryActive ? <details open className="group">
       <summary className={summaryClass}>Gerenciar participantes</summary>
@@ -324,6 +322,16 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
         </details>)}
       </div>
     </details> : null}
+    {capabilities.canDelete ? <details className="group border-t border-nite-border-soft pt-3">
+      <summary className="flex min-h-10 cursor-pointer items-center rounded-control px-3 text-type-body-compact font-medium text-status-error hover:bg-status-error-soft focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Excluir atividade</summary>
+      <form action={deleteActivityAction.bind(null, activity.id)} className="grid gap-3 px-3 pb-3 pt-2">
+        <input type="hidden" name="expectedVersion" value={activity.version} />
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <p className="text-type-body-compact text-nite-text-secondary">A exclusão é permanente e remove a atividade das listas.</p>
+        <label className="flex items-start gap-2 text-type-body-compact text-nite-text-secondary"><input className="mt-1 size-4 accent-status-error" type="checkbox" name="confirmed" value="true" required />Confirmo a exclusão permanente.</label>
+        <Button type="submit" variant="destructive">Excluir permanentemente</Button>
+      </form>
+    </details> : null}
   </section>;
 }
 
@@ -352,6 +360,7 @@ export function ActivityDetail({
   feedback,
 }: ActivityDetailProps) {
   const collaborators = assignees?.items.filter((assignee) => assignee.role === "COLLABORATOR") ?? [];
+  const transition = transitionActivityAction.bind(null, activity.id);
   return <main className="mx-auto w-full max-w-6xl min-w-0 space-y-7 px-4 py-7 sm:px-7 sm:py-10 lg:px-9">
     <nav aria-label="Caminho da página" className="flex min-w-0 flex-wrap items-center gap-2 text-type-body-compact text-nite-text-secondary">
       <Link href={returnTo} className="rounded-subtle underline underline-offset-4 hover:text-nite-brand-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Minhas atividades</Link>
@@ -376,10 +385,13 @@ export function ActivityDetail({
       <aside aria-label="Propriedades da atividade" className="order-3 min-w-0 space-y-5 border-t border-nite-border-soft pt-5 lg:col-start-2 lg:row-start-1 lg:row-span-3 lg:sticky lg:top-24 lg:self-start lg:border-l lg:border-t-0 lg:pl-6 lg:pt-1">
         <h2 className="font-display text-type-section-title text-nite-text-primary">Detalhes</h2>
         <dl className="grid gap-4">
-          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Situação</dt><dd className="flex min-w-0 flex-wrap items-center gap-2"><ActivityStatusBadge status={activity.status} />{activity.overdue ? <span className="whitespace-nowrap rounded-pill border border-status-warning-border bg-status-warning-soft px-2 py-1 text-type-metadata font-medium text-status-warning">Em atraso</span> : null}</dd></div>
+          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Situação</dt><dd className="flex min-w-0 flex-wrap items-center gap-2"><ActivityStatusBadge status={activity.status} />{activity.overdue ? <span className="whitespace-nowrap rounded-pill border border-status-warning-border bg-status-warning-soft px-2 py-1 text-type-metadata font-medium text-status-warning">Em atraso</span> : null}{capabilities && capabilities.transitions.length > 0 ? <ActivityStatusDialog action={transition} current={activity.status} transitions={capabilities.transitions} expectedVersion={activity.version} returnTo={returnTo} /> : null}</dd></div>
+          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Prioridade</dt><dd className="text-type-body-compact text-nite-text-primary">{activity.priority === "ALTA" ? "Alta" : activity.priority === "MEDIA" ? "Média" : activity.priority === "BAIXA" ? "Baixa" : "Sem prioridade"}</dd></div>
+          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Início</dt><dd className="text-type-body-compact text-nite-text-primary">{activity.startOn ? <time dateTime={activity.startOn}>{formatActivityDate(activity.startOn)}</time> : "Sem data de início"}</dd></div>
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Projeto</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{projectTitle ?? (activity.projectId ? "Projeto associado" : "Atividade independente")}</dd></div>
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Prazo</dt><dd className="text-type-body-compact text-nite-text-primary">{activity.dueOn ? <time dateTime={activity.dueOn}>{formatActivityDate(activity.dueOn)}</time> : "Sem prazo definido"}</dd></div>
-          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Executor</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{activity.primaryExecutorName ?? "Integrante"}{!activity.executorAvailable ? <span className="mt-1 block text-type-metadata text-nite-text-secondary">Atribuição indisponível</span> : null}</dd></div>
+          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Criador</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{activity.createdBy === memberId ? "Você" : "Integrante"}</dd></div>
+          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Responsável principal</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{activity.primaryExecutorName ?? "Integrante"}{!activity.executorAvailable ? <span className="mt-1 block text-type-metadata text-nite-text-secondary">Atribuição indisponível</span> : null}</dd></div>
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Colaboradores</dt><dd className="grid gap-1 text-type-body-compact text-nite-text-primary">{assigneeIssue ? <span className="text-nite-text-secondary">Participantes indisponíveis</span> : collaborators.length ? collaborators.map((person) => <span key={person.id} className="break-words">{person.memberName ?? "Integrante"}{!person.available ? <span className="text-type-metadata text-nite-text-secondary"> · indisponível</span> : null}</span>) : <span className="text-nite-text-secondary">Nenhum colaborador</span>}</dd></div>
         </dl>
         <ActivityActions props={{ activity, capabilities, candidates, candidateIssue, candidateQuery, candidatePage, candidateSearchInvalid, participantsOpen, assignees, returnTo, evidencePage, historyPage }} />

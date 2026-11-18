@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { parseActivityPage, parseActivityCapabilities } from "./contracts";
+import { parseActivityPage, parseActivityCapabilities, parseActivityPlanning, parseActivityPlanningCapabilities, parseActivityStatistics } from "./contracts";
 
-const activity = { id: "a", title: "Atividade", description: "Descrição", projectId: null, status: "PLANEJADA", dueOn: null, primaryExecutorId: "m", primaryExecutorName: "Pessoa", executorAvailable: true, createdBy: "m", version: 0, createdAt: "2026-10-31T00:00:00Z", updatedAt: "2026-10-31T00:00:00Z", completedAt: null, deadlinePassed: false, overdue: false, attentionRequired: false };
+const activity = { id: "a", title: "Atividade", description: "Descrição", projectId: null, planningId: null, status: "PLANEJADA", startOn: null, dueOn: null, priority: null, primaryExecutorId: "m", primaryExecutorName: "Pessoa", executorAvailable: true, createdBy: "m", version: 0, createdAt: "2026-10-31T00:00:00Z", updatedAt: "2026-10-31T00:00:00Z", completedAt: null, deadlinePassed: false, overdue: false, attentionRequired: false };
 
 describe("activity API contract", () => {
+  it("validates V43 planning views, capabilities and aggregate statistics", () => {
+    const planning = { id: "planning-1", title: "Plano", description: "Descrição", projectId: null, createdBy: "member-1", version: 2, createdAt: "2026-11-17T12:00:00Z", updatedAt: "2026-11-17T12:00:00Z", canEdit: true, canCreateTasks: true, canDelete: true };
+    expect(parseActivityPlanning(planning)).toEqual(planning);
+    expect(parseActivityPlanningCapabilities({ canRead: true, canEdit: true, canCreateTasks: true, canDelete: true, version: 2 }))
+      .toEqual({ canRead: true, canEdit: true, canCreateTasks: true, canDelete: true, version: 2 });
+    expect(parseActivityStatistics({ total: 3, planned: 1, inProgress: 0, completed: 1, cancelled: 1, overdue: 0, completionDenominator: 2, plannedRate: 33.3, inProgressRate: 0, completedRate: 33.3, cancelledRate: 33.3, completionRate: 50 }))
+      .toMatchObject({ total: 3, completionDenominator: 2, completionRate: 50 });
+  });
+  it("rejects malformed V43 planning and statistics payloads", () => {
+    expect(parseActivityPlanning({ id: "planning-1" })).toBeNull();
+    expect(parseActivityPlanningCapabilities({ canRead: true })).toBeNull();
+    expect(parseActivityStatistics({ total: -1 })).toBeNull();
+  });
   it("validates activity capabilities without accepting unknown transitions", () => {
-    expect(parseActivityCapabilities({ edit: true, transitions: ["EM_EXECUCAO"], history: true, manageAssignees: false, addEvidence: true, upload: false })?.transitions).toEqual(["EM_EXECUCAO"]);
-    expect(parseActivityCapabilities({ edit: true, transitions: ["ATRASADA"], history: true, manageAssignees: false, addEvidence: true, upload: false })).toBeNull();
+    expect(parseActivityCapabilities({ edit: true, changePriority: true, canDelete: true, transitions: ["EM_EXECUCAO"], history: true, manageAssignees: false, addEvidence: true, upload: false })?.transitions).toEqual(["EM_EXECUCAO"]);
+    expect(parseActivityCapabilities({ edit: true, changePriority: false, canDelete: false, transitions: ["ATRASADA"], history: true, manageAssignees: false, addEvidence: true, upload: false })).toBeNull();
   });
   it("preserves independent activities and the API overdue condition", () => {
     expect(parseActivityPage({ items: [{ ...activity, overdue: true }], page: 0, size: 20, total: 1 })?.items[0]).toMatchObject({ projectId: null, status: "PLANEJADA", overdue: true });

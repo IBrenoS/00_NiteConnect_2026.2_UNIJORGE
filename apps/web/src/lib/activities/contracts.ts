@@ -1,13 +1,19 @@
 export const activityStatuses = ["PLANEJADA", "EM_EXECUCAO", "CONCLUIDA", "CANCELADA"] as const;
 export type ActivityStatus = typeof activityStatuses[number];
+export const activityPriorities = ["ALTA", "MEDIA", "BAIXA"] as const;
+export type ActivityPriority = typeof activityPriorities[number];
 export type Activity = {
-  id: string; title: string; description: string; projectId: string | null; status: ActivityStatus;
+  id: string; title: string; description: string; projectId: string | null; planningId: string | null; status: ActivityStatus;
+  startOn: string | null; priority: ActivityPriority | null;
   dueOn: string | null; primaryExecutorId: string; primaryExecutorName: string | null;
   executorAvailable: boolean; createdBy: string; version: number; createdAt: string; updatedAt: string;
   completedAt: string | null; deadlinePassed: boolean; overdue: boolean; attentionRequired: boolean;
 };
 export type Page<T> = { items: T[]; page: number; size: number; total: number };
-export type ActivityCapabilities = { edit: boolean; transitions: ActivityStatus[]; history: boolean; manageAssignees: boolean; addEvidence: boolean; upload: boolean };
+export type ActivityPlanning = { id: string; title: string; description: string; projectId: string | null; createdBy: string; version: number; createdAt: string; updatedAt: string; canEdit: boolean; canCreateTasks: boolean; canDelete: boolean };
+export type ActivityPlanningCapabilities = { canRead: boolean; canEdit: boolean; canCreateTasks: boolean; canDelete: boolean; version: number };
+export type ActivityStatistics = { total: number; planned: number; inProgress: number; completed: number; cancelled: number; overdue: number; completionDenominator: number; plannedRate: number; inProgressRate: number; completedRate: number; cancelledRate: number; completionRate: number };
+export type ActivityCapabilities = { edit: boolean; changePriority: boolean; canDelete: boolean; transitions: ActivityStatus[]; history: boolean; manageAssignees: boolean; addEvidence: boolean; upload: boolean };
 export type PersonalActivityCapabilities = { createIndependent: boolean };
 export type ActivityAssignee = { id: string; memberId: string; memberName: string | null; role: "EXECUTOR" | "COLLABORATOR"; startedAt: string; available: boolean };
 export type ActivityCandidate = { id: string; name: string };
@@ -25,11 +31,11 @@ const nullableString = (v: unknown): v is string | null => v === null || typeof 
 const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 export function parseActivityCapabilities(value: unknown): ActivityCapabilities | null {
   if (!record(value)) return null;
-  const { edit, transitions, history, manageAssignees, addEvidence, upload } = value;
-  if (typeof edit !== "boolean" || typeof history !== "boolean" || typeof manageAssignees !== "boolean" || typeof addEvidence !== "boolean" || typeof upload !== "boolean" || !Array.isArray(transitions)) return null;
+  const { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload } = value;
+  if (typeof edit !== "boolean" || typeof changePriority !== "boolean" || typeof canDelete !== "boolean" || typeof history !== "boolean" || typeof manageAssignees !== "boolean" || typeof addEvidence !== "boolean" || typeof upload !== "boolean" || !Array.isArray(transitions)) return null;
   const valid = (v: unknown): v is ActivityStatus => v === "PLANEJADA" || v === "EM_EXECUCAO" || v === "CONCLUIDA" || v === "CANCELADA";
   if (!transitions.every(valid)) return null;
-  return { edit, transitions, history, manageAssignees, addEvidence, upload };
+  return { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload };
 }
 export function parsePersonalActivityCapabilities(value: unknown): PersonalActivityCapabilities | null {
   return record(value) && typeof value.createIndependent === "boolean" ? { createIndependent: value.createIndependent } : null;
@@ -39,13 +45,43 @@ export function parseEvidenceCapabilities(value: unknown): EvidenceCapabilities 
 }
 export function parseActivity(value: unknown): Activity | null {
   if (!record(value)) return null;
-  const { id, title, description, projectId, status, dueOn, primaryExecutorId, primaryExecutorName, executorAvailable, createdBy, version, createdAt, updatedAt, completedAt, deadlinePassed, overdue, attentionRequired } = value;
-  if (typeof id !== "string" || typeof title !== "string" || typeof description !== "string" || !nullableString(projectId) || !activityStatuses.some((s) => s === status) || !nullableString(dueOn) || typeof primaryExecutorId !== "string" || !nullableString(primaryExecutorName) || typeof executorAvailable !== "boolean" || typeof createdBy !== "string" || !count(version) || typeof createdAt !== "string" || typeof updatedAt !== "string" || !nullableString(completedAt) || typeof deadlinePassed !== "boolean" || typeof overdue !== "boolean" || typeof attentionRequired !== "boolean") return null;
+  const { id, title, description, projectId, planningId, status, startOn, dueOn, priority, primaryExecutorId, primaryExecutorName, executorAvailable, createdBy, version, createdAt, updatedAt, completedAt, deadlinePassed, overdue, attentionRequired } = value;
+  const validPriority: ActivityPriority | null = priority === null ? null : activityPriorities.find((candidate) => candidate === priority) ?? null;
+  if (typeof id !== "string" || typeof title !== "string" || typeof description !== "string" || !nullableString(projectId) || !nullableString(planningId) || !activityStatuses.some((s) => s === status) || !nullableString(startOn) || !nullableString(dueOn) || (priority !== null && !activityPriorities.some((candidate) => candidate === priority)) || typeof primaryExecutorId !== "string" || !nullableString(primaryExecutorName) || typeof executorAvailable !== "boolean" || typeof createdBy !== "string" || !count(version) || typeof createdAt !== "string" || typeof updatedAt !== "string" || !nullableString(completedAt) || typeof deadlinePassed !== "boolean" || typeof overdue !== "boolean" || typeof attentionRequired !== "boolean") return null;
   if (status !== "PLANEJADA" && status !== "EM_EXECUCAO" && status !== "CONCLUIDA" && status !== "CANCELADA") return null;
-  return { id, title, description, projectId, status, dueOn, primaryExecutorId, primaryExecutorName, executorAvailable, createdBy, version, createdAt, updatedAt, completedAt, deadlinePassed, overdue, attentionRequired };
+  return { id, title, description, projectId, planningId, status, startOn, dueOn, priority: validPriority, primaryExecutorId, primaryExecutorName, executorAvailable, createdBy, version, createdAt, updatedAt, completedAt, deadlinePassed, overdue, attentionRequired };
 }
 export function parseActivityPage(value: unknown): Page<Activity> | null {
   return parsePage(value, parseActivity);
+}
+
+export function parseActivityPlanning(value: unknown): ActivityPlanning | null {
+  if (!record(value)) return null;
+  const { id, title, description, projectId, createdBy, version, createdAt, updatedAt, canEdit, canCreateTasks, canDelete } = value;
+  if (typeof id !== "string" || typeof title !== "string" || typeof description !== "string" || !nullableString(projectId) || typeof createdBy !== "string" || !count(version) || typeof createdAt !== "string" || typeof updatedAt !== "string" || typeof canEdit !== "boolean" || typeof canCreateTasks !== "boolean" || typeof canDelete !== "boolean") return null;
+  return { id, title, description, projectId, createdBy, version, createdAt, updatedAt, canEdit, canCreateTasks, canDelete };
+}
+
+export function parseActivityPlanningCapabilities(value: unknown): ActivityPlanningCapabilities | null {
+  if (!record(value)) return null;
+  const { canRead, canEdit, canCreateTasks, canDelete, version } = value;
+  if (typeof canRead !== "boolean" || typeof canEdit !== "boolean" || typeof canCreateTasks !== "boolean" || typeof canDelete !== "boolean" || !count(version)) return null;
+  return { canRead, canEdit, canCreateTasks, canDelete, version };
+}
+
+export function parseActivityStatistics(value: unknown): ActivityStatistics | null {
+  if (!record(value)) return null;
+  const { total, planned, inProgress, completed, cancelled, overdue, completionDenominator, plannedRate, inProgressRate, completedRate, cancelledRate, completionRate } = value;
+  const rate = (item: unknown): item is number => typeof item === "number" && Number.isFinite(item) && item >= 0 && item <= 100;
+  if (!count(total) || !count(planned) || !count(inProgress) || !count(completed) || !count(cancelled) || !count(overdue) || !count(completionDenominator) || !rate(plannedRate) || !rate(inProgressRate) || !rate(completedRate) || !rate(cancelledRate) || !rate(completionRate)) return null;
+  return {
+    total, planned, inProgress, completed, cancelled, overdue, completionDenominator,
+    plannedRate, inProgressRate, completedRate, cancelledRate, completionRate,
+  };
+}
+
+export function parseActivityPlanningPage(value: unknown): Page<ActivityPlanning> | null {
+  return parsePage(value, parseActivityPlanning);
 }
 
 export function parseActivityAssignee(value: unknown): ActivityAssignee | null {
@@ -70,6 +106,9 @@ export function parseActivityEvidence(value: unknown): ActivityEvidence | null {
 }
 export function parseProjectPage(value: unknown): Page<ProjectSummary> | null {
   return parsePage(value, (item) => record(item) && typeof item.id === "string" && typeof item.title === "string" ? { id: item.id, title: item.title } : null);
+}
+export function parseProjectSummary(value: unknown): ProjectSummary | null {
+  return record(value) && typeof value.id === "string" && typeof value.title === "string" ? { id: value.id, title: value.title } : null;
 }
 
 export function parsePage<T>(value: unknown, parseItem: (item: unknown) => T | null): Page<T> | null {

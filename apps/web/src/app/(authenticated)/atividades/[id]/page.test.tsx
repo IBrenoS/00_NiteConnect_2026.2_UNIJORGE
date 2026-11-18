@@ -42,7 +42,7 @@ describe("rota do detalhe de atividade", () => {
     mocks.requireSession.mockResolvedValue({ bearer: "server-only", member: { id: "member-1" } });
     mocks.getActivity.mockResolvedValue({ data: activity, issue: null });
     mocks.getActivityAssignees.mockResolvedValue({ data: { ...emptyPage, size: 100 }, issue: null });
-    mocks.getActivityCapabilities.mockResolvedValue({ data: { edit: true, transitions: [], history: false, manageAssignees: true, addEvidence: false, upload: false }, issue: null });
+    mocks.getActivityCapabilities.mockResolvedValue({ data: { edit: true, changePriority: true, canDelete: false, transitions: [], history: false, manageAssignees: true, addEvidence: false, upload: false }, issue: null });
     mocks.getActivityEvidence.mockResolvedValue({ data: emptyPage, issue: null });
     mocks.getActivityCandidates.mockResolvedValue({ data: emptyPage, issue: null });
     mocks.getAllMyProjects.mockResolvedValue({ data: [], issue: null });
@@ -77,7 +77,7 @@ describe("rota do detalhe de atividade", () => {
   });
 
   it("não consulta candidatos quando a capacidade não foi autorizada", async () => {
-    mocks.getActivityCapabilities.mockResolvedValue({ data: { edit: false, transitions: [], history: false, manageAssignees: false, addEvidence: false, upload: false }, issue: null });
+    mocks.getActivityCapabilities.mockResolvedValue({ data: { edit: false, changePriority: false, canDelete: false, transitions: [], history: false, manageAssignees: false, addEvidence: false, upload: false }, issue: null });
 
     await renderPage({ participants: "1" });
 

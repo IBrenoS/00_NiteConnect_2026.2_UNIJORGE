@@ -81,8 +81,8 @@ export function ActivityStatusDialog({
             {transitions.map((status) => <option key={status} value={status}>{activityStatusLabel[status]}</option>)}
           </Select>
         </Field>
-        <Field id="activity-status-reason" label="Motivo da alteração" required>
-          <Textarea name="reason" required maxLength={1_000} />
+        <Field id="activity-status-reason" label="Motivo (opcional)">
+          <Textarea name="reason" maxLength={1_000} />
         </Field>
         {confirmationRequired ? <Field id="activity-status-confirmation" layout="checkbox" label={confirmationLabel} required>
           <Checkbox name="confirmed" value="true" required />

@@ -2,14 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { parseActivity } from "./contracts";
+import { activityPriorities, activityStatuses, parseActivity } from "./contracts";
 import { getActivity, getActivityCapabilities, getActivityEvidenceById, getEvidenceCapabilities, getMyActivityCapabilities } from "./data";
 import { mutateActivity, uploadActivityEvidence, type ActivityMutationIssue } from "./mutations";
 import { getAuthenticatedNiteSession } from "../auth/server-session";
 import { MAX_ACTIVITY_EVIDENCE_BYTES } from "./limits";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type Feedback = "created" | "updated" | "status" | "evidence" | "upload" | "assigned" | "removed" | "withdrawn" | "invalid" | "forbidden" | "not-found" | "conflict" | "too-large" | "unsupported" | "unavailable";
+type Feedback = "created" | "updated" | "status" | "evidence" | "upload" | "assigned" | "removed" | "withdrawn" | "deleted" | "invalid" | "forbidden" | "not-found" | "conflict" | "too-large" | "unsupported" | "unavailable";
 
 function field(form: FormData, name: string): string {
   const value = form.get(name);
@@ -82,16 +82,21 @@ export async function createIndependentActivityAction(form: FormData): Promise<v
 
   const title = field(form, "title");
   const description = field(form, "description");
+  const startOn = field(form, "startOn");
   const dueOn = field(form, "dueOn");
+  const priorityValue = field(form, "priority");
+  const priority = activityPriorities.find((value) => value === priorityValue) ?? null;
   const reason = field(form, "reason");
-  if (!title || title.length > 200 || !description || description.length > 10_000 || !validDate(dueOn) || !reason || reason.length > 1_000) redirect(`${returnTo}?feedback=invalid`);
+  if (!title || title.length > 200 || description.length > 10_000 || !validDate(startOn) || !validDate(dueOn) || (priorityValue && !priority) || reason.length > 1_000) redirect(`${returnTo}?feedback=invalid`);
 
   const result = await mutateActivity("/api/v1/activities", session.bearer, "POST", {
     title,
     description,
+    startOn: startOn || null,
     dueOn: dueOn || null,
+    priority,
     primaryExecutorId: session.member.id,
-    reason,
+    ...(reason ? { reason } : {}),
   }, parseActivity);
   if (result.issue || !result.data) redirect(`${returnTo}?feedback=${result.issue ? resultFeedback(result.issue) : "unavailable"}`);
   revalidateActivity(result.data.id);
@@ -108,21 +113,73 @@ export async function updateActivityAction(id: string, form: FormData): Promise<
 
   const title = field(form, "title");
   const description = field(form, "description");
+  const startOn = field(form, "startOn");
   const dueOn = field(form, "dueOn");
+  const priorityValue = field(form, "priority");
+  const priority = activityPriorities.find((value) => value === priorityValue) ?? null;
   const reason = field(form, "reason");
   const expectedVersion = version(form);
-  if (!title || title.length > 200 || !description || description.length > 10_000 || !validDate(dueOn) || !reason || reason.length > 1_000 || expectedVersion === null) redirect(target("invalid"));
+  if (!title || title.length > 200 || description.length > 10_000 || !validDate(startOn) || !validDate(dueOn) || (priorityValue && !priority) || reason.length > 1_000 || expectedVersion === null) redirect(target("invalid"));
 
   const result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}`, session.bearer, "PATCH", {
     title,
     description,
+    startOn: startOn || null,
     dueOn: dueOn || null,
+    priority,
     expectedVersion,
-    reason,
+    ...(reason ? { reason } : {}),
   });
   if (result.issue) redirect(target(resultFeedback(result.issue)));
   revalidateActivity(id);
   redirect(target("updated"));
+}
+
+export async function moveActivityAction(
+  id: string,
+  expectedVersion: number,
+  fieldName: "status" | "priority",
+  value: string | null,
+): Promise<{ issue: ActivityMutationIssue | "forbidden" | null }> {
+  if (!uuidPattern.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return { issue: "invalid" };
+  const session = await getAuthenticatedNiteSession();
+  if (!session) return { issue: "access" };
+  const current = await getActivity(session.bearer, id);
+  if (current.issue) return { issue: current.issue };
+  if (current.data.version !== expectedVersion) return { issue: "conflict" };
+  const capability = await getActivityCapabilities(session.bearer, id);
+  if (capability.issue) return { issue: capability.issue };
+  if (!capability.data) return { issue: "unavailable" };
+
+  let result;
+  if (fieldName === "status") {
+    const next = activityStatuses.find((status) => status === value);
+    if (!next || next === "CANCELADA" || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA" || !capability.data.transitions.includes(next)) return { issue: "forbidden" };
+    result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}/status`, session.bearer, "PATCH", { status: next, expectedVersion });
+  } else {
+    const priority = value === null ? null : activityPriorities.find((item) => item === value) ?? undefined;
+    if (priority === undefined || !capability.data.changePriority || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA") return { issue: "forbidden" };
+    result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}`, session.bearer, "PATCH", { priority, expectedVersion });
+  }
+
+  if (result.issue) return { issue: result.issue };
+  revalidateActivity(id);
+  return { issue: null };
+}
+
+export async function deleteActivityAction(id: string, form: FormData): Promise<void> {
+  const returnTo = safeReturnTo(form.get("returnTo"));
+  if (!uuidPattern.test(id)) redirect(`${returnTo}?feedback=not-found`);
+  const target = (feedback: Feedback) => `/atividades?feedback=${feedback}`;
+  const session = await requireSessionOrRedirect();
+  const capabilities = await getActivityCapabilities(session.bearer, id);
+  if (capabilities.issue || !capabilities.data?.canDelete) redirect(target(capabilities.issue === "access" ? "forbidden" : capabilities.issue === "not-found" ? "not-found" : "unavailable"));
+  const expectedVersion = version(form);
+  if (expectedVersion === null || field(form, "confirmed") !== "true") redirect(detailTarget(id, "invalid", returnTo));
+  const result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}`, session.bearer, "DELETE", { expectedVersion, confirmed: true });
+  if (result.issue) redirect(detailTarget(id, resultFeedback(result.issue), returnTo));
+  revalidateActivity(id);
+  redirect(target("deleted"));
 }
 
 export async function transitionActivityAction(id: string, form: FormData): Promise<void> {
@@ -142,11 +199,11 @@ export async function transitionActivityAction(id: string, form: FormData): Prom
   if (current.issue || !current.data) redirect(target(current.issue === "not-found" ? "not-found" : current.issue === "access" ? "forbidden" : "unavailable"));
   const confirmationRequired = status === "CANCELADA" || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA";
   if (confirmationRequired && field(form, "confirmed") !== "true") redirect(target("invalid"));
-  if (!(["PLANEJADA", "EM_EXECUCAO", "CONCLUIDA", "CANCELADA"] as const).some((value) => value === status) || !reason || reason.length > 1_000 || expectedVersion === null) redirect(target("invalid"));
+  if (!activityStatuses.some((value) => value === status) || reason.length > 1_000 || expectedVersion === null) redirect(target("invalid"));
   const result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}/status`, session.bearer, "PATCH", {
     status,
     expectedVersion,
-    reason,
+    ...(reason ? { reason } : {}),
     ...(confirmationRequired ? { confirmed: true } : {}),
   });
   if (result.issue) redirect(target(resultFeedback(result.issue)));

@@ -7,6 +7,7 @@ vi.mock("../../lib/activities/actions", () => ({
   addActivityCollaboratorAction: vi.fn(),
   addActivityEvidenceAction: vi.fn(),
   changeActivityExecutorAction: vi.fn(),
+  deleteActivityAction: vi.fn(),
   removeActivityCollaboratorAction: vi.fn(),
   transitionActivityAction: vi.fn(),
   updateActivityAction: vi.fn(),
@@ -26,7 +27,7 @@ const authorizedProps: Parameters<typeof ActivityDetail>[0] = {
   projectTitle: previewProjectTitles[activity.projectId ?? ""] ?? null,
   memberId: activity.primaryExecutorId,
   returnTo: "/atividades?q=orienta&status=EM_EXECUCAO",
-  capabilities: { edit: true, transitions: ["CANCELADA", "CONCLUIDA"], history: true, manageAssignees: true, addEvidence: true, upload: true },
+  capabilities: { edit: true, changePriority: true, canDelete: true, transitions: ["CANCELADA", "CONCLUIDA"], history: true, manageAssignees: true, addEvidence: true, upload: true },
   assignees,
   assigneeIssue: null,
   candidates: { items: [{ id: "83000000-0000-4000-8000-000000000003", name: "Outro integrante" }], page: 0, size: 20, total: 1 },
@@ -70,15 +71,17 @@ describe("detalhe pessoal de atividade", () => {
     expect(markup).toContain("Confirmo o encerramento da participação.");
     expect(markup).toContain("Confirmo a retirada desta evidência.");
     expect(markup).not.toContain("Confirmo o cancelamento da atividade.");
-    expect(markup.match(/name="confirmed"/g)).toHaveLength(4);
+    expect(markup.match(/name="confirmed"/g)).toHaveLength(5);
   });
 
-  it("pré-carrega o prazo vigente e inclui motivo e expectedVersion na edição", () => {
+  it("pré-carrega as datas vigentes e inclui propriedades e expectedVersion na edição", () => {
     const markup = renderToStaticMarkup(<ActivityDetail {...authorizedProps} />);
 
     expect(markup).toMatch(new RegExp(`name="dueOn"[^>]*value="${activity.dueOn ?? ""}"`));
     expect(markup).toContain(`name="expectedVersion" value="${activity.version}"`);
-    expect(markup).toMatch(/name="reason" required/);
+    expect(markup).toContain('name="startOn"');
+    expect(markup).toContain('name="priority"');
+    expect(markup).toContain("Motivo");
   });
 
   it("distingue busca vazia, bloqueio de acesso e falha de carregamento dos candidatos", () => {
@@ -136,7 +139,7 @@ describe("detalhe pessoal de atividade", () => {
   });
 
   it("não expõe ações quando as capacidades foram negadas", () => {
-    const markup = renderToStaticMarkup(<ActivityDetail {...authorizedProps} capabilities={{ edit: false, transitions: [], history: false, manageAssignees: false, addEvidence: false, upload: false }} evidenceWithdraw={{}} historyAllowed={false} />);
+    const markup = renderToStaticMarkup(<ActivityDetail {...authorizedProps} capabilities={{ edit: false, changePriority: false, canDelete: false, transitions: [], history: false, manageAssignees: false, addEvidence: false, upload: false }} evidenceWithdraw={{}} historyAllowed={false} />);
 
     expect(markup).not.toContain("Ações");
     expect(markup).not.toContain("Alterar situação");
