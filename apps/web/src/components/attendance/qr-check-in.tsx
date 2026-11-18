@@ -1,5 +1,6 @@
 "use client";
 
+import { TransientFeedback } from "../ui/transient-feedback";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -97,7 +98,7 @@ function QrAttendanceForm({ intent, targetId, expectedVersion, payload }: Props 
       {expectedVersion !== undefined ? <input type="hidden" name="expectedVersion" value={expectedVersion} /> : null}
       <QrSubmitButton />
     </form>}
-    {result.message ? <p role="status" className="w-full text-right text-type-metadata text-nite-text-secondary">{result.message}</p> : null}
+    {result.message ? <TransientFeedback messageKey={`${result.status}:${result.message}`} occurrenceKey={result}><p role="status" className="w-full text-right text-type-metadata text-nite-text-secondary">{result.message}</p></TransientFeedback> : null}
   </>;
 }
 

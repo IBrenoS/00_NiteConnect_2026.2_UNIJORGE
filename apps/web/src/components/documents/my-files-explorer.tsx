@@ -1,4 +1,5 @@
 "use client";
+import { TransientFeedback } from "../ui/transient-feedback";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -31,14 +32,6 @@ const date=(value:string|null|undefined)=>value?new Date(value).toLocaleDateStri
 const dateTime=(value:string|null|undefined)=>value?new Date(value).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"Não disponível";
 const relativePath=(file:File)=>{const value=Reflect.get(file,"webkitRelativePath");return typeof value==="string"&&value?value:file.name;};
 const permissionValue=(value:string):"VIEW"|"EDIT"=>value==="EDIT"?"EDIT":"VIEW";
-export function getExplorerFlexibleColumnWidths(tableWidth:number,gridWidth:number):[number,number,number] {
-  const fixedColumnWidth=596;
-  const closedFlexibleWidth=Math.max(0,gridWidth-fixedColumnWidth);
-  const nameWidth=Math.min(0.423*closedFlexibleWidth,Math.max(0,tableWidth-fixedColumnWidth));
-  const remainingFlexibleWidth=Math.max(0,tableWidth-fixedColumnWidth-nameWidth);
-  const flexibleColumnsWeight=0.244+0.333;
-  return [nameWidth,remainingFlexibleWidth*0.244/flexibleColumnsWeight,remainingFlexibleWidth*0.333/flexibleColumnsWeight];
-}
 const folderColors=[
   {name:"Amarelo",value:"#f6c445"},{name:"Vermelho escuro",value:"#d83b01"},{name:"Laranja escuro",value:"#ca5010"},{name:"Verde escuro",value:"#107c10"},
   {name:"Verde azulado",value:"#038387"},{name:"Azul escuro",value:"#0078d4"},{name:"Púrpura escuro",value:"#5c2d91"},{name:"Rosa escuro",value:"#c239b3"},
@@ -156,27 +149,54 @@ export function SelectionToolbar({items,view,details,canArchivePersonal=false,on
   const canRename=!!item&&view==="personal"&&allows(item,"canRename",legacyOrganize);
   const canMove=!!item&&view==="personal"&&allows(item,"canMove",legacyOrganize);
   const unavailable=(reason:string)=>oneItemReason??reason;
-  return <div role="toolbar" aria-label="Ações para a seleção" className="relative flex h-[52px] min-w-0 flex-1 flex-nowrap items-center rounded-[8px] bg-nite-surface px-2.5 text-type-body-compact text-nite-text-secondary" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
+  const toolbarRef=useRef<HTMLDivElement>(null);
+  const trailingRef=useRef<HTMLDivElement>(null);
+  const measureRef=useRef<HTMLDivElement>(null);
+  const [visibleCount,setVisibleCount]=useState(9);
+  useEffect(()=>{
+    const toolbar=toolbarRef.current,trailing=trailingRef.current,measure=measureRef.current;
+    if(!toolbar||!trailing||!measure)return;
+    const update=()=>{
+      const available=toolbar.clientWidth-trailing.getBoundingClientRect().width-68;
+      let used=0,count=0;
+      for(const child of Array.from(measure.children)) {
+        const width=child.getBoundingClientRect().width;
+        if(used+width>available)break;
+        used+=width+(width?4:0);count++;
+      }
+      setVisibleCount(count);
+    };
+    const observer=new ResizeObserver(update);
+    observer.observe(toolbar);observer.observe(trailing);observer.observe(measure);
+    update();
+    return ()=>observer.disconnect();
+  },[items.length,view]);
+  const actions=[
+    (variant:"toolbar"|"menu")=>item&&<SelectionAction variant={variant} label="Compartilhar" disabledReason={view==="personal"&&allows(item,"canShare",true)?undefined:"Compartilhamento não está disponível para esta seleção."} onClick={()=>onShare(item)}><OneDriveMenuIcon name="share"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=>item&&<SelectionAction variant={variant} label="Copiar link" onClick={()=>onCopyLink(item)}><OneDriveMenuIcon name="copy-link"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=>item?.kind==="folder"&&<SelectionAction variant={variant} label="Solicitar arquivos" disabledReason={itemCapabilities(item)?.canAddChild&&onRequest?undefined:"Selecione uma pasta que permita receber arquivos."} onClick={onRequest?()=>onRequest(item):undefined}><OneDriveMenuIcon name="request-files"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=>view==="personal"&&<SelectionAction variant={variant} label="Excluir" disabledReason={item&&itemCapabilities(item)?.canDeleteToTrash?oneItemReason:unavailable("Exclusão não autorizada para este item.")} onClick={item?()=>onArchive(item):undefined}><OneDriveMenuIcon name="delete"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=><SelectionAction variant={variant} label="Adicionar aos favoritos" disabledReason={item&&itemCapabilities(item)?.canView&&onFavorite?oneItemReason:unavailable("Favorito indisponível para esta seleção.")} onClick={item&&onFavorite?()=>onFavorite(item):undefined}><OneDriveMenuIcon name="add-to-favorites"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=><SelectionAction variant={variant} label="Baixar" disabledReason={items.length>0&&items.every((entry)=>entry.kind==="folder"?itemCapabilities(entry)?.canView:itemCapabilities(entry)?.canDownload)?undefined:"Download não autorizado para esta seleção."} onClick={()=>{if(item?.kind==="file")onDownload(item);else onZip?.(items);}}><OneDriveMenuIcon name="download"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=><SelectionAction variant={variant} label="Duplicar" disabledReason={item&&itemCapabilities(item)?.canCopy&&onDuplicate?oneItemReason:unavailable("Duplicação não autorizada.")} onClick={item&&onDuplicate?()=>onDuplicate(item):undefined}><OneDriveMenuIcon name="duplicate"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=><SelectionAction variant={variant} label="Mover para" disabledReason={canMove?undefined:unavailable("Este item não pode ser movido neste contexto.")} onClick={item&&canMove?()=>onMove(item):undefined}><OneDriveMenuIcon name="move-to"/></SelectionAction>,
+    (variant:"toolbar"|"menu")=><SelectionAction variant={variant} label="Copiar para" disabledReason={item&&itemCapabilities(item)?.canCopy&&onCopy?oneItemReason:unavailable("Cópia não autorizada.")} onClick={item&&onCopy?()=>onCopy(item):undefined}><OneDriveMenuIcon name="copy-to"/></SelectionAction>,
+  ];
+  return <div ref={toolbarRef} role="toolbar" aria-label="Ações para a seleção" className="relative flex h-[52px] min-w-0 flex-1 flex-nowrap items-center rounded-[8px] bg-nite-surface px-2.5 text-type-body-compact text-nite-text-secondary" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
+    <div ref={measureRef} aria-hidden="true" inert className="pointer-events-none invisible absolute flex w-max gap-1">{actions.map((render,index)=><span key={index} className="shrink-0">{render("toolbar")}</span>)}</div>
     <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1">
-      {item&&<SelectionAction label="Compartilhar" disabledReason={view==="personal"&&allows(item,"canShare",true)?undefined:"Compartilhamento não está disponível para esta seleção."} onClick={()=>onShare(item)}><OneDriveMenuIcon name="share"/></SelectionAction>}
-      {item&&<SelectionAction label="Copiar link" onClick={()=>onCopyLink(item)}><OneDriveMenuIcon name="copy-link"/></SelectionAction>}
-      {item?.kind==="folder"&&<SelectionAction label="Solicitar arquivos" disabledReason={itemCapabilities(item)?.canAddChild&&onRequest?undefined:"Selecione uma pasta que permita receber arquivos."} onClick={onRequest?()=>onRequest(item):undefined}><OneDriveMenuIcon name="request-files"/></SelectionAction>}
-      {view==="personal"&&<SelectionAction label="Excluir" disabledReason={item&&itemCapabilities(item)?.canDeleteToTrash?oneItemReason:unavailable("Exclusão não autorizada para este item.")} onClick={item?()=>onArchive(item):undefined}><OneDriveMenuIcon name="delete"/></SelectionAction>}
-      <SelectionAction label="Adicionar aos favoritos" disabledReason={item&&itemCapabilities(item)?.canView&&onFavorite?oneItemReason:unavailable("Favorito indisponível para esta seleção.")} onClick={item&&onFavorite?()=>onFavorite(item):undefined}><OneDriveMenuIcon name="add-to-favorites"/></SelectionAction>
-      <SelectionAction label="Baixar" disabledReason={items.length>0&&items.every((entry)=>entry.kind==="folder"?itemCapabilities(entry)?.canView:itemCapabilities(entry)?.canDownload)?undefined:"Download não autorizado para esta seleção."} onClick={()=>{if(item?.kind==="file")onDownload(item);else onZip?.(items);}}><OneDriveMenuIcon name="download"/></SelectionAction>
-      <SelectionAction label="Duplicar" disabledReason={item&&itemCapabilities(item)?.canCopy&&onDuplicate?oneItemReason:unavailable("Duplicação não autorizada.")} onClick={item&&onDuplicate?()=>onDuplicate(item):undefined}><OneDriveMenuIcon name="duplicate"/></SelectionAction>
-      <SelectionAction label="Mover para" disabledReason={canMove?undefined:unavailable("Este item não pode ser movido neste contexto.")} onClick={item&&canMove?()=>onMove(item):undefined}><OneDriveMenuIcon name="move-to"/></SelectionAction>
-      <SelectionAction label="Copiar para" disabledReason={item&&itemCapabilities(item)?.canCopy&&onCopy?oneItemReason:unavailable("Cópia não autorizada.")} onClick={item&&onCopy?()=>onCopy(item):undefined}><OneDriveMenuIcon name="copy-to"/></SelectionAction>
-      <details className="group/selection-actions relative">
+      {actions.slice(0,visibleCount).map((render,index)=><span key={index} className="shrink-0">{render("toolbar")}</span>)}
+      <details className="group/selection-actions relative shrink-0">
         <summary aria-label="Mais opções de organização" className="grid size-9 cursor-pointer list-none place-items-center rounded-full text-nite-text-primary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden"><MoreGlyph/></summary>
         <div role="menu" className="absolute right-0 top-full z-30 mt-1 w-[232px] rounded-control border border-nite-border-soft bg-nite-surface p-1 shadow-nite-floating" aria-label="Opções de organização">
+          {actions.slice(visibleCount).map((render,index)=><div key={index}>{render("menu")}</div>)}
           {items.length>1&&<SelectionAction variant="menu" label="Operações em lote" disabledReason={onBatch?undefined:"Operações em lote indisponíveis."} onClick={onBatch}><MoreGlyph/></SelectionAction>}
           <SelectionAction variant="menu" label="Renomear" disabledReason={canRename?undefined:unavailable("Este item não pode ser renomeado neste contexto.")} onClick={item&&canRename?()=>onRename(item):undefined}><OneDriveMenuIcon name="rename"/></SelectionAction>
           {onAutomate&&<SelectionAction variant="menu" label="Automatizar" disabledReason={item&&itemCapabilities(item)?.canView?oneItemReason:unavailable("Item indisponível para automação.")} onClick={item?()=>onAutomate(item):undefined}><MoreGlyph/></SelectionAction>}
         </div>
       </details>
     </div>
-    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+    <div ref={trailingRef} className="ml-auto flex shrink-0 items-center gap-1.5">
       <button type="button" onClick={onClear} aria-label="Limpar seleção" className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control border border-nite-border-soft px-3 font-semibold text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus"><svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m5 5 10 10m0-10L5 15"/></svg>{items.length} selecionado{items.length===1?"":"s"}</button>
       <button type="button" onClick={onDetails} aria-expanded={details} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control px-3 font-semibold text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-nite-focus ${details?"bg-nite-surface-elevated text-nite-text-primary":""}`}><OneDriveMenuIcon name="details"/>Detalhes</button>
     </div>
@@ -184,22 +204,26 @@ export function SelectionToolbar({items,view,details,canArchivePersonal=false,on
 }
 
 export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems=EMPTY_SHARED,sentItems=EMPTY_SENT,hasMore=false,nextCursor=null,issue,view,memberId="",canArchivePersonal=false,templates,params}:Props) {
-  const tableContainerRef=useRef<HTMLDivElement>(null);
   const explorerGridRef=useRef<HTMLDivElement>(null);
+  const [gridWidth,setGridWidth]=useState(0);
+  useEffect(()=>{
+    const grid=explorerGridRef.current;
+    if(!grid)return;
+    const observer=new ResizeObserver(()=>setGridWidth(grid.getBoundingClientRect().width));
+    observer.observe(grid);
+    return ()=>observer.disconnect();
+  },[]);
   const titleMenuRef=useRef<HTMLDetailsElement>(null);
   const createMenuRef=useRef<HTMLDivElement>(null);
   const filesInputRef=useRef<HTMLInputElement>(null);
   const directoryInputRef=useRef<HTMLInputElement>(null);
-  const [tableWidth,setTableWidth]=useState(0);
-  const [gridWidth,setGridWidth]=useState(0);
-  const [wideLayout,setWideLayout]=useState(false);
   const [desktopPaneLayout,setDesktopPaneLayout]=useState(false);
   const router=useRouter();
   const [selected,setSelected]=useState<string[]>([]),[layout,setLayout]=useState<"list"|"compact"|"grid">("list");
   const [createMenu,setCreateMenu]=useState(false),[dialog,setDialog]=useState<"folder"|null>(null);
   const [filtersOpen,setFiltersOpen]=useState(false),[quickFiltersVisible,setQuickFiltersVisible]=useState(true),[folderColor,setFolderColor]=useState(folderColors[0]!.value),[folderName,setFolderName]=useState("");
   const [details,setDetails]=useState(false),[detailItem,setDetailItem]=useState<Item|null>(null),[detailPayload,setDetailPayload]=useState<{file?:LibraryFile;folder?:LibraryFolder;info?:DocumentInformation;activity?:ActivityListing}|null>(null);
-  const [shareTarget,setShareTarget]=useState<Item|null>(null),[shareDialogMode,setShareDialogMode]=useState<"share"|"manage">("share"),[managementTarget,setManagementTarget]=useState<Item|null>(null),[managementMode,setManagementMode]=useState<"organize"|"copy">("organize"),[duplicateTarget,setDuplicateTarget]=useState<Item|null>(null),[requestFolder,setRequestFolder]=useState<Item|null>(null),[archiveTarget,setArchiveTarget]=useState<Item|null>(null),[folderColorUpdating,setFolderColorUpdating]=useState(false),[openItemMenu,setOpenItemMenu]=useState<string|null>(null),[openFolderColorMenu,setOpenFolderColorMenu]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null);
+  const [shareTarget,setShareTarget]=useState<Item|null>(null),[shareDialogMode,setShareDialogMode]=useState<"share"|"manage">("share"),[managementTarget,setManagementTarget]=useState<Item|null>(null),[managementMode,setManagementMode]=useState<"organize"|"copy">("organize"),[duplicateTarget,setDuplicateTarget]=useState<Item|null>(null),[requestFolder,setRequestFolder]=useState<Item|null>(null),[archiveTarget,setArchiveTarget]=useState<Item|null>(null),[folderColorUpdating,setFolderColorUpdating]=useState(false),[openItemMenu,setOpenItemMenu]=useState<string|null>(null),[openFolderColorMenu,setOpenFolderColorMenu]=useState<string|null>(null),[message,setMessage]=useState<string|null>(null),[favoritesIssue,setFavoritesIssue]=useState<string|null>(null);
   const [favorites,setFavorites]=useState<string[]>([]),[favoriteBusy,setFavoriteBusy]=useState<string|null>(null);
   const [requestsOpen,setRequestsOpen]=useState(false);
   const [batchOpen,setBatchOpen]=useState(false);
@@ -209,7 +233,7 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
   useEffect(()=>{let active=true;void fetch(`/api/library/manage?path=${encodeURIComponent("/api/v1/me/favorites")}`).then(async(response)=>{
     if(!response.ok)throw new Error();const value:unknown=await response.json();
     if(!Array.isArray(value))throw new Error();if(active)setFavorites(value.filter((item):item is {type:string;id:string}=>typeof item==="object"&&item!==null&&"type" in item&&typeof item.type==="string"&&"id" in item&&typeof item.id==="string").map((item)=>`${item.type}:${item.id}`));
-  }).catch(()=>{if(active)setMessage("Não foi possível consultar os favoritos.");});return()=>{active=false;};},[]);
+  }).catch(()=>{if(active)setFavoritesIssue("Não foi possível consultar os favoritos.");});return()=>{active=false;};},[]);
   useEffect(()=>{
     if(!openItemMenu)return;
     function closeWhenOutside(event:globalThis.PointerEvent) {
@@ -429,34 +453,18 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
   const inFolder=Boolean(params.folder);
   const sidePaneOpen=details||filtersOpen;
   useEffect(()=>{
-    const tableContainer=tableContainerRef.current;
-    const explorerGrid=explorerGridRef.current;
-    if(!tableContainer||!explorerGrid)return;
-    const media=window.matchMedia("(min-width: 1536px)");
-    const updateLayout=()=>setWideLayout(media.matches);
     const paneMedia=window.matchMedia("(min-width: 1024px)");
     const updatePaneLayout=()=>setDesktopPaneLayout(paneMedia.matches);
-    updateLayout();
     updatePaneLayout();
-    media.addEventListener("change",updateLayout);
     paneMedia.addEventListener("change",updatePaneLayout);
-    const observer=new ResizeObserver(()=>{
-      const nextTableWidth=tableContainer.getBoundingClientRect().width;
-      const nextGridWidth=explorerGrid.getBoundingClientRect().width;
-      setTableWidth((current)=>Math.abs(current-nextTableWidth)<1?current:nextTableWidth);
-      setGridWidth((current)=>Math.abs(current-nextGridWidth)<1?current:nextGridWidth);
-    });
-    observer.observe(tableContainer);
-    observer.observe(explorerGrid);
-    return ()=>{observer.disconnect();media.removeEventListener("change",updateLayout);paneMedia.removeEventListener("change",updatePaneLayout);};
-  },[issue,layout,listing,view]);
-  const flexibleColumnWidths=getExplorerFlexibleColumnWidths(tableWidth,gridWidth);
+    return ()=>paneMedia.removeEventListener("change",updatePaneLayout);
+  },[]);
   const pageTitle=inFolder?current?.name??"Pasta":view==="shared"?"Com você":view==="sent"?"Por você":"Meus arquivos";
   const typeOptions=[{label:"Documento Word",mime:wordMime},{label:"PDF",mime:"application/pdf"},{label:"Imagem PNG",mime:"image/png"},{label:"Imagem JPEG",mime:"image/jpeg"}];
   function toggleType(mime:string) {
     router.push(queryString(view,folderId,{...query,type:params.type===mime?undefined:mime}));
   }
-  return <section className="h-[calc(100svh-6.5rem)] min-w-0 overflow-hidden sm:h-[calc(100svh-7rem)] lg:mb-[-1.75rem] lg:h-[calc(100svh-6.25rem)]" aria-label="Meus arquivos">
+  return <section className="document-explorer h-[calc(100svh-6.5rem)] min-w-0 overflow-hidden sm:h-[calc(100svh-7rem)] lg:mb-[-1.75rem] lg:h-[calc(100svh-6.25rem)]" aria-label="Meus arquivos">
     <div ref={explorerGridRef} style={desktopPaneLayout?{gridTemplateColumns:sidePaneOpen?"minmax(0, 1fr) minmax(18rem, 22rem)":"minmax(0, 1fr) 0px",columnGap:sidePaneOpen?"1rem":"0px"}:undefined} className={`grid h-full min-h-0 min-w-0 items-stretch gap-4 transition-[grid-template-columns,column-gap] duration-200 ease-in-out motion-reduce:transition-none ${sidePaneOpen?"lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]":"grid-cols-1 lg:grid-cols-[minmax(0,1fr)_0px] lg:gap-0"}`}>
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-5">
     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -538,10 +546,11 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
       </>}
     </div>
 
-    {params.error&&<p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-4 py-3 text-type-body-compact text-status-error">{errorText(params.error)}</p>}
-    {params.saved&&<p role="status" className="rounded-control border border-nite-border-soft bg-nite-surface-subtle px-4 py-3 text-type-body-compact text-nite-text-primary">Alteração concluída e listagem atualizada.</p>}
-    {uploadSummary&&<p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-4 py-3 text-type-body-compact text-status-error">{uploadSummary}</p>}
-    {message&&<p role="status" className="rounded-control border border-status-warning-border bg-status-warning-soft px-4 py-3 text-type-body-compact text-status-warning">{message}</p>}
+    {params.error&&<TransientFeedback messageKey={params.error} queryParam="error" occurrenceKey={params}><p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-4 py-3 text-type-body-compact text-status-error">{errorText(params.error)}</p></TransientFeedback>}
+    {params.saved&&<TransientFeedback messageKey={params.saved} queryParam="saved" occurrenceKey={params}><p role="status" className="rounded-control border border-nite-border-soft bg-nite-surface-subtle px-4 py-3 text-type-body-compact text-nite-text-primary">Alteração concluída e listagem atualizada.</p></TransientFeedback>}
+    {uploadSummary&&<TransientFeedback messageKey={uploadSummary} onDismiss={()=>setUploadSummary(null)}><p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-4 py-3 text-type-body-compact text-status-error">{uploadSummary}</p></TransientFeedback>}
+    {favoritesIssue&&<p role="status" className="rounded-control border border-status-warning-border bg-status-warning-soft px-4 py-3 text-type-body-compact text-status-warning">{favoritesIssue}</p>}
+    {message==="Preparando arquivo ZIP…"?<p role="status" className="rounded-control border border-status-warning-border bg-status-warning-soft px-4 py-3 text-type-body-compact text-status-warning">{message}</p>:message&&<TransientFeedback messageKey={message} onDismiss={()=>setMessage(null)}><p role="status" className="rounded-control border border-status-warning-border bg-status-warning-soft px-4 py-3 text-type-body-compact text-status-warning">{message}</p></TransientFeedback>}
     {progress&&<div role="status" aria-live="polite" className="rounded-panel border border-nite-border-soft bg-nite-surface p-4"><div className="mb-2 flex justify-between text-type-body-compact text-nite-text-primary"><span>Enviando arquivos · {progress.sent} de {progress.total}</span><span>{progress.percent}%</span></div><progress className="h-2 w-full accent-nite-brand-primary" max={100} value={progress.percent}/></div>}
 
     {issue&&<div role="alert" className="grid min-h-72 place-content-center gap-2 rounded-panel border border-nite-border-soft bg-nite-surface px-4 text-center"><p className="font-medium text-nite-text-primary">{issue==="access"?"Você não tem acesso a esta pasta.":issue==="not-found"?"A pasta não existe ou não está disponível para sua conta.":"Não foi possível carregar os arquivos."}</p><p className="text-type-body-compact text-nite-text-secondary">{issue==="access"||issue==="not-found"?"Volte para uma área compartilhada com você.":"Verifique a conexão com o serviço documental e tente novamente."}</p><button onClick={()=>router.refresh()} className="mx-auto min-h-10 rounded-control border border-nite-border-control px-4 text-nite-text-primary">Tentar novamente</button></div>}
@@ -549,15 +558,15 @@ export function MyFilesExplorer({listing:initialListing,ancestors=[],sharedItems
       <div className="flex h-full min-w-0 min-h-0 flex-col overflow-hidden rounded-[8px] bg-[#292827]" style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
         {displayedItems.length===0?<div className="grid min-h-80 flex-1 place-content-center gap-2 px-5 text-center"><p className="font-display text-[20px] font-semibold leading-[27px] text-nite-text-primary">{params.search||params.type?"Nenhum resultado encontrado":view==="shared"?"Nenhum arquivo compartilhado com você":view==="sent"?"Nenhum arquivo compartilhado por você":"Esta pasta está vazia"}</p><p className="max-w-md text-xs leading-4 text-nite-text-secondary">{params.search||params.type?"Ajuste a pesquisa ou remova o filtro para ver outros arquivos.":view==="shared"?"Quando alguém compartilhar um arquivo ou pasta com você, o item aparecerá aqui.":view==="sent"?"Os itens que você compartilhar aparecerão aqui.":"Crie uma pasta ou carregue arquivos para começar."}</p>{canAddContent&&!params.search&&!params.type&&<button onClick={openFilesPicker} className="mx-auto min-h-10 rounded-control bg-nite-brand-primary px-4 text-white">Carregar arquivos</button>}</div>
           :layout==="grid"?<div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-4 sm:grid-cols-2 xl:grid-cols-3">{displayedItems.map((item)=><button key={item.id} onClick={()=>select(item.id,!selected.includes(item.id))} onDoubleClick={()=>openItem(item)} className={`rounded-panel border p-4 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${selected.includes(item.id)?"border-nite-brand-primary bg-nite-brand-soft":"border-nite-border-soft hover:bg-nite-surface-subtle"}`}><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-control bg-nite-surface-subtle"><ItemIcon item={item}/></span><span className="min-w-0 truncate font-medium text-nite-text-primary">{item.name}</span></span><span className="mt-3 block text-type-metadata text-nite-text-muted">{item.kind==="folder"?"Pasta":item.file?bytes(item.file.size):"Arquivo"}</span></button>)}</div>
-          :<div ref={tableContainerRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"><table className={`w-full min-w-0 table-fixed text-left ${layout==="compact"?"text-type-metadata":"text-type-body-compact"}`}>
+          :<div style={{containerType:"inline-size"}} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"><table style={{"--document-baseline-width":`${gridWidth}px`} as React.CSSProperties} className={`w-full min-w-0 table-fixed text-left ${layout==="compact"?"text-type-metadata":"text-type-body-compact"}`}>
             <colgroup>
               <col className="w-[3.55%] 2xl:w-[56px]"/><col className="w-[2.55%] 2xl:w-[40px]"/>
-              <col className="w-[93.9%] md:w-[51.9%] lg:w-[39.9%] xl:w-[31.9%] 2xl:w-auto" style={{width:wideLayout?`${flexibleColumnWidths[0]}px`:undefined}}/>
+              <col className="w-[93.9%] md:w-[51.9%] lg:w-[39.9%] xl:w-[31.9%] 2xl:w-auto document-column-name"/>
               <col className="hidden md:table-column md:w-[42%] lg:w-[25%] xl:w-[12.65%] 2xl:w-[200px]"/>
-              <col className="hidden xl:table-column xl:w-[26%] 2xl:w-auto" style={{width:wideLayout?`${flexibleColumnWidths[1]}px`:undefined}}/>
+              <col className="hidden xl:table-column xl:w-[26%] 2xl:w-auto document-column-owner"/>
               <col className="hidden lg:table-column lg:w-[29%] xl:w-[6.96%] 2xl:w-[140px]"/>
               <col className="hidden xl:table-column xl:w-[16.39%] 2xl:w-[160px]"/>
-              <col className="hidden 2xl:table-column 2xl:w-auto" style={{width:wideLayout?`${flexibleColumnWidths[2]}px`:undefined}}/>
+              <col className="hidden 2xl:table-column 2xl:w-auto document-column-activity"/>
             </colgroup>
             <thead className="sticky top-0 z-10 border-b border-nite-border-soft bg-inherit text-sm font-semibold text-nite-text-secondary"><tr className="h-[49px]">
               <th className="h-[49px] px-3 py-0">{selected.length>0&&<SelectionCheckbox label="Selecionar todas as linhas" checked={allItemsSelected} indeterminate={!allItemsSelected} onChange={selectAll}/>}</th><th className="h-[49px] px-2 py-0"><OneDriveMenuIcon name="page"/></th>
@@ -688,7 +697,7 @@ export function DetailsPanel({item,file,folder,info,activity,activityOnly,loadin
   const modifiedBy=item.kind==="folder"?detailsFolder?.modifiedByName:item.shared?.modifiedByName??detailsFile?.modifiedByName;
   return <div role="complementary" aria-label="Detalhes do item" className="fixed right-0 top-16 z-40 flex h-[calc(100svh-4rem)] w-[min(22rem,calc(100vw-1rem))] min-w-0 min-h-0 flex-col overflow-hidden rounded-l-[8px] border border-nite-border-soft bg-nite-surface lg:relative lg:right-auto lg:top-auto lg:z-auto lg:h-full lg:w-auto lg:rounded-[8px]">
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-nite-border-soft p-4"><div className="flex min-w-0 items-center gap-2"><ItemIcon item={item}/><p className="truncate font-medium text-nite-text-primary">{item.name}</p></div><button type="button" onClick={onClose} aria-label="Fechar detalhes" className="grid size-9 shrink-0 place-items-center rounded-control text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">×</button></header>
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="document-details-scroll min-h-0 flex-1 overflow-y-auto">
       <section aria-labelledby="details-activity-title" className="border-b border-nite-border-soft p-4"><h3 id="details-activity-title" className="mb-3 font-medium text-nite-text-primary">Atividade</h3>{activity?.items.length?<div className="grid gap-2">{activityGroups(activity).map((group)=><section key={group.label}><h4 className="mb-2 text-type-metadata font-semibold text-nite-text-secondary">{group.label}</h4><ul className="grid gap-2">{group.items.map((entry:LibraryActivity)=><li key={entry.id} className="flex gap-3 rounded-control bg-nite-surface-subtle p-3"><ActivityGlyph action={entry.action}/><div className="min-w-0"><p className="text-type-body-compact text-nite-text-primary">{entry.actorName??"Responsável não informado"} {activityAction(entry.action)}</p>{entry.reason&&<p className="mt-1 text-type-body-compact text-nite-text-secondary">{entry.reason}</p>}<p className="mt-2 text-type-metadata text-nite-text-muted"><time dateTime={entry.occurredAt}>{dateTime(entry.occurredAt)}</time></p></div></li>)}</ul></section>)}</div>:<p role={loading?"status":undefined} className="rounded-control bg-nite-surface-subtle px-3 py-4 text-type-body-compact text-nite-text-secondary">{loading?"Carregando atividade…":activity?"Nenhuma atividade registrada.":"Atividade recente indisponível para este item."}</p>}{activity?.hasMore&&<button type="button" onClick={onLoadMoreActivity} className="mt-3 min-h-9 rounded-control border border-nite-border-control px-3 text-type-body-compact text-nite-text-primary">Carregar atividades anteriores</button>}</section>
       {!activityOnly&&<><dl className="grid gap-4 p-4 text-type-body-compact"><Detail label="Tipo" value={item.kind==="folder"?"Pasta":info?.mimeType??item.shared?.mimeType??detailsFile?.mimeType??"Não disponível"}/><Detail label="Tamanho" value={info?bytes(info.size):item.shared?.size!==undefined&&item.shared.size!==null?bytes(item.shared.size):size}/><Detail label="Proprietário" value={owner??"Não disponível"}/><Detail label="Criado por" value={createdBy??info?.identity.createdBy??"Não disponível"}/><Detail label="Modificado por" value={modifiedBy??info?.identity.modifiedBy??"Não disponível"}/><Detail label="Modificado" value={dateTime(info?.modifiedAt??modifiedAt)}/><Detail label="Data de criação" value={dateTime(info?.createdAt??createdAt)}/><Detail label="Localização" value={info?.parentName??path}/>{info&&<><Detail label="Origem" value={info.identity.origin}/><Detail label="Classificação" value={info.identity.protection}/><Detail label="Guarda" value={info.identity.retentionHold?"Ativa":"Sem hold"}/><Detail label="Permissão efetiva" value={info.access.effectivePermission??(info.capabilities.canEdit?"EDIT":info.capabilities.canView?"VIEW":"Sem acesso")}/><Detail label="Compartilhamento" value={info.access.grants.length?`${info.access.grants.length} concessão(ões)`:"Sem grants visíveis"}/>{info.access.grants.length>0&&<Detail label="Destinatários" value={info.access.grants.map((entry)=>entry.grant.memberName).join(", ")}/>}</>}{info?.type==="FOLDER"&&<><Detail label="Pastas" value={String(info.folderCount)}/><Detail label="Arquivos" value={String(info.fileCount)}/></>}{detailsFile&&<Detail label="Versão atual" value={String(detailsFile.revision)}/>}</dl>{item.kind==="file"&&info&&<VersionsSection documentId={item.id} canEdit={info.capabilities.canEdit} onChanged={onChanged}/>}</>}
     </div>
@@ -696,7 +705,7 @@ export function DetailsPanel({item,file,folder,info,activity,activityOnly,loadin
 }
 function Detail({label,value}:{label:string;value:string}) {return <div><dt className="text-type-metadata text-nite-text-muted">{label}</dt><dd className="break-words text-nite-text-primary">{value}</dd></div>;}
 function VersionsSection({documentId,canEdit,onChanged}:{documentId:string;canEdit:boolean;onChanged?:()=>void}) {
-  const [page,setPage]=useState<DocumentVersionPage|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
+  const [page,setPage]=useState<DocumentVersionPage|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[loadError,setLoadError]=useState<string|null>(null);
   async function load(before?:number) {const path=`/api/v1/documents/${documentId}/versions`;
     const url=`/api/library/manage?path=${encodeURIComponent(path)}&limit=30${before?`&beforeRevision=${before}`:""}`;
     const response=await fetch(url);if(!response.ok)throw new Error();const parsed=parseVersionPage(await response.json());if(!parsed)throw new Error();
@@ -704,14 +713,14 @@ function VersionsSection({documentId,canEdit,onChanged}:{documentId:string;canEd
   }
   useEffect(()=>{let active=true;void fetch(`/api/library/manage?path=${encodeURIComponent(`/api/v1/documents/${documentId}/versions`)}&limit=30`).then(async(response)=>{
     if(!response.ok)throw new Error();const parsed=parseVersionPage(await response.json());if(!parsed)throw new Error();if(active)setPage(parsed);
-  }).catch(()=>{if(active)setError("Histórico de versões indisponível.");});return()=>{active=false;};},[documentId]);
+  }).catch(()=>{if(active)setLoadError("Histórico de versões indisponível.");});return()=>{active=false;};},[documentId]);
   async function restore(versionId:string) {if(!canEdit||busy||!window.confirm("Restaurar esta versão como uma nova revisão?"))return;
     setBusy(true);setError(null);try {const path=`/api/v1/documents/${documentId}/versions/${versionId}/restore`;
       const response=await fetch(`/api/library/manage?path=${encodeURIComponent(path)}`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
       if(!response.ok)throw new Error(response.status===409?"Documento em edição ou alterado. Tente novamente.":"Restauração não autorizada ou indisponível.");
       await load();onChanged?.();
     }catch(cause){setError(cause instanceof Error?cause.message:"Restauração não concluída.");}finally{setBusy(false);}}
-  return <section aria-label="Histórico de versões" className="border-t border-nite-border-soft p-4"><h3 className="mb-3 font-medium text-nite-text-primary">Histórico de versões</h3>{error&&<p role="alert" className="mb-2 text-type-metadata text-status-error">{error}</p>}{!page&&!error?<p role="status" className="text-type-metadata text-nite-text-muted">Carregando versões…</p>:page?.items.length===0?<p className="text-type-metadata text-nite-text-muted">Nenhuma revisão disponível.</p>:<ul className="grid gap-2">{page?.items.map((version)=><li key={version.id} className="rounded-control bg-nite-surface-subtle p-3 text-type-metadata"><p className="font-medium text-nite-text-primary">Revisão {version.revision}{version.current?" · atual":""}</p><p className="text-nite-text-secondary">{dateTime(version.createdAt)} · {bytes(version.size)}</p><div className="mt-2 flex gap-3"><a href={`/api/library/download-version/${documentId}/${version.id}`} className="text-nite-brand-primary hover:underline">Baixar</a>{!version.current&&canEdit&&<button type="button" disabled={busy} onClick={()=>void restore(version.id)} className="text-nite-brand-primary disabled:opacity-50">Restaurar conteúdo</button>}</div></li>)}</ul>}{page?.hasMore&&page.nextBeforeRevision&&<button type="button" disabled={busy} onClick={()=>{setBusy(true);void load(page.nextBeforeRevision??undefined).catch(()=>setError("Não foi possível carregar outras versões.")).finally(()=>setBusy(false));}} className="mt-3 min-h-9 rounded-control border border-nite-border-control px-3 text-type-metadata text-nite-text-primary">Carregar mais</button>}</section>;
+  return <section aria-label="Histórico de versões" className="border-t border-nite-border-soft p-4"><h3 className="mb-3 font-medium text-nite-text-primary">Histórico de versões</h3>{error&&<TransientFeedback messageKey={error} onDismiss={()=>setError(null)}><p role="alert" className="mb-2 text-type-metadata text-status-error">{error}</p></TransientFeedback>}{loadError&&<p role="alert" className="mb-2 text-type-metadata text-status-error">{loadError}</p>}{!page&&!loadError?<p role="status" className="text-type-metadata text-nite-text-muted">Carregando versões…</p>:page?.items.length===0?<p className="text-type-metadata text-nite-text-muted">Nenhuma revisão disponível.</p>:<ul className="grid gap-2">{page?.items.map((version)=><li key={version.id} className="rounded-control bg-nite-surface-subtle p-3 text-type-metadata"><p className="font-medium text-nite-text-primary">Revisão {version.revision}{version.current?" · atual":""}</p><p className="text-nite-text-secondary">{dateTime(version.createdAt)} · {bytes(version.size)}</p><div className="mt-2 flex gap-3"><a href={`/api/library/download-version/${documentId}/${version.id}`} className="text-nite-brand-primary hover:underline">Baixar</a>{!version.current&&canEdit&&<button type="button" disabled={busy} onClick={()=>void restore(version.id)} className="text-nite-brand-primary disabled:opacity-50">Restaurar conteúdo</button>}</div></li>)}</ul>}{page?.hasMore&&page.nextBeforeRevision&&<button type="button" disabled={busy} onClick={()=>{setBusy(true);void load(page.nextBeforeRevision??undefined).catch(()=>setError("Não foi possível carregar outras versões.")).finally(()=>setBusy(false));}} className="mt-3 min-h-9 rounded-control border border-nite-border-control px-3 text-type-metadata text-nite-text-primary">Carregar mais</button>}</section>;
 }
 
 function ActivityGlyph({action}:{action:string}) {
@@ -783,7 +792,7 @@ function RequestFilesDialog({folder,onClose,onCreated}:{folder:Item;onClose:()=>
       if(!response.ok)throw new Error(response.status===409?"Destino ou solicitação em conflito.":response.status===403?"Você não pode solicitar arquivos para esta pasta.":"Solicitação não concluída.");
       onCreated();
     }catch(cause){setError(cause instanceof Error?cause.message:"Solicitação não concluída.");}finally{setBusy(false);}}
-  return <div className="fixed inset-0 z-[60] grid place-items-center bg-black/45 p-4"><section role="dialog" aria-modal="true" aria-labelledby="request-files-title" onKeyDown={(event)=>containDialogFocus(event,onClose)} className="max-h-[90svh] w-full max-w-lg overflow-y-auto rounded-dialog bg-nite-surface p-6 shadow-nite-modal"><header className="flex justify-between gap-3"><div><h2 id="request-files-title" className="font-display text-type-section-title text-nite-text-primary">Solicitar arquivos</h2><p className="text-type-body-compact text-nite-text-secondary">Destino: {folder.name}. Os destinatários poderão enviar arquivos sem acessar o conteúdo da pasta.</p></div><button type="button" onClick={onClose} aria-label="Fechar solicitação" className="size-9 rounded-control text-nite-text-secondary">×</button></header><form onSubmit={(event)=>void submit(event)} className="mt-4 grid gap-4"><label className="grid gap-1 text-type-body-compact text-nite-text-secondary">Destinatários<input value={search} onChange={(event)=>void find(event.target.value)} placeholder="Pesquise integrantes ativos" className="min-h-10 rounded-control border border-nite-border-control bg-nite-background px-3 text-nite-text-primary"/></label>{matches.length>0&&<ul className="max-h-36 overflow-y-auto rounded-control border border-nite-border-soft">{matches.filter((member)=>!recipients.some((selected)=>selected.id===member.id)).map((member)=><li key={member.id}><button type="button" onClick={()=>{setRecipients((before)=>[...before,member]);setSearch("");setMatches([]);}} className="min-h-9 w-full px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle">{member.name}</button></li>)}</ul>}{recipients.length>0&&<ul className="flex flex-wrap gap-2">{recipients.map((member)=><li key={member.id} className="rounded-control bg-nite-brand-soft px-2 py-1 text-type-metadata text-nite-brand-primary">{member.name} <button type="button" aria-label={`Remover ${member.name}`} onClick={()=>setRecipients((before)=>before.filter((item)=>item.id!==member.id))}>×</button></li>)}</ul>}<label className="grid gap-1 text-type-body-compact text-nite-text-secondary">Prazo opcional<input type="datetime-local" value={dueAt} onChange={(event)=>setDueAt(event.target.value)} className="min-h-10 rounded-control border border-nite-border-control bg-nite-background px-3 text-nite-text-primary"/></label>{error&&<p role="alert" className="text-type-body-compact text-status-error">{error}</p>}<div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="min-h-10 px-3 text-nite-text-secondary">Cancelar</button><button type="submit" disabled={busy||recipients.length===0} className="min-h-10 rounded-control bg-nite-brand-primary px-4 text-white disabled:opacity-50">{busy?"Criando…":"Criar solicitação"}</button></div></form></section></div>;
+  return <div className="fixed inset-0 z-[60] grid place-items-center bg-black/45 p-4"><section role="dialog" aria-modal="true" aria-labelledby="request-files-title" onKeyDown={(event)=>containDialogFocus(event,onClose)} className="max-h-[90svh] w-full max-w-lg overflow-y-auto rounded-dialog bg-nite-surface p-6 shadow-nite-modal"><header className="flex justify-between gap-3"><div><h2 id="request-files-title" className="font-display text-type-section-title text-nite-text-primary">Solicitar arquivos</h2><p className="text-type-body-compact text-nite-text-secondary">Destino: {folder.name}. Os destinatários poderão enviar arquivos sem acessar o conteúdo da pasta.</p></div><button type="button" onClick={onClose} aria-label="Fechar solicitação" className="size-9 rounded-control text-nite-text-secondary">×</button></header><form onSubmit={(event)=>void submit(event)} className="mt-4 grid gap-4"><label className="grid gap-1 text-type-body-compact text-nite-text-secondary">Destinatários<input value={search} onChange={(event)=>void find(event.target.value)} placeholder="Pesquise integrantes ativos" className="min-h-10 rounded-control border border-nite-border-control bg-nite-background px-3 text-nite-text-primary"/></label>{matches.length>0&&<ul className="max-h-36 overflow-y-auto rounded-control border border-nite-border-soft">{matches.filter((member)=>!recipients.some((selected)=>selected.id===member.id)).map((member)=><li key={member.id}><button type="button" onClick={()=>{setRecipients((before)=>[...before,member]);setSearch("");setMatches([]);}} className="min-h-9 w-full px-3 text-left text-type-body-compact text-nite-text-primary hover:bg-nite-surface-subtle">{member.name}</button></li>)}</ul>}{recipients.length>0&&<ul className="flex flex-wrap gap-2">{recipients.map((member)=><li key={member.id} className="rounded-control bg-nite-brand-soft px-2 py-1 text-type-metadata text-nite-brand-primary">{member.name} <button type="button" aria-label={`Remover ${member.name}`} onClick={()=>setRecipients((before)=>before.filter((item)=>item.id!==member.id))}>×</button></li>)}</ul>}<label className="grid gap-1 text-type-body-compact text-nite-text-secondary">Prazo opcional<input type="datetime-local" value={dueAt} onChange={(event)=>setDueAt(event.target.value)} className="min-h-10 rounded-control border border-nite-border-control bg-nite-background px-3 text-nite-text-primary"/></label>{error&&<TransientFeedback messageKey={error} onDismiss={()=>setError(null)}><p role="alert" className="text-type-body-compact text-status-error">{error}</p></TransientFeedback>}<div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="min-h-10 px-3 text-nite-text-secondary">Cancelar</button><button type="submit" disabled={busy||recipients.length===0} className="min-h-10 rounded-control bg-nite-brand-primary px-4 text-white disabled:opacity-50">{busy?"Criando…":"Criar solicitação"}</button></div></form></section></div>;
 }
 function ShareDialog({item,mode,onClose,onMessage,onChanged}:{item:Item;mode:"share"|"manage";onClose:()=>void;onMessage:(message:string)=>void;onChanged?:()=>void}) {
   const [search,setSearch]=useState(""),[recipients,setRecipients]=useState<Array<{id:string;name:string}>>([]),[shares,setShares]=useState<ShareGrant[]>([]),[inherited,setInherited]=useState<Array<{grant:ShareGrant;sourceFolderId:string|null}>>([]),[permission,setPermission]=useState<"VIEW"|"EDIT">("VIEW"),[loading,setLoading]=useState(false);

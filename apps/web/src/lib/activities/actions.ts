@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { activityPriorities, activityStatuses, parseActivity } from "./contracts";
+import { activityPriorities, activityStatuses, parseActivity, type Activity } from "./contracts";
 import { getActivity, getActivityCapabilities, getActivityEvidenceById, getEvidenceCapabilities, getMyActivityCapabilities } from "./data";
 import { mutateActivity, uploadActivityEvidence, type ActivityMutationIssue } from "./mutations";
 import { getAuthenticatedNiteSession } from "../auth/server-session";
@@ -140,7 +140,7 @@ export async function moveActivityAction(
   expectedVersion: number,
   fieldName: "status" | "priority",
   value: string | null,
-): Promise<{ issue: ActivityMutationIssue | "forbidden" | null }> {
+): Promise<{ issue: ActivityMutationIssue | "forbidden" | null; activity?: Activity }> {
   if (!uuidPattern.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return { issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
   if (!session) return { issue: "access" };
@@ -155,16 +155,16 @@ export async function moveActivityAction(
   if (fieldName === "status") {
     const next = activityStatuses.find((status) => status === value);
     if (!next || next === "CANCELADA" || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA" || !capability.data.transitions.includes(next)) return { issue: "forbidden" };
-    result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}/status`, session.bearer, "PATCH", { status: next, expectedVersion });
+    result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}/status`, session.bearer, "PATCH", { status: next, expectedVersion }, parseActivity);
   } else {
     const priority = value === null ? null : activityPriorities.find((item) => item === value) ?? undefined;
     if (priority === undefined || !capability.data.changePriority || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA") return { issue: "forbidden" };
-    result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}`, session.bearer, "PATCH", { priority, expectedVersion });
+    result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}`, session.bearer, "PATCH", { priority, expectedVersion }, parseActivity);
   }
 
-  if (result.issue) return { issue: result.issue };
+  if (result.issue || !result.data) return { issue: result.issue ?? "unavailable" };
   revalidateActivity(id);
-  return { issue: null };
+  return { issue: null, activity: result.data };
 }
 
 export async function deleteActivityAction(id: string, form: FormData): Promise<void> {

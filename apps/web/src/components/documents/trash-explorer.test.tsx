@@ -7,6 +7,15 @@ vi.mock("next/navigation",()=>({useRouter:()=>({refresh:vi.fn()})}));
 vi.mock("../../lib/documents/library-actions",()=>({restoreTrashItem:vi.fn()}));
 
 describe("Lixeira documental",()=>{
+  it("aplica expiração aos retornos de restauração sem ocultar a indisponibilidade da página",()=>{
+    const html=renderToStaticMarkup(<TrashExplorer listing={null} issue="unavailable" params={{error:"conflict",saved:"1"}}/>);
+    expect(html.match(/data-transient-feedback/g)).toHaveLength(2);
+    expect(html).toContain("Restauração concluída.");
+    expect(html).toContain("Não foi possível carregar a Lixeira.");
+    const structural=renderToStaticMarkup(<TrashExplorer listing={null} issue="unavailable" params={{}}/>);
+    expect(structural).not.toContain("data-transient-feedback");
+    expect(structural).toContain('role="alert"');
+  });
   it("explica quando o processamento destrutivo está desabilitado",()=>{
     expect(trashBlockReason("PROCESSING_DISABLED")).toContain("desabilitado");
     expect(trashBlockReason("OWNER_UNKNOWN")).toContain("indeterminada");

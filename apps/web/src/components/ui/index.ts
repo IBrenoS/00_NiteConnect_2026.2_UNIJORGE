@@ -9,3 +9,4 @@ export * from "./select";
 export * from "./surface";
 export * from "./text-field";
 export * from "./textarea";
+export { TransientFeedback } from "./transient-feedback";

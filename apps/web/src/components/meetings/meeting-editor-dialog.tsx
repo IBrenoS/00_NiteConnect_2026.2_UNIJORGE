@@ -10,6 +10,7 @@ import { Field } from "../ui/field";
 import { Select } from "../ui/select";
 import { TextField } from "../ui/text-field";
 import { MeetingInviteePicker } from "./meeting-invitee-picker";
+import { TransientFeedback } from "../ui/transient-feedback";
 
 type Props = {
   open: boolean;
@@ -48,12 +49,14 @@ export function MeetingEditorDialog({ open, mode, meetingMode, meeting, viewerId
   const [invitees, setInvitees] = useState<MeetingCandidate[]>(selectedInvitees(meeting));
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [transientFeedback, setTransientFeedback] = useState(false);
   const keyRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const isImmediate = mode === "create" && meetingMode === "IMMEDIATE";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFeedback("");
+    setTransientFeedback(false);
     if (previewMode) {
       setFeedback("Esta prévia usa dados sintéticos e não grava reuniões.");
       return;
@@ -72,6 +75,7 @@ export function MeetingEditorDialog({ open, mode, meetingMode, meeting, viewerId
     const fingerprint = JSON.stringify({ mode, meetingMode, title: title.trim(), startsAt, plannedDurationMinutes, ids });
     if (!keyRef.current || keyRef.current.fingerprint !== fingerprint) keyRef.current = { fingerprint, key: crypto.randomUUID() };
     setPending(true);
+    setTransientFeedback(true);
     try {
       const result = mode === "create"
         ? await createMeetingAction({ mode: meetingMode, title: title.trim(), startsAt, plannedDurationMinutes, inviteeIds: ids }, keyRef.current.key)
@@ -116,7 +120,7 @@ export function MeetingEditorDialog({ open, mode, meetingMode, meeting, viewerId
       <MeetingInviteePicker selected={invitees} onChange={setInvitees} excludedId={viewerId} previewCandidates={previewCandidates} />
       {mode === "create" && meetingMode === "SCHEDULED" ? <p className="border-t border-nite-border-soft pt-3 text-type-metadata leading-relaxed text-nite-text-secondary">O convite de calendário será enviado pelo Microsoft 365. As respostas internas do NITE Connect permanecem separadas das respostas no Outlook.</p> : null}
       {previewMode ? <p className="border-t border-nite-border-soft pt-3 text-type-metadata text-status-warning">Prévia sintética — nenhuma alteração será persistida.</p> : null}
-      {feedback ? <p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-3 py-2 text-type-body-compact text-status-error">{feedback}</p> : null}
+      {feedback ? transientFeedback ? <TransientFeedback messageKey={feedback} onDismiss={() => setFeedback("")}><p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-3 py-2 text-type-body-compact text-status-error">{feedback}</p></TransientFeedback> : <p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-3 py-2 text-type-body-compact text-status-error">{feedback}</p> : null}
     </form>
   </DialogFrame>;
 }

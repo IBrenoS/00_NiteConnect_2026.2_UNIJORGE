@@ -50,10 +50,24 @@ public class ActivityPlanningService {
     }
 
     @Transactional(readOnly=true) public PageResult<View> list(UUID actor,UUID projectId,String query,int page,int size) {
+        return listScoped(actor,projectId,query,page,size,true);
+    }
+
+    @Transactional(readOnly=true) public PageResult<View> administrativeList(UUID actor,UUID projectId,String query,int page,int size) {
+        access.requireAdministrator(actor);
+        return listScoped(actor,projectId,query,page,size,false);
+    }
+
+    @Transactional(readOnly=true) public PageResult<View> projectList(UUID actor,UUID projectId,String query,int page,int size) {
+        projectAccess.requireRead(actor,projectId);
+        return listScoped(actor,projectId,query,page,size,false);
+    }
+
+    private PageResult<View> listScoped(UUID actor,UUID projectId,String query,int page,int size,boolean personal) {
         access.requireActive(actor);
         if(query!=null&&(query.length()>160||query.strip().length()<2)) throw ApiException.invalid("Pesquisa deve conter de 2 a 160 caracteres");
         if(projectId!=null) projectAccess.requireRead(actor,projectId);
-        var result=plannings.list(actor,access.isAdministrator(actor),projectAccessProjectIds(actor),projectId,query,page,size);
+        var result=plannings.list(actor,access.isAdministrator(actor),projectAccessProjectIds(actor),projectId,query,page,size,personal);
         return new PageResult<>(result.items().stream().map(p->view(actor,p)).toList(),page,size,result.total());
     }
 
@@ -87,7 +101,61 @@ public class ActivityPlanningService {
         var attached=activities.require(created.id());
         activityService.record(actor,attached,"PLANNING_ATTACHED",null,"{\"planningId\":\""+id+"\"}","Tarefa vinculada ao planejamento");
         plannings.touch(id,planning.version());
+        applyAssignments(actor,created.id(),null,input.collaboratorIds(),input.reason());
+        if(input.status()!=null && input.status()!=attached.status()) {
+            activityService.status(actor,created.id(),new ActivityContracts.StatusChange(input.status(),activities.require(created.id()).version(),input.reason(),input.confirmed()));
+        }
         return new TaskCreated(activityService.read(actor,created.id()),next.version()+1);
+    }
+
+    @Transactional public ActivityService.View updateTask(UUID actor,UUID id,UUID activityId,UpdateTask input) {
+        transactions.lock();access.requireActive(actor);
+        ActivityPlanning planning=plannings.lock(id);requireRead(actor,planning);
+        var current=activityService.write(actor,activityId,input.expectedVersion(),input.reason());
+        if(!id.equals(current.planningId())) throw ApiException.notFound();
+        boolean transition=input.status()!=null && input.status()!=current.status();
+        // Reopening must precede edits; closing must follow edits. Each delegated operation keeps its existing policy.
+        if(transition && current.status().terminal()) {
+            activityService.status(actor,activityId,new ActivityContracts.StatusChange(input.status(),current.version(),input.reason(),input.confirmed()));
+        }
+        if(changed(input.title(),current.title()) || changed(input.description(),current.description())
+                || changed(input.startOn(),current.startOn()) || changed(input.dueOn(),current.dueOn()) || changed(input.priority(),current.priority())) {
+            activityService.update(actor,activityId,new ActivityContracts.Update(activities.require(activityId).version(),input.reason(),
+                    input.title(),input.description(),input.startOn(),input.dueOn(),input.priority(),null));
+        }
+        applyAssignments(actor,activityId,input.primaryExecutorId(),input.collaboratorIds(),input.reason());
+        if(transition && !current.status().terminal()) {
+            activityService.status(actor,activityId,new ActivityContracts.StatusChange(input.status(),activities.require(activityId).version(),input.reason(),input.confirmed()));
+        }
+        return activityService.read(actor,activityId);
+    }
+
+    private boolean changed(tools.jackson.databind.JsonNode node,Object current) {
+        return node!=null && !node.equals(json.valueToTree(current));
+    }
+
+    private void applyAssignments(UUID actor,UUID activityId,UUID executor,List<UUID> collaborators,String reason) {
+        var current=activities.require(activityId);
+        UUID nextExecutor=executor==null?current.primaryExecutorId():executor;
+        if(collaborators!=null && (new HashSet<>(collaborators).size()!=collaborators.size() || collaborators.contains(nextExecutor))) {
+            throw ApiException.invalid("Colaboradores devem ser únicos e distintos do executor");
+        }
+        if(!nextExecutor.equals(current.primaryExecutorId())) {
+            activityService.assign(actor,activityId,new ActivityContracts.Assign(nextExecutor,current.version(),reason,null),true);
+        }
+        if(collaborators==null) return;
+        var assignments=activities.current(activityId);
+        for(var assignment:assignments) {
+            if(assignment.role().equals("COLLABORATOR") && !collaborators.contains(assignment.memberId())) {
+                activityService.end(actor,activityId,assignment.memberId(),new ActivityContracts.Command(activities.require(activityId).version(),reason,null));
+            }
+        }
+        var existing=activities.current(activityId).stream().map(ActivityRepository.Assignment::memberId).toList();
+        for(UUID collaborator:collaborators) {
+            if(!existing.contains(collaborator)) {
+                activityService.assign(actor,activityId,new ActivityContracts.Assign(collaborator,activities.require(activityId).version(),reason,null),false);
+            }
+        }
     }
 
     @Transactional(readOnly=true) public PageResult<ActivityService.View> tasks(UUID actor,UUID id,Filter filter,int page,int size) {
@@ -112,12 +180,14 @@ public class ActivityPlanningService {
     }
 
     @Transactional(readOnly=true) public ActivityStatistics memberStats(UUID actor,UUID memberId,UUID projectId) {
-        access.requireActive(actor);access.requireActive(memberId);
+        access.requireActive(actor);
         if(projectId==null) {
             access.requireAdministrator(actor);
+            access.requireActive(memberId);
             return plannings.memberStats(memberId,LocalDate.now(clock));
         }
-        projectAccess.requireRead(actor,projectId);
+        projectAccess.requireManage(actor,projectId);
+        access.requireActive(memberId);
         return plannings.memberProjectStats(memberId,projectId,LocalDate.now(clock));
     }
 

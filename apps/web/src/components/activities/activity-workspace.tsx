@@ -1,8 +1,9 @@
 "use client";
 
+import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type DragEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { moveActivityAction } from "../../lib/activities/actions";
 import { activityPriorities, activityStatuses, type Activity, type ActivityCapabilities, type ActivityPriority, type ActivityStatus } from "../../lib/activities/contracts";
 import { formatActivityDate } from "./activity-list";
@@ -57,11 +58,17 @@ function messageForIssue(issue: string): string {
 export function ActivityWorkspace({ activities: initialActivities, projectTitles, capabilities, returnTo, view }: Props) {
   const router = useRouter();
   const [activities, setActivities] = useState([...initialActivities]);
+  const [receivedActivities, setReceivedActivities] = useState(initialActivities);
+  if (receivedActivities !== initialActivities) {
+    setReceivedActivities(initialActivities);
+    setActivities([...initialActivities]);
+  }
+  const moving = useRef(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
   async function move(id: string, field: MoveField, value: ActivityStatus | ActivityPriority | null) {
-    if (pendingId) return;
+    if (pendingId || moving.current) return;
     const activity = activities.find((item) => item.id === id);
     if (!activity) return;
     const permission = capabilities[id];
@@ -82,6 +89,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
 
     const previous = activities;
     setNotice("");
+    moving.current = true;
     setPendingId(id);
     setActivities((current) => current.map((item) => item.id === id ? { ...item, status: nextStatus, priority: nextPriority } : item));
     let result: Awaited<ReturnType<typeof moveActivityAction>>;
@@ -90,13 +98,16 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
     } catch {
       result = { issue: "unavailable" };
     }
+    moving.current = false;
     setPendingId(null);
-    if (result.issue) {
+    if (result.issue || !result.activity) {
       setActivities(previous);
-      setNotice(messageForIssue(result.issue));
+      setNotice(messageForIssue(result.issue ?? "unavailable"));
       router.refresh();
       return;
     }
+    const savedActivity = result.activity;
+    setActivities((current) => current.map((item) => item.id === id ? savedActivity : item));
     setNotice("Alteração salva.");
     router.refresh();
   }
@@ -179,7 +190,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   }
 
   if (view === "list") return <section className="min-w-0" aria-label="Lista de atividades">
-    {notice ? <p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p> : null}
+    {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice("")}><p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p><span className="sr-only" role="status">{pendingId ? "Salvando alteração." : notice}</span></TransientFeedback> : null}
     <div className="overflow-x-auto rounded-panel border border-nite-border-soft">
       <table className="w-full min-w-[820px] border-collapse text-left">
         <thead className="bg-nite-surface-subtle text-type-metadata text-nite-text-secondary">
@@ -197,11 +208,10 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
         </tbody>
       </table>
     </div>
-    {notice ? <span className="sr-only" role="status">{pendingId ? "Salvando alteração." : notice}</span> : null}
   </section>;
 
   if (view === "status") return <section aria-label="Quadro por situação" className="min-w-0">
-    {notice ? <p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p> : null}
+    {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice("")}><p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p></TransientFeedback> : null}
     <div className="flex min-w-0 snap-x gap-3 overflow-x-auto pb-3 [scrollbar-width:thin]" onDragOver={(event) => event.preventDefault()}>
       {statusGroups.map((group) => {
         const grouped = activities.filter((activity) => activity.status === group.id);
@@ -220,7 +230,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   </section>;
 
   return <section aria-label="Quadro por prioridade" className="min-w-0">
-    {notice ? <p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p> : null}
+    {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice("")}><p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p></TransientFeedback> : null}
     <div className="flex min-w-0 snap-x gap-3 overflow-x-auto pb-3 [scrollbar-width:thin]">
       {priorityGroups.map((group) => {
         const grouped = activities.filter((activity) => activity.priority === group.id);

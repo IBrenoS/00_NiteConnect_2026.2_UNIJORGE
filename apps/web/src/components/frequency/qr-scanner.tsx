@@ -1,5 +1,6 @@
 "use client";
 
+import { TransientFeedback } from "../ui/transient-feedback";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrowserQRCodeReader } from "@zxing/browser";
@@ -8,7 +9,7 @@ import { confirmFrequencyQr, type FrequencyActionResult } from "../../lib/freque
 import { qrIdentityFromFrequencyUrl, tokenForFrequencyList } from "../../lib/frequency/qr";
 import { cameraStartErrorMessage } from "../../lib/frequency/scanner";
 
-type ScanState = { kind: "idle" | "starting" | "confirming" } | { kind: "error"; message: string } | { kind: "result"; result: Extract<FrequencyActionResult, { kind: "success" }> };
+type ScanState = { kind: "idle" | "starting" | "confirming" } | { kind: "error"; message: string; transient?: boolean } | { kind: "result"; result: Extract<FrequencyActionResult, { kind: "success" }> };
 
 export function QrScanner({ listId, meetingName, onClose }: { listId: string; meetingName: string; onClose: () => void }) {
   const router = useRouter();
@@ -109,9 +110,9 @@ export function QrScanner({ listId, meetingName, onClose }: { listId: string; me
               setState({ kind: "result", result: confirmation });
               router.refresh();
             } else {
-              setState({ kind: "error", message: confirmation.message });
+              setState({ kind: "error", message: confirmation.message, transient: true });
             }
-          }).catch(() => setState({ kind: "error", message: "Não foi possível confirmar agora. Tente novamente." })).finally(() => setPending(false));
+          }).catch(() => setState({ kind: "error", message: "Não foi possível confirmar agora. Tente novamente.", transient: true })).finally(() => setPending(false));
         } else if (error && error.name !== "NotFoundException" && error.name !== "ChecksumException" && error.name !== "FormatException") {
           controls.stop();
           controlsRef.current = null;
@@ -158,8 +159,8 @@ export function QrScanner({ listId, meetingName, onClose }: { listId: string; me
         <div aria-hidden="true" className="pointer-events-none absolute inset-[13%] rounded-panel border-2 border-white/85 shadow-[0_0_0_999px_rgba(0,0,0,.28)]" />
         {state.kind === "starting" || state.kind === "confirming" ? <div className="absolute inset-0 grid place-items-center bg-black/55 px-6 text-center text-type-body-compact text-white">{state.kind === "confirming" ? "Validando sua confirmação…" : "Preparando a câmera…"}</div> : null}
       </div> : null}
-      {state.kind === "error" ? <div className="grid gap-3"><p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-3 py-2.5 text-type-body-compact text-status-error">{state.message}</p><Button type="button" variant="secondary" onClick={retry} className="w-fit">Tentar novamente</Button></div> : null}
-      {state.kind === "result" ? <div role="status" className="rounded-panel border border-status-done-border bg-status-done-soft p-4 text-status-done"><p className="font-semibold">{state.result.confirmation.alreadyRegistered ? "Presença já confirmada" : "Presença confirmada"}</p><p className="mt-1 text-type-body-compact">Confirmada às {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" }).format(new Date(state.result.confirmation.confirmedAt))}.</p></div> : null}
+      {state.kind === "error" ? <div className="grid gap-3">{state.transient ? <TransientFeedback messageKey={state.message}><p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-3 py-2.5 text-type-body-compact text-status-error">{state.message}</p></TransientFeedback> : <p role="alert" className="rounded-control border border-status-error-border bg-status-error-soft px-3 py-2.5 text-type-body-compact text-status-error">{state.message}</p>}<Button type="button" variant="secondary" onClick={retry} className="w-fit">Tentar novamente</Button></div> : null}
+      {state.kind === "result" ? <TransientFeedback messageKey={`confirmed:${state.result.confirmation.confirmedAt}`}><div role="status" className="rounded-panel border border-status-done-border bg-status-done-soft p-4 text-status-done"><p className="font-semibold">{state.result.confirmation.alreadyRegistered ? "Presença já confirmada" : "Presença confirmada"}</p><p className="mt-1 text-type-body-compact">Confirmada às {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Bahia", hour: "2-digit", minute: "2-digit" }).format(new Date(state.result.confirmation.confirmedAt))}.</p></div></TransientFeedback> : null}
       {pending ? <p role="status" className="text-type-metadata text-nite-text-muted">Aguardando confirmação segura…</p> : null}
       <footer className="flex flex-wrap justify-end gap-2"><Button type="button" variant="secondary" onClick={close}>{state.kind === "result" ? "Concluir" : "Fechar leitor"}</Button></footer>
     </section>

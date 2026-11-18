@@ -1,4 +1,5 @@
 "use client";
+import { TransientFeedback } from "../ui/transient-feedback";
 
 import Link from "next/link";
 import { useCallback,useEffect,useState } from "react";
@@ -35,7 +36,7 @@ export function DocumentAutomationDialog({memberId,target,onClose}:{memberId:str
   const [rules,setRules]=useState<Rule[]>([]),[notifications,setNotifications]=useState<Notification[]>([]);
   const [requests,setRequests]=useState<FileRequestView[]>([]),[folderAllowed,setFolderAllowed]=useState(false),[selfAllowed,setSelfAllowed]=useState(false);
   const [selectedRequest,setSelectedRequest]=useState(""),[history,setHistory]=useState<Delivery[]|null>(null),[historyRule,setHistoryRule]=useState<string|null>(null);
-  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null);
+  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[loadError,setLoadError]=useState<string|null>(null);
   const refresh=useCallback(async()=>{
     const [ruleValue,notificationValue,requestValue,folderValue,selfValue]=await Promise.all([
       request(path("/api/v1/me/document-automations")),request(path("/api/v1/me/document-notifications")),
@@ -48,12 +49,12 @@ export function DocumentAutomationDialog({memberId,target,onClose}:{memberId:str
         ||!Array.isArray(selfValue)||!selfValue.every((item)=>typeof item==="string"))throw new Error("O serviço retornou dados inválidos.");
     const requestPage=parseFileRequestPage(requestValue);
     if(!requestPage)throw new Error("Não foi possível carregar as solicitações.");
-    setRules(ruleValue);setNotifications(notificationValue);
+    setLoadError(null);setRules(ruleValue);setNotifications(notificationValue);
     setRequests(requestPage.items.filter((item)=>item.status==="OPEN"));
     setFolderAllowed(folderValue.includes("NEW_FILE_IN_FOLDER"));
     setSelfAllowed(selfValue.includes("DOCUMENT_SHARED_WITH_ME"));
   },[memberId,target?.id,target?.type]);
-  useEffect(()=>{let active=true;queueMicrotask(()=>{if(active)void refresh().catch((cause)=>{if(active)setError(cause instanceof Error?cause.message:"Não foi possível carregar automações.");}).finally(()=>{if(active)setLoading(false);});});return()=>{active=false;};},[refresh]);
+  useEffect(()=>{let active=true;queueMicrotask(()=>{if(active)void refresh().catch((cause)=>{if(active)setLoadError(cause instanceof Error?cause.message:"Não foi possível carregar automações.");}).finally(()=>{if(active)setLoading(false);});});return()=>{active=false;};},[refresh]);
   async function mutate(action:()=>Promise<unknown>) {
     if(busy)return;setBusy(true);setError(null);
     try {await action();await refresh();if(historyRule)await loadHistory(historyRule);}
@@ -72,7 +73,8 @@ export function DocumentAutomationDialog({memberId,target,onClose}:{memberId:str
   return <div className="fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4" onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}>
     <section role="dialog" aria-modal="true" aria-labelledby="automation-title" onKeyDown={(event)=>{if(event.key==="Escape")onClose();}} className="max-h-[90svh] w-full max-w-2xl overflow-y-auto rounded-dialog bg-nite-surface p-6 shadow-nite-modal">
       <header className="flex items-start justify-between gap-3"><div><h2 id="automation-title" className="font-display text-type-section-title text-nite-text-primary">Automações documentais</h2><p className="mt-1 text-type-body-compact text-nite-text-secondary">Notificações internas para eventos documentais. Nenhuma regra altera arquivos ou permissões.</p></div><div className="flex items-center gap-2"><button type="button" disabled={busy||loading} onClick={()=>void refresh().catch(()=>setError("Não foi possível atualizar as notificações."))} className="min-h-9 rounded-control px-2 text-type-body-compact text-nite-brand-primary disabled:opacity-50">Atualizar</button><button type="button" onClick={onClose} aria-label="Fechar automações" className="size-9 rounded-control text-nite-text-secondary">×</button></div></header>
-      {error&&<p role="alert" className="mt-4 rounded-control bg-status-error-soft p-3 text-type-body-compact text-status-error">{error}</p>}
+      {loadError&&<p role="alert" className="mt-4 rounded-control bg-status-error-soft p-3 text-type-body-compact text-status-error">{loadError}</p>}
+      {error&&<TransientFeedback messageKey={error} onDismiss={()=>setError(null)}><p role="alert" className="mt-4 rounded-control bg-status-error-soft p-3 text-type-body-compact text-status-error">{error}</p></TransientFeedback>}
       {loading?<p role="status" className="mt-5 text-nite-text-secondary">Carregando automações…</p>:<div className="mt-5 grid gap-6">
         <section aria-label="Criar automação" className="grid gap-3 rounded-panel border border-nite-border-soft p-4"><h3 className="font-semibold text-nite-text-primary">Criar regra</h3>
           {target?.type==="FOLDER"&&folderAllowed&&<div className="flex items-center justify-between gap-3"><p className="text-type-body-compact text-nite-text-secondary">Novo arquivo em {target.name}</p><button type="button" disabled={busy||exists("FOLDER",target.id,"NEW_FILE_IN_FOLDER")} onClick={()=>void create("FOLDER",target.id,"NEW_FILE_IN_FOLDER")} className="min-h-9 rounded-control border border-nite-border-control px-3 text-nite-brand-primary disabled:opacity-50">Monitorar</button></div>}

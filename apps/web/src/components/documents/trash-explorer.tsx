@@ -1,4 +1,5 @@
 "use client";
+import { TransientFeedback } from "../ui/transient-feedback";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -116,9 +117,9 @@ export function TrashExplorer({listing,issue,params}:Props) {
         :<><div className="flex items-center gap-1"><button type="button" disabled={busy||!selectedRows.every((entry)=>entry.capabilities.canRestore)} onClick={restoreSelection} style={{fontSize:14,lineHeight:"normal",fontWeight:600}} className="flex min-h-9 items-center gap-2 rounded-md px-3 hover:bg-[#383838] focus-visible:outline-2 focus-visible:outline-[#78b9ff] disabled:opacity-50"><ActionIcon kind="restore"/>Restaurar</button><button type="button" disabled={busy} onClick={()=>void loadPreview(selectedRows.map((entry)=>entry.item.id))} style={{fontSize:14,lineHeight:"normal",fontWeight:600}} className="flex min-h-9 items-center gap-2 rounded-md px-3 hover:bg-[#383838] focus-visible:outline-2 focus-visible:outline-[#78b9ff] disabled:opacity-50"><ActionIcon kind="trash"/>Excluir</button></div><button type="button" onClick={()=>{setSelected([]);setMenuId(null);}} aria-label="Cancelar seleção" style={{fontSize:14,lineHeight:"normal",fontWeight:600}} className="flex min-h-9 items-center gap-2 rounded-md px-3 text-[#adadad] hover:bg-[#383838] focus-visible:outline-2 focus-visible:outline-[#78b9ff]"><span aria-hidden="true">×</span>{selectedRows.length} selecionados</button></>}
     </div>
     <h1 style={{marginTop:7,marginLeft:8,fontSize:24,lineHeight:"32px",letterSpacing:"normal"}} className="font-semibold">Lixeira</h1>
-    {params.error&&<p role="alert" className="rounded-md bg-status-error-soft p-3 text-status-error">{params.error==="conflict"?"Conflito no destino. Informe outro nome para restaurar.":"Não foi possível concluir a operação."}</p>}
-    {params.saved&&<p role="status" className="rounded-md bg-nite-brand-soft p-3 text-nite-text-primary">Restauração concluída.</p>}
-    {message&&<p role="alert" className="rounded-md bg-status-warning-soft p-3 text-status-warning">{message}</p>}
+    {params.error&&<TransientFeedback messageKey={params.error} queryParam="error" occurrenceKey={params}><p role="alert" className="rounded-md bg-status-error-soft p-3 text-status-error">{params.error==="conflict"?"Conflito no destino. Informe outro nome para restaurar.":"Não foi possível concluir a operação."}</p></TransientFeedback>}
+    {params.saved&&<TransientFeedback messageKey={params.saved} queryParam="saved" occurrenceKey={params}><p role="status" className="rounded-md bg-nite-brand-soft p-3 text-nite-text-primary">Restauração concluída.</p></TransientFeedback>}
+    {message&&<TransientFeedback messageKey={message} onDismiss={()=>setMessage(null)}><p role="alert" className="rounded-md bg-status-warning-soft p-3 text-status-warning">{message}</p></TransientFeedback>}
     {issue?<div role="alert" className="rounded-[12px] bg-[#252525] p-6">Não foi possível carregar a Lixeira. <button type="button" onClick={()=>router.refresh()} className="text-[#78b9ff] underline">Tentar novamente</button></div>
       :<div className="min-h-[calc(100svh-246px)] overflow-x-auto rounded-[12px] bg-[#292827]">
         <div className="px-px pt-px">

@@ -105,12 +105,12 @@ export function getActivityCandidates(bearer: string, id: string, params: { page
   const query = activityCandidateQuery(params);
   return getApiJson(`/api/v1/activities/${encodeURIComponent(id)}/assignee-candidates?${query}`, bearer, (value) => parsePage(value, parseActivityCandidate));
 }
-export async function getAllActivityCandidates(bearer: string, id: string) {
-  const first = await getActivityCandidates(bearer, id, { size: 100 });
+export async function getAllActivityCandidates(bearer: string, id: string, q: string) {
+  const first = await getActivityCandidates(bearer, id, { size: 100, q });
   if (first.issue) return first;
   const pageCount = Math.ceil(first.data.total / first.data.size);
   if (pageCount <= 1) return { data: first.data.items, issue: null } as const;
-  const rest = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => getActivityCandidates(bearer, id, { page: index + 1, size: first.data.size })));
+  const rest = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => getActivityCandidates(bearer, id, { page: index + 1, size: first.data.size, q })));
   const failed = rest.find((result) => result.issue !== null);
   if (failed?.issue) return { data: null, issue: failed.issue } as const;
   return { data: [...first.data.items, ...rest.flatMap((result) => result.data?.items ?? [])], issue: null } as const;
@@ -124,4 +124,16 @@ export function getActivityEvidenceById(bearer: string, id: string, evidenceId: 
 }
 export function getEvidenceCapabilities(bearer: string, id: string, evidenceId: string) {
   return getApiJson(`/api/v1/activities/${encodeURIComponent(id)}/evidence/${encodeURIComponent(evidenceId)}/capabilities`, bearer, parseEvidenceCapabilities);
+}
+
+export async function getAllActivityAssignees(bearer: string, id: string) {
+  const first = await getActivityAssignees(bearer, id);
+  if (first.issue) return first;
+  const rest = await Promise.all(Array.from({ length: Math.max(0, Math.ceil(first.data.total / first.data.size) - 1) }, (_, index) => {
+    const query = new URLSearchParams({ page: String(index + 1), size: String(first.data.size) });
+    return getApiJson(`/api/v1/activities/${encodeURIComponent(id)}/assignees?${query}`, bearer, (value) => parsePage(value, parseActivityAssignee));
+  }));
+  const failed = rest.find((result) => result.issue);
+  if (failed?.issue) return { data: null, issue: failed.issue } as const;
+  return { data: [...first.data.items, ...rest.flatMap((result) => result.data?.items ?? [])], issue: null } as const;
 }

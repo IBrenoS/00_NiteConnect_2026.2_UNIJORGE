@@ -29,7 +29,7 @@ export default async function ActivityPlanningPage({ params, searchParams }: { p
     getActivityPlanningStats(session.bearer, id),
   ]);
   if (planning.issue === "not-found" || capabilities.issue === "not-found") notFound();
-  if (planning.issue || !planning.data || capabilities.issue || !capabilities.data || !capabilities.data.canRead) return <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-7 lg:px-9"><section role="alert" className="border-y border-nite-border-soft py-8"><p className="font-medium text-nite-text-primary">{planning.issue === "access" || capabilities.issue === "access" ? "Você não tem acesso a este planejamento." : "Não foi possível carregar este planejamento."}</p><p className="mt-1 text-type-body-compact text-nite-text-secondary">Atualize a página ou volte para Minhas atividades.</p></section></main>;
+  if (planning.issue || !planning.data || capabilities.issue || !capabilities.data || !capabilities.data.canRead) return <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-7 lg:px-9"><section role="alert" className="border-y border-nite-border-soft py-8"><p className="font-medium text-nite-text-primary">{(planning.issue === "unauthenticated" || capabilities.issue === "unauthenticated") ? "Sua sessão expirou. Entre novamente para acessar o planejamento." : planning.issue === "access" || capabilities.issue === "access" ? "Você não tem acesso a este planejamento." : "Não foi possível carregar este planejamento."}</p><p className="mt-1 text-type-body-compact text-nite-text-secondary">Atualize a página ou volte para Minhas atividades.</p></section></main>;
 
   const [taskResult, projectResult] = await Promise.all([
     getAllActivityPlanningTasks(session.bearer, id),

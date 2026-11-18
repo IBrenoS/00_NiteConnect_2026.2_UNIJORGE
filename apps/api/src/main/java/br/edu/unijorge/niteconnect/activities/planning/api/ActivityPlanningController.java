@@ -32,6 +32,16 @@ public class ActivityPlanningController {
     }
     @GetMapping("/api/v1/activity-plannings/{id}")
     ActivityPlanningContracts.View read(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) { return service.read(identities.member(jwt),id); }
+    @GetMapping("/api/v1/admin/activity-plannings")
+    PageResult<ActivityPlanningContracts.View> administrativeList(@AuthenticationPrincipal Jwt jwt,@RequestParam(required=false) UUID projectId,
+            @RequestParam(required=false) String q,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
+        return service.administrativeList(identities.member(jwt),projectId,q,page,size);
+    }
+    @GetMapping("/api/v1/projects/{id}/activity-plannings")
+    PageResult<ActivityPlanningContracts.View> projectList(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,
+            @RequestParam(required=false) String q,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
+        return service.projectList(identities.member(jwt),id,q,page,size);
+    }
     @GetMapping("/api/v1/activity-plannings/{id}/capabilities")
     ActivityPlanningContracts.Capabilities capabilities(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) { return service.capabilities(identities.member(jwt),id); }
     @PatchMapping("/api/v1/activity-plannings/{id}")
@@ -53,6 +63,11 @@ public class ActivityPlanningController {
             @RequestParam(required=false) String q,@RequestParam(required=false) String priority,@RequestParam(required=false) LocalDate startFrom,
             @RequestParam(required=false) LocalDate startTo,@RequestParam(defaultValue="createdAt") String sort,@RequestParam(defaultValue="desc") String direction) {
         return service.tasks(identities.member(jwt),id,new Filter(status,null,executorId,dueFrom,dueTo,overdue,q,priority,startFrom,startTo,sort,direction),page,size);
+    }
+    @PatchMapping("/api/v1/activity-plannings/{id}/tasks/{activityId}")
+    ActivityService.View updateTask(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID activityId,
+            @Valid @RequestBody ActivityPlanningContracts.UpdateTask input) {
+        return service.updateTask(identities.member(jwt),id,activityId,input);
     }
     @GetMapping("/api/v1/activity-plannings/{id}/stats")
     ActivityStatistics stats(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) { return service.planningStats(identities.member(jwt),id); }

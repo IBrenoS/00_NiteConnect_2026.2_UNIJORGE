@@ -10,7 +10,7 @@ import { parseConfirmation, parseListView, parseQrPayload, type Confirmation, ty
 import { frequencyScanUrl } from "./qr";
 import { qrSvg } from "./qr-image";
 
-type MutationIssue = "access" | "not-found" | "conflict" | "invalid" | "unavailable";
+type MutationIssue = "unauthenticated" | "access" | "not-found" | "conflict" | "invalid" | "unavailable";
 type MutationResult<T> = { data: T; issue: null } | { data: null; issue: MutationIssue };
 export type FrequencyActionResult = { kind: "success"; confirmation: Confirmation } | { kind: "error"; message: string };
 export type ProjectorQrResult = { ok: true; svg: string; expiresAt: string; version: number } | { ok: false; message: string };

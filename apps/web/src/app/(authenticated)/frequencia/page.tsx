@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type PageProps = { searchParams: SearchParams };
-type ApiIssue = "access" | "not-found" | "unavailable" | "invalid" | null;
+type ApiIssue = "unauthenticated" | "access" | "not-found" | "unavailable" | "invalid" | null;
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;

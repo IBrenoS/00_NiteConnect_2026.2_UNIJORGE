@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { redirect, revalidatePath, getActivityCapabilities, getActivityEvidenceById, getEvidenceCapabilities, mutateActivity } = vi.hoisted(() => ({
+const { redirect, revalidatePath, getActivity, getActivityCapabilities, getActivityEvidenceById, getEvidenceCapabilities, mutateActivity } = vi.hoisted(() => ({
   redirect: vi.fn((location: string): never => { throw new Error(`redirect:${location}`); }),
   revalidatePath: vi.fn(),
+  getActivity: vi.fn(),
   getActivityCapabilities: vi.fn(),
   getActivityEvidenceById: vi.fn(),
   getEvidenceCapabilities: vi.fn(),
@@ -12,13 +13,15 @@ const { redirect, revalidatePath, getActivityCapabilities, getActivityEvidenceBy
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect }));
-vi.mock("./data", () => ({ getActivityCapabilities, getActivityEvidenceById, getEvidenceCapabilities }));
+vi.mock("./data", () => ({ getActivity, getActivityCapabilities, getActivityEvidenceById, getEvidenceCapabilities }));
 vi.mock("./mutations", () => ({ mutateActivity, uploadActivityEvidence: vi.fn() }));
 vi.mock("../auth/server-session", () => ({
   getAuthenticatedNiteSession: vi.fn(async () => ({ bearer: "test-bearer", member: { id: "member-1" } })),
 }));
 
-import { updateActivityAction, withdrawActivityEvidenceAction } from "./actions";
+import { moveActivityAction, updateActivityAction, withdrawActivityEvidenceAction } from "./actions";
+import { previewActivities } from "./preview-fixtures";
+import { parseActivity } from "./contracts";
 
 const activityId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const evidenceId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -33,6 +36,16 @@ function updateForm(): FormData {
 }
 
 describe("ações de atividades", () => {
+  it("retorna o estado canônico com nova versão após mover na vista legada", async () => {
+    const activity = previewActivities[0];
+    const updated = { ...activity, priority: "BAIXA", version: activity.version + 1 };
+    getActivity.mockResolvedValue({ data: activity, issue: null });
+    getActivityCapabilities.mockResolvedValue({ data: { changePriority: true }, issue: null });
+    mutateActivity.mockResolvedValue({ data: updated, issue: null });
+    const result = await moveActivityAction(activity.id, activity.version, "priority", "BAIXA");
+    expect(result).toEqual({ issue: null, activity: updated });
+    expect(mutateActivity).toHaveBeenCalledWith(`/api/v1/activities/${activity.id}`, "test-bearer", "PATCH", { priority: "BAIXA", expectedVersion: activity.version }, parseActivity);
+  });
   beforeEach(() => {
     getActivityCapabilities.mockReset();
     getActivityEvidenceById.mockReset();

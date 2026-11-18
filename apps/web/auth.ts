@@ -32,6 +32,38 @@ function hasTokenCredentials(
   );
 }
 
+export async function resolveNiteToken(token: JWT): Promise<JWT> {
+  if (!hasTokenCredentials(token)) return { ...token, authError: "SessionExpired" };
+  if (token.authError) return token;
+  if (Date.now() < token.accessTokenExpiresAt - refreshBufferMs) return token;
+  if (!token.refreshToken) return { ...token, authError: "SessionExpired" };
+
+  try {
+    const refreshed = await refreshEntraToken({
+      refreshToken: token.refreshToken,
+      tenantId: process.env.ENTRA_TENANT_ID ?? "",
+      clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID ?? "",
+      clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET ?? "",
+      apiScope: process.env.ENTRA_API_SCOPE ?? "",
+    });
+    const identity = await getNiteIdentity(refreshed.accessToken, process.env.API_BASE_URL ?? "");
+    return {
+      ...token,
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken,
+      accessTokenExpiresAt: refreshed.expiresAt,
+      niteMember: identity.member,
+      niteRoles: identity.roles,
+      authError: undefined,
+    };
+  } catch (error) {
+    return {
+      ...token,
+      authError: error instanceof NiteApiUnauthorizedError ? "AccessDenied" : "SessionExpired",
+    };
+  }
+}
+
 const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.AUTH_SECRET,
   trustHost: process.env.AUTH_TRUST_HOST === "true" || process.env.NODE_ENV !== "production",
@@ -98,34 +130,7 @@ const { handlers, auth, signIn, signOut } = NextAuth({
         };
       }
 
-      if (!hasTokenCredentials(token) || token.authError) return token;
-      if (Date.now() < token.accessTokenExpiresAt - refreshBufferMs) return token;
-      if (!token.refreshToken) return { ...token, authError: "SessionExpired" };
-
-      try {
-        const refreshed = await refreshEntraToken({
-          refreshToken: token.refreshToken,
-          tenantId: process.env.ENTRA_TENANT_ID ?? "",
-          clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID ?? "",
-          clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET ?? "",
-          apiScope: process.env.ENTRA_API_SCOPE ?? "",
-        });
-        const identity = await getNiteIdentity(refreshed.accessToken, process.env.API_BASE_URL ?? "");
-        return {
-          ...token,
-          accessToken: refreshed.accessToken,
-          refreshToken: refreshed.refreshToken,
-          accessTokenExpiresAt: refreshed.expiresAt,
-          niteMember: identity.member,
-          niteRoles: identity.roles,
-          authError: undefined,
-        };
-      } catch (error) {
-        return {
-          ...token,
-          authError: error instanceof NiteApiUnauthorizedError ? "AccessDenied" : "SessionExpired",
-        };
-      }
+      return resolveNiteToken(token);
     },
     async session({ session, token }) {
       const identity = parseNiteIdentity({ member: token["niteMember"], roles: token["niteRoles"] });

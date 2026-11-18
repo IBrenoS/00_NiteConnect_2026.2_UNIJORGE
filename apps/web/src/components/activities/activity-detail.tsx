@@ -1,3 +1,4 @@
+import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import type { Activity, ActivityAssignee, ActivityCandidate, ActivityCapabilities, ActivityEvidence, ActivityHistoryEvent, Page } from "../../lib/activities/contracts";
 import type { ApiIssue } from "../../lib/api/contracts";
@@ -69,7 +70,7 @@ function ActivityFeedback({ code }: { code?: string }) {
   if (!code) return null;
   const message = feedbackMessages[code];
   if (!message) return null;
-  return <InlineFeedback {...message} announcement={message.variant === "success" ? "polite" : "assertive"} />;
+  return <TransientFeedback messageKey={code} queryParam="feedback" occurrenceKey={message}><InlineFeedback {...message} announcement={message.variant === "success" ? "polite" : "assertive"} /></TransientFeedback>;
 }
 
 function FormReason() {

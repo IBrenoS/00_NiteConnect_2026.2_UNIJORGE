@@ -1,0 +1,21 @@
+.feedback {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: opacity 250ms ease-out, grid-template-rows 250ms ease-out;
+}
+
+.feedback[data-phase="exiting"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback { transition: none; }
+}

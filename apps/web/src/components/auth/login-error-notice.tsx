@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { TransientFeedback } from "../ui/transient-feedback";
 import { InlineFeedback } from "../ui";
 
 type LoginErrorNoticeProps = {
@@ -24,12 +25,12 @@ function LoginErrorNotice({ title, description }: LoginErrorNoticeProps) {
   }, [searchParams]);
 
   return (
-    <InlineFeedback
+    <TransientFeedback messageKey={`${title}:${description}`}><InlineFeedback
       variant="error"
       announcement="assertive"
       title={title}
       description={description}
-    />
+    /></TransientFeedback>
   );
 }
 

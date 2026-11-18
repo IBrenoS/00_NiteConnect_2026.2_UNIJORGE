@@ -20,6 +20,27 @@ class ActivityPlanningTest extends ActivityTestSupport {
         return jdbc.queryForObject("select id from nite_connect.activity_plannings order by created_at desc limit 1", UUID.class);
     }
 
+    @Test void activeMembersOfEveryRoleCanPersistAndReadIndependentPlanning() throws Exception {
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_GERAL',?,'Fixture')", OTHER, ADMIN);
+        for (UUID actor : java.util.List.of(MEMBER, ADMIN, OTHER)) {
+            UUID id = planning(actor, null);
+            mvc.perform(get("/api/v1/activity-plannings").with(token(actor))).andExpect(status().isOk());
+            mvc.perform(get("/api/v1/activity-plannings/" + id).with(token(actor)))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id.toString()))
+                    .andExpect(jsonPath("$.createdBy").value(actor.toString()));
+            assertThat(jdbc.queryForObject("select created_by from nite_connect.activity_plannings where id=?", UUID.class, id)).isEqualTo(actor);
+        }
+    }
+
+    @Test void inactiveAndUnmappedIdentitiesCannotCreateOrListPlanning() throws Exception {
+        jdbc.update("update nite_connect.members set status='AFASTADO' where id=?", MEMBER);
+        for (UUID actor : java.util.List.of(MEMBER, UUID.randomUUID())) {
+            mvc.perform(get("/api/v1/activity-plannings").with(token(actor))).andExpect(status().isForbidden());
+            mvc.perform(post("/api/v1/activity-plannings").with(token(actor)).contentType("application/json")
+                    .content("{\"title\":\"Bloqueado\"}")).andExpect(status().isForbidden());
+        }
+    }
+
     @Test void planningAcceptsOnlyTitleAndOwnsMultipleCanonicalTasksWithAggregates() throws Exception {
         UUID plan=planning(MEMBER,null);
         mvc.perform(post("/api/v1/activity-plannings/"+plan+"/tasks").with(token(MEMBER)).contentType("application/json")

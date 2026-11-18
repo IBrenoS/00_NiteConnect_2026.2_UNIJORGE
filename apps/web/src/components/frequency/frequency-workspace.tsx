@@ -1,5 +1,6 @@
 "use client";
 
+import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -12,7 +13,7 @@ import type { AgendaEvent } from "../../lib/frequency/data";
 import { formatFrequencyDate } from "../../lib/frequency/query";
 import { frequencyStatusMoment, historyPresentation, historyStatusMoment } from "../../lib/frequency/presentation";
 
-type ApiIssue = "access" | "not-found" | "unavailable" | "invalid" | null;
+type ApiIssue = "unauthenticated" | "access" | "not-found" | "unavailable" | "invalid" | null;
 const EMPTY_COLLECTIVE_ROWS: CollectiveSummaryRow[] = [];
 const EMPTY_PARTICIPANTS: Participant[] = [];
 type WorkspaceProps = {
@@ -57,6 +58,7 @@ type WorkspaceProps = {
 };
 
 const issueCopy: Record<Exclude<ApiIssue, null>, string> = {
+  unauthenticated: "Sua sessão expirou. Entre novamente.",
   access: "Sua conta não tem autorização para consultar estes dados.",
   "not-found": "Este registro não está disponível nesta consulta.",
   unavailable: "Não foi possível carregar os dados agora. Tente novamente em instantes.",
@@ -723,20 +725,21 @@ function MeetingMode({ props }: { props: WorkspaceProps }) {
   return <div className="grid min-w-0 gap-5">
     <div className="flex justify-end"><RangeControl props={props} /></div>
     <div className={cx(selected && "hidden xl:block")}><CreateList props={props} openKey={openKey} setOpenKey={setOpenKey} /></div>
-    {props.error ? <p role="alert" className="text-type-body-compact text-status-warning">{({
+    {props.error ? <TransientFeedback messageKey={props.error} queryParam="error" occurrenceKey={props}><p role="alert" className="text-type-body-compact text-status-warning">{({
+      unauthenticated: "Sua sessão expirou. Entre novamente.",
       access: "Esta operação não está autorizada para sua conta.",
       conflict: "A lista mudou durante a operação. Atualize e confira a situação atual.",
       invalid: "A operação não foi aceita. Confira os dados e o resultado selecionado.",
       unavailable: "Não foi possível confirmar o resultado da operação. Atualize a lista antes de tentar novamente.",
       qr: "A lista foi aberta, mas o QR ainda não foi emitido. Selecione a lista para tentar novamente.",
       origin: "A origem do NITE Connect não está configurada para projetar o QR.",
-    } as Record<string, string>)[props.error] ?? "Não foi possível concluir esta operação."}</p> : null}
-    {props.notice ? <p role="status" className="text-type-body-compact text-status-done">{({
+    } as Record<string, string>)[props.error] ?? "Não foi possível concluir esta operação."}</p></TransientFeedback> : null}
+    {props.notice ? <TransientFeedback messageKey={props.notice} queryParam="notice" occurrenceKey={props}><p role="status" className="text-type-body-compact text-status-done">{({
       finalized: "Lista concluída.",
       canceled: "Lista cancelada.",
       justified: "Ausência marcada como justificada.",
       "absence-corrected": "Situação corrigida para ausência.",
-    } as Record<string, string>)[props.notice] ?? "Operação concluída."}</p> : null}
+    } as Record<string, string>)[props.notice] ?? "Operação concluída."}</p></TransientFeedback> : null}
     <div className={gridClass}>
       <div className={cx(selected && "hidden xl:block")}><MeetingList props={props} now={now} /></div>
       {selected ? <MeetingDetail props={props} now={now} /> : null}

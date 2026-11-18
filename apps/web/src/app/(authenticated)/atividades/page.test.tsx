@@ -13,6 +13,8 @@ vi.mock("../../../lib/activities/data", () => mocks);
 vi.mock("../../../components/activities/activity-detail", () => ({ ActivityFeedback: () => null }));
 vi.mock("../../../components/activities/activity-planning-filters", () => ({ ActivityPlanningFilters: () => <div>Filtros reais</div> }));
 
+vi.mock("../../../lib/activities/planning-actions", () => ({ deletePlanningAction: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 import ActivitiesPage from "./page";
 
 const planning = {

@@ -45,13 +45,17 @@ public class ActivityPlanningRepository {
     public void delete(UUID id,long version) {
         changed(jdbc.update("delete from nite_connect.activity_plannings where id=? and version=?",id,version));
     }
-    public PageResult<ActivityPlanning> list(UUID actor,boolean admin,List<UUID> projectIds,UUID projectId,String q,int page,int size) {
+    public PageResult<ActivityPlanning> list(UUID actor,boolean admin,List<UUID> projectIds,UUID projectId,String q,int page,int size,boolean personal) {
         PageResult.validate(page,size);
         var where=new StringBuilder(" where 1=1"); var args=new ArrayList<Object>();
         if(!admin) {
             where.append(" and ((project_id is null and created_by=?)"); args.add(actor);
             if(!projectIds.isEmpty()) { where.append(" or project_id in (").append(String.join(",",Collections.nCopies(projectIds.size(),"?"))).append(")");args.addAll(projectIds); }
             where.append(")");
+        }
+        if(personal) {
+            where.append(" and (created_by=? or exists(select 1 from nite_connect.activities a where a.planning_id=activity_plannings.id and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments s where s.activity_id=a.id and s.member_id=? and s.ended_at is null))))");
+            args.add(actor);args.add(actor);args.add(actor);
         }
         if(projectId!=null) { where.append(" and project_id=?");args.add(projectId); }
         if(q!=null&&!q.isBlank()) { String pattern="%"+escape(q.strip())+"%";where.append(" and (title ilike ? escape '!' or description ilike ? escape '!')");args.add(pattern);args.add(pattern); }

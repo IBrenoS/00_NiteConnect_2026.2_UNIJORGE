@@ -36,11 +36,15 @@ export async function mutateActivity<T>(
       redirect: "error",
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) return { data: null, issue: activityMutationIssueFromStatus(response.status) };
+    if (!response.ok) {
+      console.warn("NITE API request failed", { path: url.pathname, status: response.status });
+      return { data: null, issue: activityMutationIssueFromStatus(response.status) };
+    }
     if (!parse || response.status === 204) return { data: null, issue: null };
     const data = parse(await response.json());
     return data ? { data, issue: null } : { data: null, issue: "invalid" };
-  } catch {
+  } catch (error) {
+    console.warn("NITE API mutation unavailable", { path: url.pathname, errorType: error instanceof Error ? error.name : "unknown" });
     return { data: null, issue: "unavailable" };
   }
 }
@@ -61,7 +65,10 @@ export async function uploadActivityEvidence(
       redirect: "error",
       signal: AbortSignal.timeout(60_000),
     });
-    if (!response.ok) return { data: null, issue: activityMutationIssueFromStatus(response.status) };
+    if (!response.ok) {
+      console.warn("NITE API request failed", { path: url.pathname, status: response.status });
+      return { data: null, issue: activityMutationIssueFromStatus(response.status) };
+    }
     return { data: null, issue: null };
   } catch {
     return { data: null, issue: "unavailable" };
@@ -84,7 +91,10 @@ export async function downloadActivityEvidence(
       redirect: "error",
       signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) return { data: null, issue: activityMutationIssueFromStatus(response.status) };
+    if (!response.ok) {
+      console.warn("NITE API request failed", { path: url.pathname, status: response.status });
+      return { data: null, issue: activityMutationIssueFromStatus(response.status) };
+    }
     const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (!contentType || !["text/plain", "image/png", "image/jpeg"].includes(contentType)) return { data: null, issue: "invalid" };
     return { data: { bytes: new Uint8Array(await response.arrayBuffer()), contentType }, issue: null };
