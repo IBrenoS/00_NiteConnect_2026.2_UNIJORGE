@@ -96,7 +96,7 @@ describe("shell autenticado", () => {
     expect(markup).toContain('data-icon="settings"');
     expect(markup).toContain('href="/dashboard"');
     expect(markup).toContain('href="/atividades"');
-    expect(markup).toContain('aria-disabled="true" aria-label="Projetos, em desenvolvimento"');
+    expect(markup).toContain('href="/projetos"');
     expect(markup).not.toMatch(/<a[^>]+(?:Minha participação|Projetos|Frequência e revisões|Relatórios|Administração)/);
     expect(markup).not.toContain("Espaço de trabalho");
   });

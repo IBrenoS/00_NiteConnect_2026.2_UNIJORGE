@@ -1,0 +1,267 @@
+.page,.workspace{color:var(--nite-text-primary);font-size:14px;line-height:1.55;min-width:0}
+.page{max-width:1500px;margin:0 auto;padding:24px 40px 64px}
+.page h1,.workspace h1{font-family:var(--font-sora),sans-serif;letter-spacing:-.035em;font-weight:600;line-height:1.25}
+.page h1{font-size:32px;margin:8px 0 10px}
+.page h2,.workspace h2{font-size:17px;font-weight:600;letter-spacing:-.02em}
+.page h3,.workspace h3{font-weight:600}
+.page p,.workspace p{color:var(--nite-text-secondary)}
+
+.breadcrumb{display:flex;gap:12px;align-items:center;min-height:32px;font-size:12px;color:var(--nite-text-muted)}
+.breadcrumb a:hover,.textLink:hover{text-decoration:underline;text-underline-offset:4px}
+.temporary{display:flex;align-items:center;gap:8px;font-size:11px!important;color:var(--nite-text-muted)!important;margin:8px 0 24px;line-height:1.6}
+.temporary>span{font-size:17px}
+.pageHeader{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:30px 0 28px}
+.pageHeader p{max-width:640px}
+.eyebrow{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--nite-text-muted)!important}
+
+.button,.primaryButton,.iconButton{display:inline-flex;gap:8px;align-items:center;justify-content:center;min-height:36px;padding:7px 13px;border:1px solid var(--nite-border-control);border-radius:7px;font-weight:500;font-size:12px;cursor:pointer;background:var(--nite-surface);color:var(--nite-text-primary);white-space:nowrap}
+.button:hover,.iconButton:hover{background:var(--nite-surface-subtle)}
+.primaryButton{background:var(--nite-brand-primary);color:var(--nite-action-text);border-color:var(--nite-brand-primary)}
+.primaryButton:hover{filter:brightness(.95)}
+.iconButton{font-size:22px;padding:4px 10px}
+
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--nite-border-soft);overflow-x:auto;margin-bottom:20px}
+.tabs button{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:2px solid transparent;white-space:nowrap;color:var(--nite-text-muted);cursor:pointer;font-size:13px}
+.tabs button[aria-pressed=true]{color:var(--nite-text-primary);border-color:var(--nite-text-primary)}
+.tabs button span{padding:0 6px;background:var(--nite-surface-subtle);border-radius:4px;font-size:11px;color:var(--nite-text-secondary)}
+
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0}
+.toolbar select,.toolbar input,.field input,.field textarea,.search{background:var(--nite-surface);color:var(--nite-text-primary);border:1px solid var(--nite-border-control);border-radius:6px;min-height:36px;font-size:12px}
+.toolbar select{padding:6px 28px 6px 10px}
+.toolbar .search{margin-right:auto}
+.search{display:flex;align-items:center;gap:9px;max-width:340px;width:100%;padding:0 10px}
+.search>span{font-size:22px;color:var(--nite-text-muted)}
+.search input{border:0!important;background:transparent;min-width:0;flex:1;outline:none;min-height:36px;font-size:12px}
+.search button{cursor:pointer;color:var(--nite-text-muted)}
+.search:focus-within{outline:2px solid var(--nite-focus);outline-offset:2px}
+.resultLine{display:flex;justify-content:space-between;color:var(--nite-text-muted);font-size:11px;margin:22px 0 14px}
+
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.projectCard{display:flex;flex-direction:column;min-width:0;border:1px solid var(--nite-border-soft);border-radius:10px;background:var(--nite-surface);overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.projectCard:hover{border-color:var(--nite-border-strong);box-shadow:0 3px 12px #00000008}
+.cardTop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:23px 22px 13px;min-height:76px}
+.mark{display:inline-flex;align-items:center;justify-content:center;width:35px;height:35px;border:1px solid var(--nite-border-soft);border-radius:8px;color:var(--nite-brand-primary);background:var(--nite-brand-soft);font-size:13px;font-weight:600;flex-shrink:0}
+.markLarge{width:48px;height:48px;border-radius:10px;font-size:18px}
+.projectCard h2{font-size:16px;padding:0 22px;margin:5px 0 9px}
+.projectCard>p{font-size:12px;line-height:1.75;padding:0 22px;min-height:64px;max-width:430px}
+.cardProperties{display:grid;grid-template-columns:62px 1fr;gap:8px;font-size:11px;padding:20px 22px 22px;margin-top:auto}
+.cardProperties>span{color:var(--nite-text-muted)}
+.cardProperties strong{font-weight:400;color:var(--nite-text-secondary)}
+.projectCard footer{border-top:1px solid var(--nite-border-soft);display:flex;justify-content:space-between;gap:8px;padding:12px 22px;font-size:10px;color:var(--nite-text-muted)}
+
+.badge{display:inline-flex;align-items:center;gap:5px;border-radius:4px;padding:3px 7px;background:var(--nite-surface-subtle);color:var(--nite-text-secondary);font-size:10px;white-space:nowrap;font-weight:500}
+.badge[data-status=ATIVO]{background:var(--nite-status-progress-soft);color:var(--nite-status-progress)}
+.badge[data-status=PAUSADO]{background:var(--nite-status-warning-soft);color:var(--nite-status-warning)}
+.badge[data-status=CONCLUIDO]{background:var(--nite-status-done-soft);color:var(--nite-status-done)}
+.badge>span{font-size:7px}
+.empty{display:grid;justify-items:center;gap:9px;padding:70px 20px;border:1px dashed var(--nite-border-soft);border-radius:8px;text-align:center}
+.empty>span{font-size:28px;color:var(--nite-text-muted)}
+.empty p{font-size:12px;max-width:440px}
+.empty button{margin-top:12px}
+
+.personalLayout{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:22px}
+.tableScroll{position:relative;overflow-x:auto;min-width:0}
+.projectTable{width:100%;text-align:left;border-collapse:collapse;font-size:12px;min-width:660px}
+.projectTable th{font-size:11px;font-weight:400;color:var(--nite-text-muted);padding:12px 10px;border-bottom:1px solid var(--nite-border-soft)}
+.projectTable td{padding:18px 10px;border-bottom:1px solid var(--nite-border-soft);white-space:nowrap}
+.projectTable tr:hover td{background:var(--nite-surface-subtle)}
+.projectName{display:flex;gap:12px;align-items:center;font-weight:500}
+.projectName small{display:block;font-weight:400;color:var(--nite-text-muted);font-size:10px;max-width:250px;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+.summary{padding:18px;border:1px solid var(--nite-border-soft);border-radius:10px;min-height:360px}
+.summary h2{font-size:13px;padding-bottom:16px;border-bottom:1px solid var(--nite-border-soft)}
+.summary>div{display:flex;justify-content:space-between;gap:10px;margin-top:20px;font-size:12px;color:var(--nite-text-secondary)}
+.summary strong{font-weight:500}
+.summary>p{font-size:11px;line-height:1.8;margin-top:28px}
+
+.presentationLayout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:50px;margin:40px 0}
+.presentation{min-width:0;padding:10px 0 0 12px}
+.presentation h1{font-size:30px;margin:20px 0 12px}
+.presentationActions{display:flex;align-items:center;gap:14px}
+.presentationActions .iconButton{margin-left:auto}
+.lead{font-size:17px;line-height:1.8;max-width:780px}
+.inlineProperties{display:flex;flex-wrap:wrap;gap:20px;align-items:center;margin:26px 0;font-size:12px;color:var(--nite-text-muted)}
+.participationPanel{border:1px solid var(--nite-border-soft);border-radius:8px;padding:22px;margin:30px 0 45px}
+.participationPanel>p{font-size:12px;line-height:1.8;margin:10px 0 18px}
+.participationPanel>a,.participationPanel>button{margin-right:10px;margin-bottom:6px}
+.requestTracking{margin:18px 0 0}
+.requestTracking strong{font-weight:500;font-size:12px}
+.requestTracking p{margin:10px 0 16px}
+.editorial{margin:36px 0}
+.editorial>p{line-height:1.9;margin:18px 0;font-size:13px}
+.editorial h3{margin:26px 0 10px}
+.privacyNote{display:flex;align-items:flex-start;gap:12px;padding:18px;background:var(--nite-surface-subtle);border-radius:6px;margin-top:30px}
+.privacyNote p{font-size:11px;line-height:1.8}
+.propertyPanel{border:1px solid var(--nite-border-soft);border-radius:10px;padding:20px;height:fit-content}
+.propertyPanel h2{font-size:13px;margin-bottom:22px}
+.properties{font-size:12px;display:grid;gap:20px}
+.properties>div{display:grid;grid-template-columns:105px 1fr;gap:12px;align-items:start}
+.properties dt{color:var(--nite-text-muted)}
+.properties dd{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
+.propertyPanel .properties>div{grid-template-columns:80px 1fr}
+.propertyPanel .textLink{display:block;border-top:1px solid var(--nite-border-soft);margin-top:26px;padding-top:18px}
+.avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:29px;height:29px;border-radius:50%;background:var(--nite-brand-soft);color:var(--nite-brand-primary);font-size:10px;font-weight:500}
+.properties .avatar{width:22px;height:22px;font-size:8px}
+.textLink{font-size:12px;color:var(--nite-text-secondary)}
+
+.dialogBody{display:grid;gap:20px;padding-top:12px;font-size:13px}
+.dialogBody p{color:var(--nite-text-secondary);line-height:1.8}
+.field{display:grid;gap:8px;font-size:12px;font-weight:500}
+.field span{font-size:10px;font-weight:400;color:var(--nite-text-muted)}
+.field textarea,.field input{padding:10px;width:100%;font-size:13px;font-weight:400}
+.dialogFooter{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.successMark{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--nite-status-done-soft);color:var(--nite-status-done);font-size:24px}
+.contextNote{font-size:11px!important;color:var(--nite-text-muted)!important;margin:14px 0;line-height:1.8}
+.srOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.workspace{max-width:1600px;margin:0 auto}
+.workspaceTop{padding:18px 30px 0}
+.workspaceTop .temporary{margin-bottom:20px}
+.workspaceHeader{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.workspaceHeader h1{font-size:22px}
+.workspaceHeader>a{margin-left:auto}
+.workspaceTabs{display:flex;gap:28px;border-bottom:1px solid var(--nite-border-soft);margin-top:18px;overflow-x:auto}
+.workspaceTabs a{white-space:nowrap;font-size:12px;padding:12px 0 14px;color:var(--nite-text-secondary);border-bottom:2px solid transparent}
+.workspaceTabs a[aria-current=page]{border-color:var(--nite-brand-primary);color:var(--nite-text-primary);font-weight:500}
+.adminNotice{margin:0;padding:10px 30px;font-size:11px;color:var(--nite-text-muted)!important;background:var(--nite-surface-subtle)}
+
+.overviewLayout{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:700px}
+.overviewMain{padding:36px 42px}
+.overviewAside{background:var(--nite-surface-subtle);padding:30px 24px;border-left:1px solid var(--nite-border-soft)}
+.overviewAside>h2{font-size:15px;margin-bottom:16px}
+.overviewAside>.properties{margin-top:32px}
+.overviewAside .properties>div{grid-template-columns:1fr;gap:5px}
+.overviewPanel{padding:20px;border:1px solid var(--nite-border-soft);border-radius:8px}
+.overviewPanel>header{display:flex;gap:10px;justify-content:space-between;align-items:center}
+.overviewPanel h2{font-size:14px}
+.overviewStats{display:grid;grid-template-columns:repeat(3,1fr);padding:25px 0}
+.overviewStats>div{display:grid;gap:5px;padding:0 18px;border-right:1px solid var(--nite-border-soft)}
+.overviewStats>div:first-child{padding-left:0}
+.overviewStats>div:last-child{border:0}
+.overviewStats strong{font-size:27px;font-weight:500;line-height:1.2;letter-spacing:-.04em}
+.overviewStats span{font-size:10px;color:var(--nite-text-muted)}
+.overviewPanel footer{border-top:1px solid var(--nite-border-soft);padding-top:14px;display:flex;justify-content:space-between;gap:10px;font-size:10px;color:var(--nite-text-muted)}
+.objectives{display:grid;gap:16px;margin-top:20px;font-size:13px;color:var(--nite-text-secondary)}
+.objectives li{display:flex;gap:12px}
+.objectives li>span{color:var(--nite-text-muted)}
+.peopleSummary{display:flex;flex-wrap:wrap;gap:24px;margin-top:22px}
+.peopleSummary>div{display:flex;align-items:center;gap:10px}
+.peopleSummary strong{display:block;font-size:11px;font-weight:500}
+.peopleSummary small{display:block;font-size:10px;color:var(--nite-text-muted);margin-top:4px}
+.resourceLink{display:flex;align-items:center;gap:12px;border:1px solid var(--nite-border-soft);border-radius:7px;max-width:400px;padding:16px;margin-top:20px}
+.resourceLink>span:first-child{font-size:26px;color:var(--nite-text-muted)}
+.resourceLink>span:last-child{margin-left:auto}
+.resourceLink strong,.resourceLink small{display:block;font-size:12px}
+.resourceLink small{color:var(--nite-text-muted);font-size:10px;margin-top:4px}
+.asideNote{border-top:1px solid var(--nite-border-soft);margin-top:32px;padding-top:20px;font-size:12px}
+.asideNote p{margin:10px 0 20px}
+.asideNote h3{font-size:12px}
+
+.sectionPage{padding:28px 30px 50px;min-width:0}
+.sectionHeader{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 24px}
+.sectionHeader p{font-size:12px;margin-top:7px}
+.sectionHeader h2{font-size:20px}
+.sectionHeader h3{font-size:13px}
+.sectionHeader a{font-size:11px}
+.sectionHeader .textLink{display:block;margin-bottom:14px}
+.muted{font-size:10px;color:var(--nite-text-muted)}
+.teamList{margin-top:22px}
+.personRow{display:flex;gap:14px;align-items:center;padding:18px 0;border-bottom:1px solid var(--nite-border-soft)}
+.personRow>div{flex:1}
+.personRow h3{font-size:12px;font-weight:500}
+.personRow p{font-size:11px;margin-top:4px}
+.personRow>.avatar{width:36px;height:36px}
+.requestRow{display:flex;align-items:flex-start;gap:14px;padding:22px 0;border-bottom:1px solid var(--nite-border-soft)}
+.requestContent{flex:1;min-width:0}
+.requestContent h3{font-size:12px;font-weight:500}
+.requestContent small{font-size:10px;font-weight:400;color:var(--nite-text-muted);margin-left:12px}
+.requestContent p{font-size:12px;line-height:1.8;margin-top:12px}
+.rowActions{display:flex;gap:8px}
+.planningGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.taskViews{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--nite-border-soft);gap:16px}
+.taskViews>nav{display:flex;gap:16px;overflow-x:auto}
+.taskViews a{font-size:12px;padding:10px 0;white-space:nowrap;color:var(--nite-text-muted);border-bottom:2px solid transparent}
+.taskViews a[aria-current=page]{border-color:var(--nite-text-primary);color:var(--nite-text-primary)}
+.taskLayout{display:grid;grid-template-columns:minmax(0,1fr) 225px;gap:20px;align-items:start}
+.tasks{min-width:0;overflow-x:auto}
+.tasks :global(h2){font-size:13px}
+.taskLayout>aside{min-width:0}
+.documentsHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+.documentNote{font-size:11px;padding:14px 16px;border:1px solid var(--nite-border-soft);border-radius:7px;color:var(--nite-text-muted);margin-bottom:24px}
+
+.page :is(button,a,input,select,textarea):focus-visible,.workspace :is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--nite-focus);outline-offset:3px}
+
+@media(min-width:1550px){.gallery{grid-template-columns:repeat(4,minmax(0,1fr))}
+.page{padding-top:28px}
+}
+
+@media(max-width:1200px){.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
+.personalLayout{grid-template-columns:minmax(0,1fr)}
+.summary{min-height:0;max-width:500px}
+.presentationLayout{gap:28px;grid-template-columns:minmax(0,1fr) 260px}
+.overviewLayout{grid-template-columns:minmax(0,1fr) 250px}
+.overviewMain{padding:28px}
+.taskLayout{grid-template-columns:minmax(0,1fr)}
+.planningGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+
+@media(max-width:800px){.page{padding:18px 22px 40px}
+.presentationLayout{grid-template-columns:1fr}
+.presentation{padding:0}
+.propertyPanel{max-width:none}
+.overviewLayout{grid-template-columns:1fr}
+.overviewAside{border-left:0;border-top:1px solid var(--nite-border-soft)}
+.overviewAside .properties>div{grid-template-columns:140px 1fr}
+.workspaceTop{padding:16px 22px 0}
+.sectionPage{padding:24px 22px}
+.overviewMain{padding:24px 22px}
+.workspaceHeader h1{font-size:20px}
+.workspaceTabs{gap:22px}
+.rowActions{flex-wrap:wrap}
+.requestRow{flex-wrap:wrap}
+.requestContent{flex-basis:70%}
+.rowActions{margin-left:43px}
+.taskViews>.muted{display:none}
+}
+
+@media(max-width:520px){.page{padding:14px 16px 32px}
+.pageHeader{align-items:flex-start;flex-direction:column;margin:24px 0}
+.page h1{font-size:28px}
+.pageHeader>div>p:last-child{font-size:12px}
+.gallery{grid-template-columns:1fr;gap:16px}
+.toolbar{gap:8px}
+.toolbar .search{max-width:none;flex-basis:100%}
+.toolbar select{max-width:100%;flex:1;min-width:130px}
+.temporary{font-size:10px!important}
+.tabs{gap:18px}
+.tabs button{font-size:12px}
+.presentation h1{font-size:27px}
+.lead{font-size:15px}
+.workspaceHeader>a{margin-left:0}
+.workspaceHeader h1{font-size:18px}
+.workspaceTop{padding:14px 16px 0}
+.workspaceHeader .badge{margin-left:auto}
+.sectionPage{padding:22px 16px}
+.overviewMain{padding:24px 16px}
+.overviewPanel{padding:16px}
+.overviewPanel>header{align-items:flex-start;flex-direction:column}
+.overviewStats>div{padding:0 10px}
+.overviewStats strong{font-size:24px}
+.overviewPanel footer{flex-direction:column}
+.peopleSummary{gap:16px}
+.planningGrid{grid-template-columns:1fr}
+.sectionHeader .primaryButton{width:100%}
+.personRow{flex-wrap:wrap}
+.personRow>.badge{margin-left:50px}
+.properties>div{grid-template-columns:115px 1fr}
+.taskViews>nav{gap:14px}
+.requestContent small{display:block;margin:4px 0 0}
+.dialogFooter{flex-direction:column-reverse}
+.dialogFooter>*{width:100%}
+.adminNotice{padding:10px 16px}
+}
+
+@media(prefers-reduced-motion:reduce){.projectCard{transition:none}
+}
+
+
+.projectMenu{position:relative}.projectMenu summary{cursor:pointer;list-style:none;padding:7px 10px;border:1px solid var(--nite-border-control);border-radius:6px}.projectMenu summary::-webkit-details-marker{display:none}.projectMenu>div{position:absolute;right:0;top:42px;z-index:20;display:grid;width:230px;padding:6px;border:1px solid var(--nite-border-soft);border-radius:8px;background:var(--nite-surface-elevated);box-shadow:var(--nite-shadow-floating)}.projectMenu a{padding:10px;font-size:12px;border-radius:4px}.projectMenu a:hover{background:var(--nite-surface-subtle)}

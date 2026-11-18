@@ -4,10 +4,11 @@ import { resourceOwnerLabel } from "../../lib/documents/library-contracts";
 import { LibraryUploadForm } from "./library-upload-form";
 import { archiveLibraryFile,archiveLibraryFolder,createLibraryFolder,organizeLibraryFile,updateLibraryFolder,setProjectDocumentEditGrant } from "../../lib/documents/library-actions";
 
-type Props={listing:LibraryListing; base:string; personal?:boolean; canManage?:boolean; tree?:LibraryFolder[]; members?:{memberId:string;memberName:string}[]};
+type Props={listing:LibraryListing; base:string; personal?:boolean; canManage?:boolean; tree?:LibraryFolder[]; members?:{memberId:string;memberName:string}[]; temporary?:boolean};
 const nav=(base:string,id:string)=>`${base}${base.includes("?")?"&":"?"}folder=${encodeURIComponent(id)}`;
 const when=(date:string)=>new Date(date).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"});
-export function LibraryExplorer({listing,base,personal=false,canManage=false,tree=[],members=[]}:Props) {
+export function LibraryExplorer({listing,base,personal=false,canManage:requestedManage=false,tree=[],members=[],temporary=false}:Props) {
+  const canManage=requestedManage&&!temporary;
   const current=listing.folder;
   const returnTo=nav(base,current.id);
   return <section aria-label={`Pasta ${current.name}`} className="grid gap-5">
@@ -61,13 +62,13 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
           </tr>)}
           {listing.files.map(file=><tr key={file.id} className="border-t border-nite-border-soft align-top">
             <td className="p-3"><div className="flex items-start gap-2"><span aria-hidden="true">{file.mimeType.includes("wordprocessing")?"📄":file.mimeType.includes("pdf")?"📕":"🖼️"}</span>
-              <div><Link href={file.mimeType.includes("wordprocessing")?`/documentos/${file.id}`:`/api/library/download/${file.id}`}
-                className="font-medium text-nite-brand-primary underline underline-offset-4">{file.title}</Link>
+              <div>{temporary?<details><summary className="cursor-pointer font-medium text-nite-text-primary">{file.title}</summary><p className="mt-2 max-w-72 text-type-metadata text-nite-text-muted">Arquivo de exemplo. Visualização e download estarão disponíveis após a integração documental.</p></details>:<Link href={file.mimeType.includes("wordprocessing")?`/documentos/${file.id}`:`/api/library/download/${file.id}`}
+                className="font-medium text-nite-brand-primary underline underline-offset-4">{file.title}</Link>}
                 <p className="text-type-metadata text-nite-text-muted">Revisão {file.revision} · {file.size.toLocaleString("pt-BR")} bytes</p></div></div></td>
             <td className="p-3 text-nite-text-secondary"><div>Proprietário: {resourceOwnerLabel(file.identity,file.createdByName,file.ownerName)}</div><div>Criado por: {file.createdByName}</div>{file.sharedByName&&<div>Distribuído por: {file.sharedByName}{file.sharedAt?` · ${when(file.sharedAt)}`:""}</div>}</td>
             <td className="p-3 text-nite-text-secondary">{when(file.modifiedAt)}<div className="text-type-metadata">{file.modifiedByName??file.createdByName}</div>
               {file.lastOpenedAt&&<div className="mt-1 text-type-metadata">Aberto em {when(file.lastOpenedAt)}{file.lastOpenedByName?` por ${file.lastOpenedByName}`:""}</div>}</td>
-            <td className="p-3"><Link href={`/api/library/download/${file.id}`} className="text-nite-brand-primary underline underline-offset-4">Baixar</Link>
+            <td className="p-3">{temporary?<span className="text-nite-text-muted">Exemplo · sem download</span>:<Link href={`/api/library/download/${file.id}`} className="text-nite-brand-primary underline underline-offset-4">Baixar</Link>}
               {canManage&&(file.capabilities?.canRename!==false||file.capabilities?.canArchiveInstitutionally===true)&&<details className="mt-2"><summary className="cursor-pointer text-nite-brand-primary">Organizar</summary>
                 {file.capabilities?.canRename!==false&&<form action={organizeLibraryFile} className="mt-2 grid max-w-56 gap-2">
                   <input type="hidden" name="id" value={file.id}/><input type="hidden" name="returnTo" value={returnTo}/>
@@ -102,7 +103,7 @@ export function LibraryExplorer({listing,base,personal=false,canManage=false,tre
         </tbody>
       </table>
     </div>
-    {(personal||canManage)&&current.capabilities?.canAddChild!==false&&<details className="rounded-control border border-nite-border-soft p-4">
+    {!temporary&&(personal||canManage)&&current.capabilities?.canAddChild!==false&&<details className="rounded-control border border-nite-border-soft p-4">
       <summary className="cursor-pointer font-medium text-nite-text-primary">Criar ou carregar arquivo</summary>
       <div className="mt-3"><LibraryUploadForm folderId={current.id} returnTo={returnTo}/></div>
     </details>}

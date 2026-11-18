@@ -267,11 +267,11 @@ export function isValidPlanningTitle(value: string): boolean {
   return value.trim().length > 0;
 }
 
-export function PlanningForm({ onClose, onCreate, projectOptions: realProjectOptions, projectLabels = {} }: { onClose: () => void; onCreate: (draft: PlanningDraft) => void | Promise<void>; projectOptions?: readonly string[]; projectLabels?: Readonly<Record<string, string>> }) {
+export function PlanningForm({ onClose, onCreate, projectOptions: realProjectOptions, projectLabels = {}, fixedProject }: { onClose: () => void; onCreate: (draft: PlanningDraft) => void | Promise<void>; projectOptions?: readonly string[]; projectLabels?: Readonly<Record<string, string>>; fixedProject?: { id: string; title: string } }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [project, setProject] = useState("");
+  const [project, setProject] = useState(fixedProject?.id ?? "");
   const [projectOpen, setProjectOpen] = useState(false);
   const projectPopoverId = useId();
   const projectPickerRef = useRef<HTMLDivElement>(null);
@@ -317,15 +317,15 @@ export function PlanningForm({ onClose, onCreate, projectOptions: realProjectOpt
         <span className="sr-only">Descrição opcional</span>
         <textarea maxLength={10000} rows={1} value={description} onChange={(event) => setDescription(event.target.value)} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`; }} placeholder="Adicione uma descrição..." className="min-h-8 w-full resize-none border-0 bg-transparent px-0 py-1 text-type-body text-nite-text-primary outline-none placeholder:text-nite-text-muted focus:ring-0"/>
       </label>
-      <div ref={projectPickerRef} className="relative mt-7 min-w-0 xl:absolute xl:left-full xl:top-[53px] xl:mt-0 xl:w-max">
+      {fixedProject ? <p className="mt-5 text-type-body-compact text-nite-text-secondary">Projeto: {fixedProject.title}</p> : <div ref={projectPickerRef} className="relative mt-7 min-w-0 xl:absolute xl:left-full xl:top-[53px] xl:mt-0 xl:w-max">
         <button ref={projectTriggerRef} type="button" aria-label={`Projeto: ${project ? projectLabels[project] ?? project : "Independente"}`} aria-haspopup="listbox" aria-expanded={projectOpen} aria-controls={projectPopoverId} onClick={() => setProjectOpen((open) => !open)} onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setProjectOpen(true); } }} className="inline-flex min-h-8 items-center gap-2 rounded-control px-2 text-type-body-compact text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">
           <span>Projeto</span><span className="text-nite-text-primary">{project ? projectLabels[project] ?? project : "Independente"}</span><Chevron className={`size-3 transition-transform ${projectOpen ? "rotate-90" : ""}`} />
         </button>
         {projectOpen ? <div id={projectPopoverId} role="listbox" aria-label="Projetos disponíveis" className="absolute left-0 top-full z-30 mt-2 grid w-48 gap-0.5 rounded-panel border border-nite-border-soft bg-nite-surface p-1.5 shadow-lg">
           {projectOptions.map((item, index) => <button key={item ?? "independent"} ref={(element) => { projectOptionRefs.current[index] = element; }} type="button" role="option" aria-selected={(item ?? "") === project} onClick={() => { setProject(item ?? ""); setProjectOpen(false); }} onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); const direction = event.key === "ArrowDown" ? 1 : -1; const nextIndex = (index + direction + projectOptions.length) % projectOptions.length; projectOptionRefs.current[nextIndex]?.focus(); } }} className={`flex min-h-9 items-center rounded-control px-2.5 text-left text-type-body-compact focus-visible:outline-2 focus-visible:outline-nite-focus ${(item ?? "") === project ? "bg-nite-surface-subtle font-medium text-nite-text-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>{item ? projectLabels[item] ?? item : "Independente"}</button>)}
         </div> : null}
-      </div>
-      <div className="mt-7 flex flex-wrap items-center gap-6 xl:mt-[clamp(18rem,42vh,28rem)]">
+      </div>}
+      <div className={fixedProject ? "mt-7 flex flex-wrap items-center gap-6" : "mt-7 flex flex-wrap items-center gap-6 xl:mt-[clamp(18rem,42vh,28rem)]"}>
         <button type="button" disabled={submitting} onClick={onClose} className="min-h-9 rounded-control px-3 text-type-body-compact text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Cancelar</button>
         <PrimaryButton type="submit">{submitting ? "Criando…" : "Criar atividade"}</PrimaryButton>
       </div>
@@ -391,13 +391,14 @@ export function ProjectFilter({ options, value, onChange, labels = {} }: { optio
 
 type TaskEditorValues = { title: string; description: string; status: Status; priority: Priority; ownerId: string; collaboratorIds: string[]; startOn: string | null; dueOn: string | null };
 type TaskEditorOwner = { id: string; name: string };
-export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, initialOwnerId, initialOwnerName, collaboratorOptions = [], initialCollaboratorIds = [], onSave, onCreateServer, canEdit = true, canManageAssignees = true, canDelete = false, allowedStatuses, onDelete, onSearchMembers }: {
+export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, initialOwnerId, initialOwnerName, collaboratorOptions = [], initialCollaboratorIds = [], onSave, onCreateServer, canEdit = true, canManageAssignees = true, canDelete = false, allowedStatuses, onDelete, onSearchMembers, persistenceNotice }: {
   task: Task | null; onClose: () => void; onUpdate: (taskId: TaskId, changes: Partial<Omit<Task, "id">>) => void;
   onCreate: (draft: NewTaskDraft) => void; ownerOptions?: readonly TaskEditorOwner[]; initialOwnerId?: string; initialOwnerName?: string;
   collaboratorOptions?: readonly TaskEditorOwner[]; initialCollaboratorIds?: readonly string[];
   onSave?: (values: TaskEditorValues) => Promise<string | null>; onCreateServer?: (values: TaskEditorValues) => Promise<string | null>;
   canEdit?: boolean; canManageAssignees?: boolean; canDelete?: boolean; allowedStatuses?: readonly Status[]; onDelete?: () => Promise<string | null>;
   onSearchMembers?: (query: string) => Promise<string | null>;
+  persistenceNotice?: string;
 }) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
@@ -477,6 +478,7 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
         <div><p className="text-type-metadata text-nite-text-muted">Tasks</p><h2 id={headingId} className="sr-only">{task ? "Editar tarefa" : "Criar tarefa"}</h2></div>
         <button type="button" onClick={onClose} className={iconButton} aria-label="Fechar detalhes da tarefa">×</button>
       </header>
+      {persistenceNotice && <p className="mt-4 rounded-control border border-nite-border-soft p-3 text-type-metadata text-nite-text-muted">{persistenceNotice}</p>}
       <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <label htmlFor={titleId} className="mt-7 block">
           <span className="sr-only">Título da tarefa</span>

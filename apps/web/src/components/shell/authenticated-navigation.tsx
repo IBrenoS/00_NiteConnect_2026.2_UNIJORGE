@@ -55,7 +55,7 @@ export function buildAuthenticatedNavigationGroups(options: NavigationOptions): 
       {label:"Meus arquivos",icon:"projects",href:"/documentos"},
       {label:"Lixeira",icon:"projects",href:"/documentos/lixeira"},
     ]},
-    {label:"Núcleo",defaultOpen:true,items:[planned("Projetos","projects")]},
+    {label:"Núcleo",defaultOpen:true,items:[{label:"Projetos",icon:"projects",href:"/projetos"}]},
   ];
   if(options.canAdminister) groups.push({label:"Gestão do NITE",defaultOpen:true,items:[
     planned("Atividades e entregas","activity"),
@@ -116,7 +116,7 @@ function NavigationLink({ item, currentPath, onNavigate }: {
       {item.status === "development" ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-nite-border-strong" /> : null}
     </span>;
   }
-  const isCurrent = item.href === currentPath;
+  const isCurrent = item.href === currentPath || ((item.href === "/projetos" || item.href === "/meus-projetos") && currentPath.startsWith(`${item.href}/`));
   return <Link href={item.href} onClick={onNavigate} aria-current={isCurrent ? "page" : undefined} className={`flex min-h-8 items-center gap-2 rounded-control px-3 py-1 text-type-body-compact transition-colors motion-reduce:transition-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${isCurrent ? "bg-nite-brand-soft font-medium text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary"}`}>
     <Icon name={item.icon} />
     <span className="min-w-0 truncate">{item.label}</span>

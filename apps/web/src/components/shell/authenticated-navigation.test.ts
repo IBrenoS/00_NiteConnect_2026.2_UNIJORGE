@@ -13,7 +13,7 @@ describe("navegação autenticada", () => {
     const items = groups.flatMap(({ items: groupItems }) => groupItems);
 
     expect(groups.map(({ label }) => label)).toEqual(["Início", "Meu espaço", "Núcleo"]);
-    expect(items.filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira"]);
+    expect(items.filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira", "/projetos"]);
     expect(groups.find(({ label }) => label === "Meu espaço")?.items.map(({ label }) => label)).toEqual([
       "Minhas atividades", "Meus projetos", "Reuniões", "Frequência", "Meus arquivos", "Lixeira",
     ]);
@@ -44,7 +44,7 @@ describe("navegação autenticada", () => {
       "Gestão do NITE",
       "Acompanhamento acadêmico",
     ]);
-    expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira", "/biblioteca"]);
+    expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira", "/projetos", "/biblioteca"]);
     expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ label }) => label === "Frequência")).toHaveLength(1);
   });
 });
