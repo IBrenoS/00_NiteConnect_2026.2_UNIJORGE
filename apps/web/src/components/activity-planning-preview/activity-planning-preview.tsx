@@ -145,7 +145,7 @@ export function Toolbar({ view, planningId, query, setQuery, statusFilter, setSt
 
 export function StatusPill({ status }: { status: Status }) {
   const color = status === "Concluída" ? "bg-status-done-soft text-status-done" : status === "Em andamento" ? "bg-status-progress-soft text-status-progress" : status === "Cancelada" ? "bg-status-cancelled-soft text-status-cancelled" : "bg-status-draft-soft text-status-draft";
-  return <span className={"inline-flex max-w-full items-center rounded-pill px-2 py-0.5 text-type-metadata font-medium " + color}><span className="mr-1.5 size-1.5 shrink-0 rounded-full bg-current opacity-70"/>{status}</span>;
+  return <span className={"inline-flex min-h-7 max-w-full items-center whitespace-nowrap rounded-control px-2 py-1 text-type-body-compact font-medium " + color}>{status}</span>;
 }
 export function PriorityPill({ priority }: { priority: Priority }) {
   const color = priority === "Alta" ? "bg-status-error-soft text-status-error" : priority === "Média" ? "bg-status-warning-soft text-status-warning" : priority === "Baixa" ? "bg-status-done-soft text-status-done" : "bg-nite-surface-subtle text-nite-text-muted";

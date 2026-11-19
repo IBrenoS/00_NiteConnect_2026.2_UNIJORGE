@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { CatalogProject } from "../../lib/projects/visual-data";
-import { projectStatusLabels } from "../../lib/projects/visual-data";
+import { useRouter } from "next/navigation";
+import type { ProjectDisplay } from "../../lib/projects/presentation";
+import { projectStatusLabels, projectIssueText } from "../../lib/projects/presentation";
 import styles from "./projects.module.css";
 
 export function TemporaryNotice() {
@@ -14,13 +15,13 @@ export function ProjectMark({ title, large = false }: { title: string; large?: b
 export function Avatar({ name }: { name: string }) {
   return <span aria-hidden="true" className={styles.avatar}>{name.split(" ").slice(0, 2).map(word => word[0]).join("")}</span>;
 }
-export function ProjectStatusBadge({ project }: { project: CatalogProject }) {
-  return <span className={styles.badge} data-status={project.status}><span aria-hidden="true">●</span> {projectStatusLabels[project.status]}</span>;
+export function ProjectStatusBadge({ project }: { project: ProjectDisplay }) {
+  return <span className={styles.projectStatus} data-status={project.status}>{projectStatusLabels[project.status]}</span>;
 }
 export function EmptyProjects({ title, description, reset }: { title: string; description: string; reset?: () => void }) {
   return <div className={styles.empty}><span aria-hidden="true">▦</span><h2>{title}</h2><p>{description}</p>{reset && <button className={styles.button} onClick={reset}>Limpar filtros</button>}</div>;
 }
-export function ProjectProperties({ project }: { project: CatalogProject }) {
+export function ProjectProperties({ project }: { project: ProjectDisplay }) {
   const date = (value: string | null) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "Não definido";
   return <dl className={styles.properties}>
     <div><dt>Situação</dt><dd><ProjectStatusBadge project={project}/></dd></div>
@@ -31,6 +32,11 @@ export function ProjectProperties({ project }: { project: CatalogProject }) {
     <div><dt>Novas participações</dt><dd>{project.acceptingMembers && project.status !== "CONCLUIDO" && project.status !== "PAUSADO" && !project.leadershipVacant ? "Recebendo solicitações" : "Indisponíveis no momento"}</dd></div>
   </dl>;
 }
-export function ProjectBreadcrumb({ title, personal = false }: { title?: string; personal?: boolean }) {
-  return <nav aria-label="Caminho de navegação" className={styles.breadcrumb}><Link href={personal ? "/meus-projetos" : "/projetos"}>{personal ? "Meus projetos" : "Projetos"}</Link>{title && <><span aria-hidden="true">/</span><span>{title}</span></>}</nav>;
+export function ProjectBreadcrumb({ personal = false }: { title?: string; personal?: boolean }) {
+  return <nav aria-label="Caminho de navegação" className={styles.breadcrumb}><Link href={personal ? "/meus-projetos" : "/projetos"}>{personal ? "Meus projetos" : "Projetos"}</Link></nav>;
+}
+
+export function ProjectIssue({ issue }: { issue: string }) {
+  const router = useRouter();
+  return <div className={styles.contextNote}><p role="alert">{projectIssueText(issue)}</p>{issue === "unauthenticated" ? <Link href="/login" className={styles.button}>Entrar novamente</Link> : issue === "unavailable" || issue === "invalid" ? <button className={styles.button} onClick={() => router.refresh()}>Tentar novamente</button> : null}</div>;
 }

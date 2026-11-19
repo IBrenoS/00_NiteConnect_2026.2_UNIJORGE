@@ -54,3 +54,10 @@ describe("ações da biblioteca documental",()=>{
     expect(mocks.fetch).toHaveBeenCalledWith(expect.stringContaining("/api/v1/library/folders/11111111-1111-1111-1111-111111111111?recursive=true"),expect.objectContaining({method:"DELETE"}));
   });
 });
+
+it("retorna e revalida documentos do projeto sem desviar para o acervo pessoal",async()=>{
+ mocks.getSession.mockResolvedValue({bearer:"server-only-token"});mocks.resolveApiUrl.mockImplementation((path:string)=>`http://localhost:8080${path}`);mocks.fetch.mockResolvedValue(new Response(null,{status:201}));vi.stubGlobal("fetch",mocks.fetch);
+ const project="11111111-1111-4111-8111-111111111111",input=new FormData();input.set("name","Pasta real");input.set("parentId",project);input.set("returnTo",`/meus-projetos/${project}/documentos?search=Plano+real`);
+ await expect(createLibraryFolder(input)).rejects.toThrow(`redirect:/meus-projetos/${project}/documentos?search=Plano+real&saved=`);
+ expect(mocks.revalidatePath).toHaveBeenCalledWith(`/meus-projetos/${project}/documentos`,"layout");
+});

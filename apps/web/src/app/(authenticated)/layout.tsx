@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { AuthenticatedShell } from "../../components/shell/authenticated-shell";
 import { requireAuthenticatedNiteSession } from "../../lib/auth/server-session";
 import { getLeadershipProjects } from "../../lib/projects/data";
-import { ProjectVisualProvider } from "../../components/projects/project-visual-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +16,7 @@ export default async function AuthenticatedLayout({ children }: Readonly<{ child
       projects={leadershipResult.data ?? []}
       leadershipProjectsUnavailable={leadershipResult.issue !== null}
     >
-      <ProjectVisualProvider canAdminister={session.roles.some(role => role === "GESTOR_GERAL" || role === "COORDENADOR")}>{children}</ProjectVisualProvider>
+      {children}
     </AuthenticatedShell>
   );
 }

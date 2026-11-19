@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { documentReturnTo } from "../../lib/documents/navigation";
 import { useEffect, useRef, useState } from "react";
 
 const FRAME_LOAD_TIMEOUT_MS = 45_000;
 
 /** WOPI's access_token is an editor-scoped capability token, not the user's Entra Bearer token. */
-export function CollaboraFrame({ actionUrl, token, ttl, title }: { actionUrl: string; token: string; ttl: number; title: string }) {
+export function CollaboraFrame({ actionUrl, token, ttl, title, returnTo }: { actionUrl: string; token: string; ttl: number; title: string; returnTo?: string }) {
+  const back = documentReturnTo(returnTo);
+  const backLabel = back.startsWith("/meus-projetos/") ? "Voltar aos documentos do projeto" : "Voltar a Meus Arquivos";
   const form = useRef<HTMLFormElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const started = useRef(false);
@@ -50,8 +53,8 @@ export function CollaboraFrame({ actionUrl, token, ttl, title }: { actionUrl: st
           <p className="text-type-body-compact text-nite-text-secondary">
             O Collabora não respondeu. A sessão WOPI continua protegida pelo servidor; você pode retornar aos seus arquivos e tentar novamente.
           </p>
-          <Link href="/documentos" className="inline-flex min-h-11 items-center justify-center rounded-control px-4 font-medium text-nite-brand-primary underline underline-offset-4">
-            Voltar a Meus Arquivos
+          <Link href={back} className="inline-flex min-h-11 items-center justify-center rounded-control px-4 font-medium text-nite-brand-primary underline underline-offset-4">
+            {backLabel}
           </Link>
         </section>
       </main>
@@ -59,7 +62,8 @@ export function CollaboraFrame({ actionUrl, token, ttl, title }: { actionUrl: st
   }
 
   return (
-    <main className="h-dvh w-dvw overflow-hidden bg-nite-background">
+    <main className={returnTo ? "flex h-dvh w-dvw flex-col overflow-hidden bg-nite-background" : "h-dvh w-dvw overflow-hidden bg-nite-background"}>
+      {returnTo && <nav aria-label="Retorno ao acervo" className="flex h-11 shrink-0 items-center border-b border-nite-border-soft px-4 text-type-body-compact"><Link href={back} className="text-nite-brand-primary underline underline-offset-4">{backLabel}</Link></nav>}
       <form ref={form} action={actionUrl} method="POST" target="nite-collabora-editor" className="hidden">
         <input type="hidden" name="access_token" value={token} />
         <input type="hidden" name="access_token_ttl" value={ttl} />
@@ -72,7 +76,7 @@ export function CollaboraFrame({ actionUrl, token, ttl, title }: { actionUrl: st
         allow="clipboard-read; clipboard-write; fullscreen"
         onLoad={handleFrameLoad}
         onError={handleFrameError}
-        className="block h-full w-full border-0"
+        className={returnTo ? "block min-h-0 w-full flex-1 border-0" : "block h-full w-full border-0"}
       />
     </main>
   );

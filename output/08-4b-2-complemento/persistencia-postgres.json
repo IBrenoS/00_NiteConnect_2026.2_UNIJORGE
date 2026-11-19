@@ -1,0 +1,93 @@
+{
+  "project": {
+    "id": "d298180f-939f-493b-9960-d4b2fd24d640",
+    "title": "HOMOLOGAÇÃO 08.4B-2 — Cadastro editado",
+    "status": "ATIVO",
+    "version": 9,
+    "startsOn": "2026-11-18",
+    "endsOn": "2026-12-18",
+    "acceptingMembers": true,
+    "createdAt": "2026-11-18T20:49:11.926996+00:00"
+  },
+  "currentMemberships": 1,
+  "membershipStartedAfterCreation": true,
+  "leadershipPeriods": 1,
+  "statusHistory": [
+    {
+      "from": null,
+      "to": "PLANEJAMENTO",
+      "reason": "Homologação autorizada do complemento de criação e administração no ambiente local.",
+      "occurredAt": "2026-11-18T20:49:11.926996+00:00"
+    },
+    {
+      "from": "PLANEJAMENTO",
+      "to": "ATIVO",
+      "reason": "Ativar projeto para homologar as transições administrativas.",
+      "occurredAt": "2026-11-18T20:52:40.050644+00:00"
+    },
+    {
+      "from": "ATIVO",
+      "to": "PAUSADO",
+      "reason": "Pausa controlada para homologar transição e histórico do projeto de teste.",
+      "occurredAt": "2026-11-18T20:55:20.435919+00:00"
+    },
+    {
+      "from": "PAUSADO",
+      "to": "ATIVO",
+      "reason": "Retomada controlada após validar bloqueio de ingresso na pausa.",
+      "occurredAt": "2026-11-18T20:55:40.451291+00:00"
+    }
+  ],
+  "audit": [
+    {
+      "action": "PROJECT_CREATED",
+      "reason": "Homologação autorizada do complemento de criação e administração no ambiente local.",
+      "occurredAt": "2026-11-18T20:49:11.926996+00:00"
+    },
+    {
+      "action": "PROJECT_UPDATED",
+      "reason": "Validar atualização versionada e datas opcionais na interface real.",
+      "occurredAt": "2026-11-18T20:52:12.142574+00:00"
+    },
+    {
+      "action": "PROJECT_STATUS_CHANGED",
+      "reason": "Ativar projeto para homologar as transições administrativas.",
+      "occurredAt": "2026-11-18T20:52:40.050644+00:00"
+    },
+    {
+      "action": "PROJECT_MEMBER_JOINED",
+      "reason": "Inclusão explícita para testar composição da equipe; o cadastro não criou vínculo automático.",
+      "occurredAt": "2026-11-18T20:53:45.451429+00:00"
+    },
+    {
+      "action": "PROJECT_LEADERSHIP_TRANSFERRED",
+      "reason": "Designação explícita de liderança para homologação do projeto de teste.",
+      "occurredAt": "2026-11-18T20:54:06.576255+00:00"
+    },
+    {
+      "action": "PROJECT_MEMBERSHIP_AVAILABILITY_CHANGED",
+      "reason": "Disponibilidade de ingresso atualizada",
+      "occurredAt": "2026-11-18T20:54:34.386362+00:00"
+    },
+    {
+      "action": "PROJECT_MEMBERSHIP_AVAILABILITY_CHANGED",
+      "reason": "Disponibilidade de ingresso atualizada",
+      "occurredAt": "2026-11-18T20:54:56.577654+00:00"
+    },
+    {
+      "action": "PROJECT_STATUS_CHANGED",
+      "reason": "Pausa controlada para homologar transição e histórico do projeto de teste.",
+      "occurredAt": "2026-11-18T20:55:20.435919+00:00"
+    },
+    {
+      "action": "PROJECT_STATUS_CHANGED",
+      "reason": "Retomada controlada após validar bloqueio de ingresso na pausa.",
+      "occurredAt": "2026-11-18T20:55:40.451291+00:00"
+    },
+    {
+      "action": "PROJECT_MEMBERSHIP_AVAILABILITY_CHANGED",
+      "reason": "Disponibilidade de ingresso atualizada",
+      "occurredAt": "2026-11-18T20:55:51.818925+00:00"
+    }
+  ]
+}

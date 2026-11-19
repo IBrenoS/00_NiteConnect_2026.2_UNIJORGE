@@ -1,0 +1,14 @@
+import {beforeEach,expect,it,vi} from "vitest";
+const mocks=vi.hoisted(()=>({session:vi.fn(),workspace:vi.fn(),authority:vi.fn(),requests:vi.fn(),current:vi.fn()}));
+vi.mock("../../../../../../lib/auth/server-session",()=>({requireAuthenticatedNiteSession:mocks.session}));
+vi.mock("../../../../../../lib/projects/data",()=>({getProjectWorkspace:mocks.workspace,getProjectAuthority:mocks.authority}));
+vi.mock("../../../../../../lib/projects/document-requests",()=>({getProjectDocumentRequests:mocks.requests,getProjectDocumentRequest:mocks.current}));
+vi.mock("../../../../../../components/projects/project-document-requests",()=>({ProjectDocumentRequests:()=>null}));
+vi.mock("../../../../../../components/projects/project-ui",()=>({ProjectIssue:()=>null}));
+vi.mock("next/navigation",()=>({notFound:()=>{throw new Error("NOT_FOUND");}}));
+import Page from "./page";
+const id="11111111-1111-4111-8111-111111111111",params=Promise.resolve({id});
+beforeEach(()=>{vi.resetAllMocks();mocks.session.mockResolvedValue({bearer:"server-only"});mocks.workspace.mockResolvedValue({data:{capabilities:{canViewDocuments:true,canManageMembers:true}},issue:null});mocks.authority.mockResolvedValue({data:{canCreate:false},issue:null});mocks.current.mockResolvedValue({data:{id,projectId:id,status:"PENDING"},issue:null});mocks.requests.mockResolvedValue({data:[],issue:null});});
+it("líder consulta protocolo autorizado sem ler a fila administrativa",async()=>{const result=await Page({params,searchParams:Promise.resolve({request:id})});expect(mocks.requests).not.toHaveBeenCalled();expect(mocks.current).toHaveBeenCalledWith("server-only",id,id);expect(result.props.children[1].props.canDecide).toBe(false);});
+it("administração carrega fila filtrada pelo projeto",async()=>{mocks.authority.mockResolvedValue({data:{canCreate:true},issue:null});await Page({params,searchParams:Promise.resolve({})});expect(mocks.requests).toHaveBeenCalledWith("server-only",id);});
+it("participante não consulta pedidos nem autoridade global",async()=>{mocks.workspace.mockResolvedValue({data:{capabilities:{canViewDocuments:true,canManageMembers:false}},issue:null});await Page({params,searchParams:Promise.resolve({})});expect(mocks.authority).not.toHaveBeenCalled();expect(mocks.requests).not.toHaveBeenCalled();});

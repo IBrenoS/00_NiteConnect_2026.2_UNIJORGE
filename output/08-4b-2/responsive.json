@@ -1,0 +1,282 @@
+[
+  {
+    "name": "catalogo",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "apresentacao",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1425,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "meus-projetos",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "visao-geral",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "atividades",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "equipe",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "documentos",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1425,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "quadro",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "tabela",
+    "suffix": "dark-desktop",
+    "scrollWidth": 1440,
+    "theme": "dark",
+    "width": 1440
+  },
+  {
+    "name": "catalogo",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "apresentacao",
+    "suffix": "light-desktop",
+    "scrollWidth": 1425,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "meus-projetos",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "visao-geral",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "atividades",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "equipe",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "documentos",
+    "suffix": "light-desktop",
+    "scrollWidth": 1425,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "quadro",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "tabela",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  },
+  {
+    "name": "catalogo",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "apresentacao",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "meus-projetos",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "visao-geral",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "atividades",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "equipe",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "documentos",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "quadro",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "tabela",
+    "suffix": "light-mobile",
+    "scrollWidth": 375,
+    "theme": "light",
+    "width": 390
+  },
+  {
+    "name": "catalogo",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "apresentacao",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "meus-projetos",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "visao-geral",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "atividades",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "equipe",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "documentos",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "quadro",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "tabela",
+    "suffix": "dark-mobile",
+    "scrollWidth": 375,
+    "theme": "dark",
+    "width": 390
+  },
+  {
+    "name": "visao-geral",
+    "suffix": "dark-tablet",
+    "scrollWidth": 1009,
+    "theme": "dark",
+    "width": 1024
+  },
+  {
+    "name": "equipe",
+    "suffix": "dark-tablet",
+    "scrollWidth": 1024,
+    "theme": "dark",
+    "width": 1024
+  },
+  {
+    "name": "quadro",
+    "suffix": "dark-tablet",
+    "scrollWidth": 1009,
+    "theme": "dark",
+    "width": 1024
+  },
+  {
+    "name": "visao-geral",
+    "suffix": "light-desktop",
+    "scrollWidth": 1440,
+    "theme": "light",
+    "width": 1440
+  }
+]

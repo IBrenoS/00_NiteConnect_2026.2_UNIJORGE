@@ -125,7 +125,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities/*/evidence", "/api/v1/activities/*/evidence/uploads",
                                 "/api/v1/activities/*/evidence/*/withdraw").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/projects", "/api/v1/projects/*", "/api/v1/me/projects",
-                                "/api/v1/project-catalog", "/api/v1/projects/*/workspace", "/api/v1/me/project-membership-requests",
+                                "/api/v1/project-catalog", "/api/v1/project-catalog/*", "/api/v1/me/project-interest-signals", "/api/v1/projects/*/workspace", "/api/v1/me/project-membership-requests",
                                 "/api/v1/projects/*/membership-requests", "/api/v1/projects/*/interest-signals",
                                 "/api/v1/me/project-participation-notifications",
                                 "/api/v1/me/projects/history", "/api/v1/me/projects/leadership/history", "/api/v1/projects/*/history", "/api/v1/projects/*/members",

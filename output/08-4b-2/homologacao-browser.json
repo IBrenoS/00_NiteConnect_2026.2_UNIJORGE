@@ -1,0 +1,30 @@
+{
+  "projects": {
+    "workspace": "f37a8643-5aaa-4a2a-884d-fbede9bdec57",
+    "interest": "201f8a08-4c0e-42d0-9321-b6ec8f250079",
+    "completed": "71ea7418-9a1a-475d-bf63-196c796f5f7c",
+    "planning": "3e95c082-58a4-4d8c-b803-2250c38b42d3"
+  },
+  "authenticatedRole": "Gestão Geral",
+  "realBackend": "Docker local",
+  "realDatabase": "PostgreSQL local",
+  "verified": [
+    "catálogo com três registros persistidos",
+    "filtros e recuperação de estado vazio",
+    "participação vigente separada de acompanhamento administrativo",
+    "interesse persistido após recarga",
+    "planejamento criado com projeto fixo",
+    "task canônica criada e editada",
+    "situação Em andamento preservada após recarga",
+    "mesma task na perspectiva pessoal e de projeto",
+    "disponibilidade de ingresso persistida após recarga",
+    "equipe e fila autorizada vazia",
+    "Documentos mantém aviso temporário"
+  ],
+  "notManuallyVerified": [
+    "solicitações e decisões entre identidades institucionais distintas",
+    "exclusões permanentes",
+    "arraste manual"
+  ],
+  "newBrowserErrors": 0
+}

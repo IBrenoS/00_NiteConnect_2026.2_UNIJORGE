@@ -28,6 +28,15 @@ public class ProjectController {
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
         return participation.discover(identities.member(jwt),q,status,acceptingMembers,sort,page,size);
     }
+    @GetMapping("/api/v1/project-catalog/{id}")
+    ProjectParticipationService.CatalogProject presentation(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        return participation.presentation(identities.member(jwt),id);
+    }
+    @GetMapping("/api/v1/me/project-interest-signals")
+    PageResult<ProjectParticipationService.InterestSignal> myInterests(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
+        return participation.myInterests(identities.member(jwt),page,size);
+    }
     @GetMapping("/api/v1/projects/{id}/workspace")
     ProjectParticipationService.WorkspaceOverview overview(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) { return participation.overview(identities.member(jwt),id); }
     @GetMapping("/api/v1/projects")

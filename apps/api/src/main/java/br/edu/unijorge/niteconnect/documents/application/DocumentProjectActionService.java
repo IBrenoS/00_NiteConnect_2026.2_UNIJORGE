@@ -57,9 +57,17 @@ public class DocumentProjectActionService {
         return request;
     }
     public List<Request> pending(UUID actor,int limit) {
+        return pending(actor,null,limit,0);
+    }
+    public List<Request> pending(UUID actor,UUID projectId,int limit,int offset) {
         access.requireAdministrator(actor);
-        if(limit<1||limit>100) throw ApiException.invalid("Limite inválido");
-        return jdbc.query("select * from nite_connect.document_project_action_requests where status='PENDING' order by requested_at,id limit ?",MAPPER,limit);
+        if(limit<1||limit>100||offset<0) throw ApiException.invalid("Paginação inválida");
+        if(projectId!=null) projects.requireRead(actor,projectId);
+        return jdbc.query("""
+                select * from nite_connect.document_project_action_requests
+                where status='PENDING' and (cast(? as uuid) is null or project_id=cast(? as uuid))
+                order by requested_at,id limit ? offset ?
+                """,MAPPER,projectId,projectId,limit,offset);
     }
     @Transactional
     public Request decide(UUID actor,UUID id,boolean approve,String reason,boolean confirmed) {

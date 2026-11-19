@@ -34,6 +34,9 @@ export function getMyActivityCapabilities(bearer: string) {
 export function getActivityPlannings(bearer: string, query = new URLSearchParams({ page: "0", size: "20" })) {
   return getApiJson(`/api/v1/activity-plannings?${query}`, bearer, parseActivityPlanningPage);
 }
+export function getProjectActivityPlannings(bearer: string, projectId: string, query = new URLSearchParams({ page: "0", size: "20" })) {
+  return getApiJson(`/api/v1/projects/${encodeURIComponent(projectId)}/activity-plannings?${query}`, bearer, parseActivityPlanningPage);
+}
 export function getActivityPlanning(bearer: string, id: string) {
   return getApiJson(`/api/v1/activity-plannings/${encodeURIComponent(id)}`, bearer, parseActivityPlanning);
 }

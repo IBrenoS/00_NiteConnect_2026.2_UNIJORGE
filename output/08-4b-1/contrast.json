@@ -1,0 +1,100 @@
+[
+  {
+    "name": "catalogo",
+    "theme": "dark",
+    "count": 58,
+    "failures": [],
+    "min": 6.94
+  },
+  {
+    "name": "visao-geral",
+    "theme": "dark",
+    "count": 52,
+    "failures": [],
+    "min": 6.98
+  },
+  {
+    "name": "equipe",
+    "theme": "dark",
+    "count": 29,
+    "failures": [],
+    "min": 7.08
+  },
+  {
+    "name": "catalogo",
+    "theme": "light",
+    "count": 58,
+    "failures": [],
+    "min": 4.76
+  },
+  {
+    "name": "visao-geral",
+    "theme": "light",
+    "count": 52,
+    "failures": [],
+    "min": 5.07
+  },
+  {
+    "name": "equipe",
+    "theme": "light",
+    "count": 29,
+    "failures": [],
+    "min": 5.1
+  },
+  {
+    "name": "quadro",
+    "theme": "light",
+    "count": 64,
+    "failures": [],
+    "min": 4.76
+  },
+  {
+    "name": "apresentacao",
+    "theme": "light",
+    "count": 30,
+    "failures": [],
+    "min": 5.1
+  },
+  {
+    "name": "meus-projetos",
+    "theme": "light",
+    "count": 36,
+    "failures": [],
+    "min": 5.1
+  },
+  {
+    "name": "documentos",
+    "theme": "light",
+    "count": 47,
+    "failures": [],
+    "min": 5.1
+  },
+  {
+    "name": "apresentacao",
+    "theme": "dark",
+    "count": 30,
+    "failures": [],
+    "min": 5.17
+  },
+  {
+    "name": "meus-projetos",
+    "theme": "dark",
+    "count": 36,
+    "failures": [],
+    "min": 7.08
+  },
+  {
+    "name": "documentos",
+    "theme": "dark",
+    "count": 47,
+    "failures": [],
+    "min": 7.08
+  },
+  {
+    "name": "quadro",
+    "theme": "dark",
+    "count": 64,
+    "failures": [],
+    "min": 5.17
+  }
+]

@@ -1,0 +1,86 @@
+[
+  {
+    "name": "administracao-light-desktop",
+    "heading": "Administrar projeto",
+    "height": 1000,
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "name": "administracao-light-mobile",
+    "heading": "Administrar projeto",
+    "height": 844,
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "name": "administracao-dark-mobile",
+    "heading": "Administrar projeto",
+    "height": 844,
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "name": "administracao-dark-desktop",
+    "heading": "Administrar projeto",
+    "height": 1000,
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "name": "historicos-dark-desktop",
+    "heading": "Administrar projeto",
+    "height": 1000,
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "name": "novo-dark-desktop",
+    "heading": "Novo projeto",
+    "height": 1000,
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "name": "novo-dark-mobile",
+    "heading": "Novo projeto",
+    "height": 844,
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "name": "novo-light-mobile",
+    "heading": "Novo projeto",
+    "height": 844,
+    "scrollWidth": 375,
+    "width": 390
+  },
+  {
+    "name": "novo-light-desktop",
+    "heading": "Novo projeto",
+    "height": 1000,
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "name": "catalogo-light-desktop",
+    "heading": "Projetos",
+    "height": 1000,
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "name": "detalhe-atualizado-light-desktop",
+    "heading": "HOMOLOGAÇÃO 08.4B-2 — Cadastro editado",
+    "height": 1000,
+    "scrollWidth": 1425,
+    "width": 1440
+  },
+  {
+    "name": "detalhe-atualizado-light-mobile",
+    "heading": "HOMOLOGAÇÃO 08.4B-2 — Cadastro editado",
+    "height": 844,
+    "scrollWidth": 375,
+    "width": 390
+  }
+]

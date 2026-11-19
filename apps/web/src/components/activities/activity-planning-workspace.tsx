@@ -8,6 +8,8 @@ import { PageHeading, StatsPanel, TaskBoard, TaskEditor, TaskTable, Toolbar, typ
 import { activityPriorities, activityStatuses, type Activity, type ActivityAssignee, type ActivityCapabilities, type ActivityPlanning, type ActivityStatistics, type ActivityStatus, type ActivityPriority, type ActivityCandidate } from "../../lib/activities/contracts";
 import { createPlanningTaskAction, deletePlanningTaskAction, getPlanningTaskEditorAction, getPlanningCreationCandidatesAction, searchPlanningTaskCandidatesAction, movePlanningTaskAction, updatePlanningTaskAction } from "../../lib/activities/planning-actions";
 
+import styles from "../projects/projects.module.css";
+
 import { PlanningDeleteMenu } from "./planning-delete-menu";
 
 export type ActivityPlanningTask = { activity: Activity; capabilities: ActivityCapabilities | null };
@@ -47,10 +49,11 @@ function nextViewHref(planningId: string, view: View, query: string, status: str
   return `/atividades/planejamentos/${planningId}?${params}`;
 }
 
-export function ActivityPlanningWorkspace({ planning, tasks: initialTasks, statistics, nextDue, projectTitle, view, query: initialQuery, statusFilter: initialStatus, sort: initialSort, currentMember, canCreateTasks, canDeletePlanning }: {
+export function ActivityPlanningWorkspace({ projectContext, planning, tasks: initialTasks, statistics, nextDue, projectTitle, view, query: initialQuery, statusFilter: initialStatus, sort: initialSort, currentMember, canCreateTasks, canDeletePlanning }: {
   planning: ActivityPlanning; tasks: ActivityPlanningTask[]; statistics: ActivityStatistics | null; nextDue: string | null; projectTitle: string | null;
   view: View; query: string; statusFilter: string; sort: string; currentMember: { id: string; name: string };
   canCreateTasks: boolean; canDeletePlanning: boolean;
+  projectContext?: { id: string; title: string; basePath: string };
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
@@ -248,15 +251,28 @@ export function ActivityPlanningWorkspace({ planning, tasks: initialTasks, stati
     statusLabels[editorTask.activity.status],
     ...(editorData?.capabilities.transitions ?? []).map((status) => statusLabels[status]),
   ] : undefined;
-  const viewQuery = (next: "priority" | "status" | "table") => nextViewHref(planning.id, next, search, filter, sort);
+  const viewQuery = (next: "priority" | "status" | "table") => {
+    const canonical = nextViewHref(planning.id, next, search, filter, sort);
+    if (!projectContext) return canonical;
+    const params = new URLSearchParams(canonical.split("?")[1]);
+    params.set("planejamento", planning.id);
+    return `${projectContext.basePath}?${params}`;
+  };
+  const Container = projectContext ? "section" : "main";
 
-  return <main className="mx-auto w-full max-w-[1600px] min-w-0 space-y-5 px-4 py-5 sm:px-7 sm:py-7 lg:px-9">
+  return <Container className={projectContext ? styles.sectionPage : "mx-auto w-full max-w-[1600px] min-w-0 space-y-5 px-4 py-5 sm:px-7 sm:py-7 lg:px-9"}>
+    {projectContext ? <>
+      <header className={styles.sectionHeader}><div><Link className={styles.textLink} href={projectContext.basePath}>← Planejamentos do projeto</Link><h2>{planning.title}</h2><p>{planning.description}</p></div><div className="flex items-center gap-2">{canCreateTasks ? <button type="button" className={styles.primaryButton} onClick={() => void openCreationEditor()}>+ Nova tarefa</button> : null}<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete={canDeletePlanning} leaveWorkspace returnHref={projectContext.basePath}/></div></header>
+      <div className={styles.taskViews}><nav aria-label="Visualização das tarefas">{([{ id: "status", label: "▦ Por situação" }, { id: "priority", label: "▥ Por prioridade" }, { id: "table", label: "▤ Tabela" }] as const).map(item => <Link key={item.id} aria-current={view === item.id ? "page" : undefined} href={viewQuery(item.id)}>{item.label}</Link>)}</nav><span className={styles.muted}>Somente este projeto</span></div>
+      <div className={styles.toolbar}><label className={styles.search}><span aria-hidden="true">⌕</span><input aria-label="Pesquisar tarefas do projeto" placeholder="Pesquisar tarefas…" value={search} onChange={event => setSearch(event.target.value)}/></label><select aria-label="Situação da tarefa" value={filter} onChange={event => setFilter(event.target.value)}>{["Todas", "Planejada", "Em andamento", "Concluída", "Cancelada"].map(label => <option key={label}>{label}</option>)}</select><select aria-label="Ordenar tarefas" value={sort} onChange={event => setSort(event.target.value)}>{["Atualizado recentemente", "Título", "Prioridade", "Prazo"].map(label => <option key={label}>{label}</option>)}</select></div>
+    </> : <>
     <div className="flex items-center gap-1 text-type-metadata text-nite-text-muted"><Link href="/atividades" className="hover:text-nite-brand-primary">Minhas atividades</Link><span aria-hidden="true">›</span><span className="truncate">{planning.title}</span></div>
     <PageHeading eyebrow={projectTitle ?? "Independente"} title={planning.title} action={<div className="flex flex-wrap gap-2">{canCreateTasks ? <button type="button" onClick={() => void openCreationEditor()} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control border border-nite-border-soft bg-nite-surface px-3 text-type-body-compact font-medium text-nite-text-primary hover:bg-nite-surface-subtle"><span aria-hidden="true">＋</span> Nova tarefa</button> : null}<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete={canDeletePlanning} leaveWorkspace/></div>}/>
     <Toolbar view={view} planningId={planning.id} query={search} setQuery={setSearch} statusFilter={filter} setStatusFilter={setFilter} sort={sort} setSort={setSort} hrefForView={viewQuery} applyLabel="Aplicar" showOptions={false}/>
+    </>}
     {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice(null)}><p role="status" aria-live="polite" className="rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p></TransientFeedback> : null}
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_225px]">
-      <div className="min-w-0">
+    <div className={projectContext ? styles.taskLayout : "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_225px]"}>
+      <div className={projectContext ? styles.tasks : "min-w-0"}>
         {tasks.length === 0 ? <section className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-panel border border-nite-border-soft px-4 py-10 text-center">
           <h2 className="font-display text-type-section-title text-nite-text-primary">Este planejamento ainda não tem tarefas.</h2><p className="max-w-lg text-type-body-compact text-nite-text-secondary">As tarefas serão atividades executáveis vinculadas a este planejamento.</p>{canCreateTasks ? <button type="button" onClick={() => void openCreationEditor()} className="inline-flex min-h-9 items-center rounded-control bg-nite-brand-primary px-3.5 text-type-body-compact font-medium text-nite-action-text">Nova tarefa</button> : null}
         </section> : view === "table" ? <TaskTable tasks={projectedTasks} onEdit={(task) => void openEditor(task)} onAdd={createTask} canCreateTasks={canCreateTasks}/> : <TaskBoard tasks={projectedTasks} grouping={view === "priority" ? "priority" : "status"} onEdit={(task) => void openEditor(task)} onAdd={createTask} onMove={(taskId, grouping, group) => void moveTask(taskId, grouping, group)} canCreateTasks={canCreateTasks}/>}
@@ -265,5 +281,5 @@ export function ActivityPlanningWorkspace({ planning, tasks: initialTasks, stati
     </div>
     {creating ? <TaskEditor key="create-task" task={null} onClose={closeEditor} onSearchMembers={searchMembers} onUpdate={() => undefined} onCreate={() => undefined} ownerOptions={creationCandidates.map(({ id, name }) => ({ id, name }))} collaboratorOptions={creationCandidates.map(({ id, name }) => ({ id, name }))} initialOwnerId={creationCandidates.some((person) => person.id === currentMember.id) ? currentMember.id : creationCandidates[0]?.id} initialOwnerName={creationCandidates.find((person) => person.id === currentMember.id)?.name ?? creationCandidates[0]?.name} onCreateServer={createFromEditor}/> : null}
     {editorTask ? <TaskEditor key={`${editorTask.activity.id}:${editorTask.activity.version}:${editorData ? "loaded" : "loading"}`} task={boardTask(editorTask)} onClose={closeEditor} onSearchMembers={searchMembers} onUpdate={() => undefined} onCreate={() => undefined} ownerOptions={editorOwners} collaboratorOptions={collaboratorOwners} initialCollaboratorIds={editorData?.assignees.filter((assignee) => assignee.role === "COLLABORATOR").map((assignee) => assignee.memberId)} onSave={saveTask} onDelete={deleteTask} canEdit={Boolean(editorData?.capabilities.edit)} canManageAssignees={Boolean(editorData?.capabilities.manageAssignees)} canDelete={Boolean(editorData?.capabilities.canDelete)} allowedStatuses={allowedStatuses}/> : null}
-  </main>;
+  </Container>;
 }

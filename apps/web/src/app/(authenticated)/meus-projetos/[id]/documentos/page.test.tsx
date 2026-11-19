@@ -1,0 +1,15 @@
+import {beforeEach,expect,it,vi} from "vitest";
+const mocks=vi.hoisted(()=>({session:vi.fn(),workspace:vi.fn(),library:vi.fn(),ancestors:vi.fn()}));
+vi.mock("../../../../../lib/auth/server-session",()=>({requireAuthenticatedNiteSession:mocks.session}));
+vi.mock("../../../../../lib/projects/data",()=>({getProjectWorkspace:mocks.workspace}));
+vi.mock("../../../../../lib/documents/library",()=>({getProjectLibrary:mocks.library,getProjectFolderAncestors:mocks.ancestors,validUuid:(v:string)=>/^[a-f0-9-]{36}$/.test(v)}));
+vi.mock("../../../../../components/projects/project-documents",()=>({ProjectDocuments:()=>null}));
+vi.mock("../../../../../components/projects/project-ui",()=>({ProjectIssue:()=>null}));
+vi.mock("next/navigation",()=>({notFound:()=>{throw new Error("NOT_FOUND");}}));
+import Page from "./page";
+const id="11111111-1111-4111-8111-111111111111",params=Promise.resolve({id});
+beforeEach(()=>{vi.resetAllMocks();mocks.session.mockResolvedValue({bearer:"server-only",member:{id:"actor"}});mocks.workspace.mockResolvedValue({data:{projectId:id,name:"Projeto real",capabilities:{canViewDocuments:true,canManageMembers:false}},issue:null});mocks.library.mockResolvedValue({data:{folder:{id,projectId:id,kind:"PROJECT"},files:[],folders:[]},issue:null});mocks.ancestors.mockResolvedValue({data:[],issue:null});});
+it("nega acesso antes de ler o acervo",async()=>{mocks.workspace.mockResolvedValue({data:{capabilities:{canViewDocuments:false}},issue:null});await Page({params,searchParams:Promise.resolve({})});expect(mocks.library).not.toHaveBeenCalled();});
+it("carrega acervo e filtros reais sem bearer em props de cliente",async()=>{const result=await Page({params,searchParams:Promise.resolve({folder:id,search:"Plano",sort:"name",saved:"1"})});expect(mocks.library).toHaveBeenCalledWith("server-only",id,id,expect.objectContaining({search:"Plano",sortBy:"name"}));expect(result.props.projectId).toBe(id);expect(JSON.stringify(result.props)).not.toContain("server-only");});
+it("não troca pasta inválida pela raiz",async()=>{await Page({params,searchParams:Promise.resolve({folder:"invalida"})});expect(mocks.library).not.toHaveBeenCalled();});
+it("preserva 404 de pasta alheia",async()=>{mocks.library.mockResolvedValue({data:null,issue:"not-found"});await expect(Page({params,searchParams:Promise.resolve({folder:id})})).rejects.toThrow("NOT_FOUND");});
