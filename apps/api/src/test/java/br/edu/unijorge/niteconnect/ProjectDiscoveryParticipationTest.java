@@ -155,8 +155,8 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].capabilities.canExpressInterest").value(false));
     }
 
-    @Test void planningMigrationPreservesHistoricalAuditTypesAndEntityIntegrity() {
-        for (String type:java.util.List.of("PERIOD","JUSTIFICATION","CORRECTION","WORK_LOG_CORRECTION_RESPONSE","ATTENDANCE_SEGMENT","ACTIVITY_PLANNING")) {
+    @Test void planningMigrationPreservesSupportedAuditTypesAndEntityIntegrity() {
+        for (String type:java.util.List.of("PROJECT","PROPOSAL","ACTIVITY","EVIDENCE","CALENDAR_EVENT","ATTENDANCE","ATTENDANCE_SEGMENT","DOCUMENT","DOCUMENT_TEMPLATE","ACTIVITY_PLANNING")) {
             org.assertj.core.api.Assertions.assertThat(jdbc.update(
                     "insert into nite_connect.audit_events(id,actor_id,entity_type,entity_id,action,reason) values (?,?,?,?,?,?)",
                     UUID.randomUUID(),ADMIN,type,UUID.randomUUID(),"FIXTURE_HISTORY","Historical audit compatibility"))
