@@ -16,9 +16,14 @@ import java.util.UUID;
 public final class S3DocumentObjectStore implements DocumentObjectStore {
     private final S3Client client;
     private final String bucket;
+    private final boolean purgeVersions;
     public S3DocumentObjectStore(S3Client client, String bucket) {
+        this(client, bucket, true);
+    }
+    public S3DocumentObjectStore(S3Client client, String bucket, boolean purgeVersions) {
         this.client = client;
         this.bucket = bucket;
+        this.purgeVersions = purgeVersions;
     }
     private String key(UUID id) { return "documents/" + id + ".docx"; }
 
@@ -69,6 +74,10 @@ public final class S3DocumentObjectStore implements DocumentObjectStore {
     /** Deletes every stored revision of an exact immutable key; errors remain retryable by the durable worker. */
     @Override public void purge(UUID objectId, boolean asset) {
         String objectKey=asset?assetKey(objectId):key(objectId);
+        if (!purgeVersions) {
+            client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(objectKey).build());
+            return;
+        }
         String keyMarker=null,versionMarker=null;
         do {
             var request=ListObjectVersionsRequest.builder().bucket(bucket).prefix(objectKey)
