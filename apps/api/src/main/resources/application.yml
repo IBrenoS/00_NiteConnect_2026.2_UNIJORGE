@@ -83,3 +83,4 @@ nite:
       region: ${DOCUMENT_S3_REGION:us-east-1}
       access-key: ${DOCUMENT_S3_ACCESS_KEY:}
       secret-key: ${DOCUMENT_S3_SECRET_KEY:}
+      purge-versions: ${DOCUMENT_S3_PURGE_VERSIONS:true}

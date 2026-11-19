@@ -26,7 +26,8 @@ public class DocumentStorageConfiguration {
     }
     @Bean
     DocumentObjectStore documentObjectStore(S3Client documentS3Client,
-                                            @Value("${nite.documents.storage.bucket}") String bucket) {
-        return new S3DocumentObjectStore(documentS3Client, bucket);
+                                            @Value("${nite.documents.storage.bucket}") String bucket,
+                                            @Value("${nite.documents.storage.purge-versions:true}") boolean purgeVersions) {
+        return new S3DocumentObjectStore(documentS3Client, bucket, purgeVersions);
     }
 }
