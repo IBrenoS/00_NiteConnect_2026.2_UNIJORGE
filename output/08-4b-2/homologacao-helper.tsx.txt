@@ -1,0 +1,59 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
+import { getAllProjectCatalog, getProjectTeam } from "../../../lib/projects/data";
+import { getApiJson } from "../../../lib/api/server";
+import { parseWorkspaceOverview } from "../../../lib/projects/integration-contracts";
+import { mutateActivity } from "../../../lib/activities/mutations";
+const prefix = "HOMOLOGAÇÃO 08.4B-2";
+async function context() {
+  if (process.env.NODE_ENV !== "development") notFound();
+  const session = await requireAuthenticatedNiteSession();
+  if (!session.roles.some(role => role === "GESTOR_GERAL" || role === "COORDENADOR")) notFound();
+  return session;
+}
+async function seed() {
+  "use server";
+  const session = await context();
+  const catalog = await getAllProjectCatalog(session.bearer);
+  if (catalog.issue) throw new Error("Catálogo indisponível para homologação");
+  const reason = "Homologação local autorizada do Bloco 08.4B-2";
+  async function write(path: string, method: "POST" | "PATCH", input: unknown) {
+    const result = await mutateActivity(path, session.bearer, method, input, value => typeof value === "object" && value !== null && "id" in value && typeof value.id === "string" ? { id: value.id } : null);
+    if (result.issue || !result.data) throw new Error(`Homologação interrompida: ${result.issue ?? "invalid"}`);
+    return result.data;
+  }
+  const read = (id: string) => getApiJson(`/api/v1/projects/${id}/workspace`, session.bearer, parseWorkspaceOverview);
+  for (const suffix of ["Workspace", "Interesse", "Concluído"]) {
+    const title = `${prefix} — ${suffix}`;
+    let id = catalog.data.find(project => project.name === title)?.id;
+    if (!id) id = (await write("/api/v1/projects", "POST", { title, description: "Registro identificado de teste. Criado com autorização para validar a integração de projetos, permissões e persistência no ambiente local. Não representa um projeto oficial do NITE.", startsOn: null, endsOn: null, reason })).id;
+    const path = `/api/v1/projects/${id}`;
+    const current = await read(id);
+    if (current.issue) throw new Error("Workspace indisponível");
+    if (suffix === "Workspace") {
+      const team = await getProjectTeam(session.bearer, id);
+      if (team.issue) throw new Error("Equipe indisponível");
+      if (!team.data.some(member => member.memberId === session.member.id)) await write(`${path}/members`, "POST", { memberId: session.member.id, responsibility: "Homologação da integração de projetos e atividades", expectedVersion: current.data.version, reason });
+      const latest = await read(id);
+      if (latest.issue) throw new Error("Versão indisponível");
+      if (latest.data.leaderId !== session.member.id) {
+        const result = await mutateActivity(`${path}/leadership-transfers`, session.bearer, "POST", { memberId: session.member.id, expectedVersion: latest.data.version, reason });
+        if (result.issue) throw new Error(`Liderança: ${result.issue}`);
+      }
+    }
+    let state = await read(id);
+    if (state.issue) throw new Error("Situação indisponível");
+    if (state.data.status === "PLANEJAMENTO") {
+      await write(`${path}/status`, "PATCH", { status: "ATIVO", expectedVersion: state.data.version, reason });
+      state = await read(id);
+      if (state.issue) throw new Error("Situação indisponível");
+    }
+    if (suffix !== "Workspace" && state.data.status === "ATIVO") await write(`${path}/status`, "PATCH", { status: suffix === "Interesse" ? "PAUSADO" : "CONCLUIDO", expectedVersion: state.data.version, reason });
+  }
+  redirect("/projetos");
+}
+export default async function ProjectIntegrationCheck() {
+  await context();
+  return <main><h1>Preparar homologação local de projetos</h1><p>Cria três registros com o prefixo HOMOLOGAÇÃO 08.4B-2. Usa somente os endpoints existentes e a sessão atual. Não cria integrantes ou identidades, não altera credenciais e não apaga registros.</p><form action={seed}><button type="submit">Criar registros de homologação</button></form><Link href="/projetos">Voltar aos projetos</Link></main>;
+}

@@ -1,4 +1,5 @@
 import "server-only";
+import type { ApiResult } from "../api/contracts";
 import { getApiJson } from "../api/server";
 import { parseActivityListing,parseArray,parseLibraryFile,parseLibraryFolder,parseLibraryListing,parseSearchPage,parseSharedListing,parseSentListing,parseTrashListing,validUuid } from "./library-contracts";
 import type { LibraryArchivedItem,LibraryFolder,LibraryRecipient,LibraryTemplate } from "./library-contracts";
@@ -15,8 +16,8 @@ export const getAdminFolder=(bearer:string,id:string,options:ListingOptions={})=
   `/api/v1/library/folders/${encodeURIComponent(id)}?${listingQuery(options)}`,bearer,parseLibraryListing);
 export const getProjectFolderTree=(bearer:string,project:string)=>getApiJson(
   `/api/v1/projects/${encodeURIComponent(project)}/library/tree`,bearer,value=>parseArray(value,parseLibraryFolder));
-export const getProjectLibrary=(bearer:string,project:string,folderId?:string)=>getApiJson(
-  `/api/v1/projects/${encodeURIComponent(project)}/library${folderId?`?folderId=${encodeURIComponent(folderId)}`:""}`,bearer,parseLibraryListing);
+export const getProjectLibrary=(bearer:string,project:string,folderId?:string,options:ListingOptions={})=>getApiJson(
+  `/api/v1/projects/${encodeURIComponent(project)}/library?${query({folderId,...options,limit:String(options.limit??100)})}`,bearer,parseLibraryListing);
 export const getSharedListing=(bearer:string,options:ListingOptions={})=>getApiJson(
   `/api/v1/me/shared-with-me?${listingQuery({...options,limit:options.limit??50})}`,bearer,parseSharedListing);
 export const getSentListing=(bearer:string,options:ListingOptions={})=>getApiJson(
@@ -65,3 +66,25 @@ const archivedItem=(value:unknown):LibraryArchivedItem|null=>{
   return item as LibraryArchivedItem;
 };
 export const getArchivedItems=(bearer:string)=>getApiJson("/api/v1/library/archived",bearer,value=>parseArray(value,archivedItem));
+
+
+export const getProjectTrashListing=(bearer:string,project:string,options:{limit?:number;offset?:number;type?:string;sortBy?:string;direction?:string}={})=>getApiJson(
+ `/api/v1/projects/${encodeURIComponent(project)}/trash?${query({limit:String(options.limit??50),offset:String(options.offset??0),type:options.type,sortBy:options.sortBy,direction:options.direction})}`,bearer,parseTrashListing);
+
+export async function getProjectFolderAncestors(bearer:string,project:string,folder:LibraryFolder):Promise<ApiResult<LibraryFolder[]>> {
+ if((folder.projectId!==null&&folder.projectId!==project) || (folder.kind!=="PROJECT" && folder.kind!=="CUSTOM")) return {data:null,issue:"invalid"};
+ if(folder.kind==="PROJECT") return folder.projectId===project?{data:[],issue:null}:{data:null,issue:"invalid"};
+ const ancestors:LibraryFolder[]=[],seen=new Set([folder.id]);let parentId=folder.parentId;
+ for(let depth=0;parentId&&depth<64;depth++) {
+  if(seen.has(parentId))return {data:null,issue:"invalid"};seen.add(parentId);
+  const result=await getProjectLibrary(bearer,project,parentId,{limit:1});
+  if(result.issue)return result;
+  const parent=result.data.folder;
+  if(parent.id!==parentId||(parent.projectId!==null&&parent.projectId!==project)||(parent.kind!=="PROJECT"&&parent.kind!=="CUSTOM"))return {data:null,issue:"invalid"};
+  // CUSTOM folders inherit context through ancestry; project_id is stored only on the PROJECT root.
+  ancestors.push(parent.projectId===null?{...parent,projectId:project}:parent);
+  if(parent.kind==="PROJECT")return parent.projectId===project?{data:ancestors.reverse(),issue:null}:{data:null,issue:"invalid"};
+  parentId=parent.parentId;
+ }
+ return {data:null,issue:"invalid"};
+}

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,21 +47,39 @@ public class ProjectParticipationService {
             case "status" -> "p.status,p.title,p.id";
             default -> "p.title,p.id";
         };
-        var rows = jdbc.query("select p.id,p.title,p.description,p.status,p.accepting_members,p.starts_on,p.ends_on,p.version,"
+        var result = catalogProjection(actor, catalogRows(actor, where + " order by " + order + " limit ? offset ?",
+                append(filters, size, (long) page * size)));
+        return new PageResult<>(result, page, size, total);
+    }
+
+    @Transactional(readOnly=true)
+    public CatalogProject presentation(UUID actor, UUID project) {
+        access.requireActive(actor);
+        var rows = catalogRows(actor, " from nite_connect.projects p where p.id=?", project);
+        if (rows.isEmpty()) throw ApiException.notFound();
+        return catalogProjection(actor, rows).getFirst();
+    }
+
+    private List<CatalogRow> catalogRows(UUID actor, String from, Object... parameters) {
+        return jdbc.query("select p.id,p.title,p.description,p.status,p.accepting_members,p.starts_on,p.ends_on,"
+                        + "exists(select 1 from nite_connect.project_memberships own where own.project_id=p.id and own.member_id=? and own.ended_at is null) participant,"
                         + "(select count(*) from nite_connect.project_memberships m join nite_connect.members active_member on active_member.id=m.member_id and active_member.status='ATIVO' where m.project_id=p.id and m.ended_at is null) team_size,"
                         + "(select l.member_id from nite_connect.project_leadership_history l join nite_connect.project_memberships m on m.id=l.membership_id and m.ended_at is null join nite_connect.members active_leader on active_leader.id=l.member_id and active_leader.status='ATIVO' where l.project_id=p.id and l.ended_at is null) leader_id"
-                        + where + " order by " + order + " limit ? offset ?",
+                        + from,
                 (rs, n) -> new CatalogRow(rs.getObject("id", UUID.class), rs.getString("title"), rs.getString("description"),
                         ProjectStatus.valueOf(rs.getString("status")), rs.getBoolean("accepting_members"),
                         rs.getObject("starts_on", java.time.LocalDate.class), rs.getObject("ends_on", java.time.LocalDate.class),
-                        rs.getLong("version"), rs.getInt("team_size"), rs.getObject("leader_id", UUID.class)),
-                append(filters, size, (long) page * size));
-        var names = members.names(rows.stream().map(CatalogRow::leaderId).filter(java.util.Objects::nonNull).toList());
-        var result = rows.stream().map(row -> new CatalogProject(row.id(), row.title(), summary(row.description()), row.status(),
+                        rs.getInt("team_size"), rs.getObject("leader_id", UUID.class), rs.getBoolean("participant")),
+                append(new Object[]{actor}, parameters));
+    }
+
+    private List<CatalogProject> catalogProjection(UUID actor, List<CatalogRow> rows) {
+        var names = members.names(rows.stream().map(CatalogRow::leaderId).filter(java.util.Objects::nonNull).distinct().toList());
+        boolean admin = access.isAdministrator(actor);
+        return rows.stream().map(row -> new CatalogProject(row.id(), row.title(), summary(row.description()), row.status(),
                 null, row.leaderId() == null ? null : names.get(row.leaderId()), row.leaderId() == null,
-                row.teamSize(), row.acceptingMembers(), row.startsOn(), row.endsOn(), capabilities(actor, row.id(), row.status(), row.acceptingMembers())))
+                row.teamSize(), row.acceptingMembers(), row.startsOn(), row.endsOn(), capabilities(actor, admin, row)))
                 .toList();
-        return new PageResult<>(result, page, size, total);
     }
 
     @Transactional(readOnly=true)
@@ -95,7 +112,7 @@ public class ProjectParticipationService {
         UUID recipient = projects.leader(project);
         jdbc.update("insert into nite_connect.project_participation_notifications(id,source_key,recipient_id,project_id,request_id,event_type) values (?,?,?,?,?,'SOLICITACAO_RECEBIDA') on conflict(source_key) do nothing",
                 UUID.randomUUID(), id + ":REQUESTED:" + recipient, recipient, project, id);
-        return requireRequest(id);
+        return namedRequests(List.of(requireRequest(id))).getFirst();
     }
 
     @Transactional
@@ -128,7 +145,7 @@ public class ProjectParticipationService {
                 UUID.randomUUID(), requestId + ":" + event, request.memberId(), request.projectId(), requestId, event);
         audit.recordEntity(actor,"PROJECT",request.projectId(),event,request.state(),approve?"APROVADA":"REJEITADA",
                 normalize(decisionMessage)==null?"Decisão de solicitação de participação":normalize(decisionMessage));
-        return requireRequest(requestId);
+        return namedRequests(List.of(requireRequest(requestId))).getFirst();
     }
 
     @Transactional
@@ -139,7 +156,7 @@ public class ProjectParticipationService {
         int changed=jdbc.update("update nite_connect.project_membership_requests set state='ENCERRADA',decided_at=clock_timestamp(),decided_by=?,version=version+1 where id=? and version=? and state='PENDENTE'",actor,requestId,expectedVersion);
         if(changed!=1)throw ApiException.conflict("Solicitação alterada; consulte a versão atual");
         audit.recordEntity(actor,"PROJECT",projectId,"PROJECT_MEMBERSHIP_REQUEST_CLOSED","PENDENTE","ENCERRADA","Solicitação encerrada pela gestão");
-        return requireRequest(requestId);
+        return namedRequests(List.of(requireRequest(requestId))).getFirst();
     }
 
     @Transactional
@@ -175,14 +192,23 @@ public class ProjectParticipationService {
         access.requireActive(actor); requireDecision(actor, project); PageResult.validate(page,size);
         String from=" from nite_connect.project_membership_requests where project_id=?";
         long total=jdbc.queryForObject("select count(*)"+from,Long.class,project);
-        return new PageResult<>(jdbc.query("select *"+from+" order by requested_at desc,id limit ? offset ?",ProjectParticipationService::mapRequest,project,size,(long)page*size),page,size,total);
+        return new PageResult<>(namedRequests(jdbc.query("select *"+from+" order by requested_at desc,id limit ? offset ?",ProjectParticipationService::mapRequest,project,size,(long)page*size)),page,size,total);
     }
 
     @Transactional(readOnly=true)
     public PageResult<MembershipRequest> myRequests(UUID actor, int page, int size) {
         access.requireActive(actor); PageResult.validate(page,size); String from=" from nite_connect.project_membership_requests where member_id=?";
         long total=jdbc.queryForObject("select count(*)"+from,Long.class,actor);
-        return new PageResult<>(jdbc.query("select *"+from+" order by requested_at desc,id limit ? offset ?",ProjectParticipationService::mapRequest,actor,size,(long)page*size),page,size,total);
+        return new PageResult<>(namedRequests(jdbc.query("select *"+from+" order by requested_at desc,id limit ? offset ?",ProjectParticipationService::mapRequest,actor,size,(long)page*size)),page,size,total);
+    }
+
+    @Transactional(readOnly=true)
+    public PageResult<InterestSignal> myInterests(UUID actor, int page, int size) {
+        access.requireActive(actor); PageResult.validate(page,size);
+        String from=" from nite_connect.project_interest_signals where member_id=? and withdrawn_at is null";
+        long total=jdbc.queryForObject("select count(*)"+from,Long.class,actor);
+        return new PageResult<>(jdbc.query("select id,project_id,member_id,created_at,message"+from+" order by created_at desc,id limit ? offset ?",
+                (rs,n)->new InterestSignal(rs.getObject(1,UUID.class),rs.getObject(2,UUID.class),rs.getObject(3,UUID.class),rs.getTimestamp(4).toInstant(),rs.getString(5)),actor,size,(long)page*size),page,size,total);
     }
 
     @Transactional(readOnly=true)
@@ -205,27 +231,32 @@ public class ProjectParticipationService {
     @Transactional
     public void markRead(UUID actor,UUID id){access.requireActive(actor);int changed=jdbc.update("update nite_connect.project_participation_notifications set read_at=coalesce(read_at,clock_timestamp()) where id=? and recipient_id=?",id,actor);if(changed==0)throw ApiException.notFound();}
 
-    private Capabilities capabilities(UUID actor,UUID project,ProjectStatus status,boolean accepting){
-        boolean admin=access.isAdministrator(actor), leader=actor.equals(projects.leader(project)), participant=projects.participates(project,actor);
-        boolean request= !participant && accepting && status!=ProjectStatus.PAUSADO && status!=ProjectStatus.CONCLUIDO && projects.leader(project)!=null;
-        boolean interest=!participant && (status==ProjectStatus.PAUSADO || projects.leader(project)==null);
-        return new Capabilities(true,request,interest,admin||leader,admin||participant,admin||participant,admin||participant,admin||leader,admin||participant);
+    private Capabilities capabilities(UUID actor, boolean admin, CatalogRow row) {
+        boolean leader=actor.equals(row.leaderId()), participant=row.participant();
+        boolean request=!participant && row.acceptingMembers() && row.status()!=ProjectStatus.PAUSADO && row.status()!=ProjectStatus.CONCLUIDO && row.leaderId()!=null;
+        boolean interest=!participant && row.status()!=ProjectStatus.CONCLUIDO && (row.status()==ProjectStatus.PAUSADO || row.leaderId()==null);
+        return new Capabilities(true,request,interest,admin||leader,admin||participant,admin||participant,admin||participant,admin||leader,admin||leader);
     }
-    private WorkspaceCapabilities workspaceCapabilities(UUID actor,UUID project){boolean admin=access.isAdministrator(actor),leader=actor.equals(projects.leader(project)),participant=projects.participates(project,actor);return new WorkspaceCapabilities(true,admin||leader,admin||participant,admin||participant,admin||leader);}
+    private WorkspaceCapabilities workspaceCapabilities(UUID actor,UUID project){boolean admin=access.isAdministrator(actor),leader=actor.equals(projects.leader(project)),participant=projects.participates(project,actor);return new WorkspaceCapabilities(true,admin||leader,admin||participant,admin||participant,admin||leader,admin||leader,admin||leader,admin);}
+
+    private List<MembershipRequest> namedRequests(List<MembershipRequest> requests) {
+        var names=members.names(requests.stream().map(MembershipRequest::memberId).distinct().toList());
+        return requests.stream().map(r->new MembershipRequest(r.id(),r.projectId(),r.memberId(),names.get(r.memberId()),r.message(),r.state(),r.requestedAt(),r.decidedAt(),r.decidedBy(),r.decisionMessage(),r.version())).toList();
+    }
     private void requireDecision(UUID actor,UUID project){projects.require(project);if(!actor.equals(projects.leader(project))&&access.globalRoles(actor).stream().noneMatch(r->r==GlobalRole.COORDENADOR||r==GlobalRole.GESTOR_GERAL))throw ApiException.forbidden();}
     private MembershipRequest requireRequest(UUID id){return jdbc.query("select * from nite_connect.project_membership_requests where id=?",ProjectParticipationService::mapRequest,id).stream().findFirst().orElseThrow(ApiException::notFound);}
-    private static MembershipRequest mapRequest(java.sql.ResultSet rs,int row)throws java.sql.SQLException{return new MembershipRequest(rs.getObject("id",UUID.class),rs.getObject("project_id",UUID.class),rs.getObject("member_id",UUID.class),rs.getString("message"),rs.getString("state"),rs.getTimestamp("requested_at").toInstant(),rs.getTimestamp("decided_at")==null?null:rs.getTimestamp("decided_at").toInstant(),rs.getObject("decided_by",UUID.class),rs.getString("decision_message"),rs.getLong("version"));}
+    private static MembershipRequest mapRequest(java.sql.ResultSet rs,int row)throws java.sql.SQLException{return new MembershipRequest(rs.getObject("id",UUID.class),rs.getObject("project_id",UUID.class),rs.getObject("member_id",UUID.class),null,rs.getString("message"),rs.getString("state"),rs.getTimestamp("requested_at").toInstant(),rs.getTimestamp("decided_at")==null?null:rs.getTimestamp("decided_at").toInstant(),rs.getObject("decided_by",UUID.class),rs.getString("decision_message"),rs.getLong("version"));}
     private static Object[] append(Object[] a,Object... b){Object[] out=java.util.Arrays.copyOf(a,a.length+b.length);System.arraycopy(b,0,out,a.length,b.length);return out;}
     private static String escape(String s){return s.replace("!","!!").replace("%","!%").replace("_","!_");}
     private static String normalize(String s){return s==null||s.isBlank()?null:s.strip();}
     private static String summary(String s){return s.length()<=280?s:s.substring(0,277)+"...";}
 
-    private record CatalogRow(UUID id,String title,String description,ProjectStatus status,boolean acceptingMembers,java.time.LocalDate startsOn,java.time.LocalDate endsOn,long version,int teamSize,UUID leaderId){}
+    private record CatalogRow(UUID id,String title,String description,ProjectStatus status,boolean acceptingMembers,java.time.LocalDate startsOn,java.time.LocalDate endsOn,int teamSize,UUID leaderId,boolean participant){}
     public record CatalogProject(UUID id,String name,String summary,ProjectStatus status,String image,String leaderName,boolean leadershipVacant,int memberCount,boolean acceptingMembers,java.time.LocalDate startsOn,java.time.LocalDate endsOn,Capabilities capabilities){}
     public record Capabilities(boolean canViewPresentation,boolean canRequestMembership,boolean canExpressInterest,boolean canDecideRequests,boolean canAccessWorkspace,boolean canViewActivities,boolean canViewDocuments,boolean canManageMembers,boolean canManageAvailability){}
-    public record WorkspaceCapabilities(boolean canAccessWorkspace,boolean canManageMembers,boolean canViewActivities,boolean canViewDocuments,boolean canManageAvailability){}
+    public record WorkspaceCapabilities(boolean canAccessWorkspace,boolean canManageMembers,boolean canViewActivities,boolean canViewDocuments,boolean canManageAvailability,boolean canDecideRequests,boolean canCreatePlanning,boolean canTransferLeadership){}
     public record WorkspaceOverview(UUID projectId,String name,String description,ProjectStatus status,java.time.LocalDate startsOn,java.time.LocalDate endsOn,UUID leaderId,String leaderName,boolean leadershipVacant,int memberCount,long activityCount,long version,boolean acceptingMembers,WorkspaceCapabilities capabilities){}
-    public record MembershipRequest(UUID id,UUID projectId,UUID memberId,String message,String state,Instant requestedAt,Instant decidedAt,UUID decidedBy,String decisionMessage,long version){}
+    public record MembershipRequest(UUID id,UUID projectId,UUID memberId,String memberName,String message,String state,Instant requestedAt,Instant decidedAt,UUID decidedBy,String decisionMessage,long version){}
     public record InterestSignal(UUID id,UUID projectId,UUID memberId,Instant createdAt,String message){}
     public record ParticipationNotification(UUID id,UUID projectId,UUID requestId,String type,Instant createdAt,Instant readAt){}
 }

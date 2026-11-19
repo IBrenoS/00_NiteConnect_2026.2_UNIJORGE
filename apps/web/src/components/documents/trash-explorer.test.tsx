@@ -5,6 +5,7 @@ import type { TrashListing } from "../../lib/documents/library-contracts";
 
 vi.mock("next/navigation",()=>({useRouter:()=>({refresh:vi.fn()})}));
 vi.mock("../../lib/documents/library-actions",()=>({restoreTrashItem:vi.fn()}));
+vi.mock("../../lib/projects/document-request-actions",()=>({requestProjectDocumentAction:vi.fn()}));
 
 describe("Lixeira documental",()=>{
   it("aplica expiração aos retornos de restauração sem ocultar a indisponibilidade da página",()=>{
@@ -33,5 +34,14 @@ describe("Lixeira documental",()=>{
     expect(html).toContain("Retido.docx");
     expect(html).toContain("Meus Arquivos");
     expect(html).toMatch(/disabled=""[^>]*title="HOLD"|title="HOLD"[^>]*disabled=""/);
+    const projectListing:TrashListing={...listing,items:listing.items.map(entry=>({...entry,item:{...entry.item,resourceOwnerKind:"PROJECT",origin:"PROJECT"}}))};
+    const contextual=renderToStaticMarkup(<TrashExplorer listing={projectListing} issue={null} params={{sortBy:"name",direction:"asc"}} projectContext={{id:"11111111-1111-4111-8111-111111111111",name:"Projeto real",basePath:"/meus-projetos/projeto/documentos/lixeira",libraryPath:"/meus-projetos/projeto/documentos",requestsPath:"/meus-projetos/projeto/documentos/aprovacoes",canRequestActions:true}}/>);
+    expect(contextual).not.toContain("Esvaziar lixeira");
+    expect(contextual).not.toContain("Meus Arquivos");
+    expect(contextual).toContain("Institucional · Projeto");
+    expect(contextual).toContain("Solicitar descarte");
+    expect(contextual).toContain("/meus-projetos/projeto/documentos/lixeira?sortBy=name&amp;direction=desc");
+    const restricted=renderToStaticMarkup(<TrashExplorer listing={projectListing} issue={null} params={{}} projectContext={{id:"11111111-1111-4111-8111-111111111111",name:"Projeto real",basePath:"/projetos/projeto/documentos/lixeira",libraryPath:"/projetos/projeto/documentos",requestsPath:"/projetos/projeto/documentos/aprovacoes",canRequestActions:false}}/>);
+    expect(restricted).not.toContain("Solicitar descarte");
   });
 });

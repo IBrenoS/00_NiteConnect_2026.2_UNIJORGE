@@ -8,22 +8,29 @@ export type BatchAction="COPY"|"MOVE"|"TRASH"|"RESTORE"|"FAVORITE"|"UNFAVORITE";
 type Preview={action:string;items:number;bytes:number;blockers:string[]};
 const isPreview=(value:unknown):value is Preview=>typeof value==="object"&&value!==null&&"action" in value&&typeof value.action==="string"&&"items" in value&&typeof value.items==="number"&&"bytes" in value&&typeof value.bytes==="number"&&"blockers" in value&&Array.isArray(value.blockers)&&value.blockers.every((item:unknown)=>typeof item==="string");
 const endpoint=(path:string)=>`/api/library/manage?path=${encodeURIComponent(path)}`;
-export function DocumentBatchDialog({items,actions,onClose,onDone}:{items:BatchResource[];actions:BatchAction[];onClose:()=>void;onDone:(message:string)=>void}) {
+export function batchListingUrl(projectId?:string,folderId?:string) {
+  const query=new URLSearchParams({view:"personal"});
+  if(projectId)query.set("projectId",projectId);
+  if(folderId)query.set("folder",folderId);
+  return `/api/library/listing?${query.toString()}`;
+}
+export function DocumentBatchDialog({items,actions,onClose,onDone,projectContext}:{items:BatchResource[];actions:BatchAction[];onClose:()=>void;onDone:(message:string)=>void;projectContext?:{id:string}}) {
   const [action,setAction]=useState<BatchAction>(actions[0]??"FAVORITE"),[folders,setFolders]=useState<LibraryFolder[]>([]);
   const [destination,setDestination]=useState(""),[preview,setPreview]=useState<Preview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
   const needsDestinations=actions.some((item)=>item==="COPY"||item==="MOVE");
   useEffect(()=>{if(!needsDestinations)return;let active=true;
-    async function load() {try {const rootResponse=await fetch("/api/library/listing?view=personal");
+    async function load() {try {const rootResponse=await fetch(batchListingUrl(projectContext?.id));
       if(!rootResponse.ok)throw new Error();const root=parseLibraryListing(await rootResponse.json());if(!root)throw new Error();
       const found=new Map<string,LibraryFolder>([[root.folder.id,root.folder]]),queue=root.folders.map((folder)=>folder.id);
       while(queue.length&&found.size<2000) {const id=queue.shift();if(!id||found.has(id))continue;
-        const response=await fetch(`/api/library/listing?view=personal&folder=${id}`);if(!response.ok)continue;
+        const response=await fetch(batchListingUrl(projectContext?.id,id));if(!response.ok)continue;
         const page=parseLibraryListing(await response.json());if(!page)continue;found.set(id,page.folder);
         for(const folder of page.folders)if(!found.has(folder.id))queue.push(folder.id);
       }
+      // The projectId query scopes every response. CUSTOM descendants may have projectId=null in storage.
       if(active)setFolders([...found.values()].filter((folder)=>folder.capabilities?.canAddChild));
     }catch {if(active)setError("Não foi possível consultar destinos.");}}
-    void load();return()=>{active=false;};},[needsDestinations]);
+    void load();return()=>{active=false;};},[needsDestinations,projectContext]);
   const request={action,items,destinationId:action==="COPY"||action==="MOVE"?destination:null};
   async function runPreview() {setBusy(true);setError(null);setPreview(null);
     try {const response=await fetch(endpoint("/api/v1/library/operations/preview"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(request)});

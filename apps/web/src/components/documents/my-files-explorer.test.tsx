@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../lib/projects/document-request-actions",()=>({requestProjectDocumentAction:vi.fn()}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
@@ -12,9 +14,59 @@ vi.mock("../../lib/documents/library-actions", () => ({
 }));
 
 import { CreateMenuActions, DetailsPanel, MyFilesExplorer, SelectionToolbar, toggleDetailsPanel } from "./my-files-explorer";
-import type { LibraryFolder } from "../../lib/documents/library-contracts";
+import type { DocumentCapabilities, LibraryFolder } from "../../lib/documents/library-contracts";
 
 describe("explorador Meus arquivos", () => {
+  const projectId="31467e62-310f-45b0-b0c4-54c17a3c06d1";
+  const projectContext={id:projectId,name:"Projeto Aurora",basePath:`/meus-projetos/${projectId}/documentos`,trashPath:`/meus-projetos/${projectId}/documentos/lixeira`,requestsPath:`/meus-projetos/${projectId}/documentos/aprovacoes`,canViewTrash:true,canRequestDeletion:true};
+  const capabilities:DocumentCapabilities={policyVersion:1,canView:true,canDownload:true,canEdit:true,canAddChild:true,canRename:true,canMove:true,canCopy:true,canShare:false,canDeleteToTrash:false,canRestore:false,canPermanentlyDelete:false,canArchiveInstitutionally:false,canManageProtection:false,deniedReasons:{}};
+  const projectFolder:LibraryFolder={id:"21467e62-310f-45b0-b0c4-54c17a3c06d1",parentId:null,name:"Planejamento",color:"#f6c445",kind:"CUSTOM",systemKey:null,ownerId:null,ownerName:null,projectId,createdByName:null,createdAt:null,modifiedByName:null,modifiedAt:"2026-11-18T12:00:00Z",capabilities};
+
+  it("mantém a experiência e a navegação documental dentro do projeto",()=>{
+    const html=renderToStaticMarkup(<MyFilesExplorer projectContext={projectContext} listing={{folder:projectFolder,folders:[{...projectFolder,id:"41467e62-310f-45b0-b0c4-54c17a3c06d1",name:"Entregas"}],files:[],totalFiles:0,hasMore:false,nextCursor:null}} ancestors={[{...projectFolder,id:"51467e62-310f-45b0-b0c4-54c17a3c06d1",name:"Etapa"},{...projectFolder,id:"61467e62-310f-45b0-b0c4-54c17a3c06d1",projectId:null,name:"Pasta pessoal externa"}]} issue={null} view="personal" templates={[{id:"template",title:"Modelo pessoal externo",autoAssign:false,retired:false,currentVersionId:null,revision:1}]} params={{folder:projectFolder.id,search:"planejamento"}}/>);
+    expect(html).toContain('aria-label="Documentos de Projeto Aurora"');
+    expect(html).toContain("Nova pasta");
+    expect(html).toContain("Carregamento de arquivos");
+    expect(html).toContain("Carregamento de pasta");
+    expect(html).toContain(projectContext.trashPath);
+    expect(html).toContain(projectContext.requestsPath);
+    expect(html).toContain(`${projectContext.basePath}?folder=51467e62-310f-45b0-b0c4-54c17a3c06d1&amp;search=planejamento`);
+    expect(html).toContain(`${projectContext.basePath}?folder=${projectFolder.id}&amp;search=planejamento&amp;sort=name&amp;direction=asc`);
+    expect(html).toContain("Solicitar exclusão");
+    for(const personal of ["Meus arquivos","Com você","Por você","Pesquisa avançada","Modelo pessoal externo","Pasta pessoal externa","Adicionar aos favoritos","Solicitar arquivos","Automações","Excel","PowerPoint"])expect(html).not.toContain(personal);
+    const hrefs=[...html.matchAll(/href="([^"]+)"/g)].map((match)=>match[1]);
+    expect(hrefs.every((href)=>href?.startsWith(projectContext.basePath))).toBe(true);
+  });
+
+  it("reconhece a raiz PROJECT mesmo quando o retorno da ação inclui folder",()=>{
+    const root={...projectFolder,kind:"PROJECT" as const,name:projectContext.name};
+    const html=renderToStaticMarkup(<MyFilesExplorer projectContext={projectContext} listing={{folder:root,folders:[],files:[],totalFiles:0,hasMore:false,nextCursor:null}} issue={null} view="personal" templates={[]} params={{folder:root.id}}/>);
+    expect(html).not.toContain('aria-label="Caminho da pasta"');
+    expect(html).toContain("Documentos · Projeto Aurora");
+  });
+
+  it("não oferece lixeira nem aprovação sem autorização de gestão",()=>{
+    const html=renderToStaticMarkup(<MyFilesExplorer projectContext={{...projectContext,canViewTrash:false,canRequestDeletion:false}} listing={{folder:{...projectFolder,capabilities:{...capabilities,canAddChild:false}},folders:[projectFolder],files:[],totalFiles:0,hasMore:false,nextCursor:null}} issue={null} view="personal" templates={[]} params={{}}/>);
+    expect(html).not.toContain("Lixeira do projeto");
+    expect(html).not.toContain("Aprovações");
+    expect(html).not.toContain("Solicitar exclusão");
+    expect(html).toContain("Exclusão não autorizada para este item.");
+    expect(html).toContain('disabled=""');
+    expect(html).not.toContain("Nova pasta");
+  });
+
+  it("usa capacidades institucionais na seleção sem depender de canArchivePersonal",()=>{
+    const render=(canRequestDeletion:boolean,canDeleteToTrash:boolean)=>renderToStaticMarkup(<SelectionToolbar projectContext={{...projectContext,canRequestDeletion}} items={[{id:projectFolder.id,name:projectFolder.name,kind:"folder",folder:{...projectFolder,capabilities:{...capabilities,canDeleteToTrash}}}]} view="personal" details={false} canArchivePersonal={false} onShare={vi.fn()} onCopyLink={vi.fn()} onDownload={vi.fn()} onArchive={vi.fn()} onRename={vi.fn()} onMove={vi.fn()} onClear={vi.fn()} onDetails={vi.fn()} onCopy={vi.fn()} onDuplicate={vi.fn()}/>);
+    expect(render(true,false)).toContain("Solicitar exclusão");
+    const direct=render(false,true);
+    expect(direct).toContain("Excluir");
+    expect(direct).not.toContain("Exclusão não autorizada");
+    expect(direct).not.toContain("Este item não pode ser movido");
+    expect(direct).not.toContain("Este item não pode ser renomeado");
+    expect(direct).not.toContain("Adicionar aos favoritos");
+    expect(direct).not.toContain("Solicitar arquivos");
+  });
+
   it("compartilha as opções e os ícones dos dois menus de criação e carregamento",()=>{
     for(const variant of ["title","primary"] as const) {
       const html=renderToStaticMarkup(<CreateMenuActions variant={variant} onClose={()=>undefined} onCreateFolder={()=>undefined} onUploadFiles={()=>undefined} onUploadFolder={()=>undefined}/>);

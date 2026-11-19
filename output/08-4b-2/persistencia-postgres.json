@@ -1,0 +1,46 @@
+{
+  "projects": [
+    {
+      "id": "201f8a08-4c0e-42d0-9321-b6ec8f250079",
+      "status": "PAUSADO",
+      "version": 2,
+      "acceptingMembers": false
+    },
+    {
+      "id": "71ea7418-9a1a-475d-bf63-196c796f5f7c",
+      "status": "CONCLUIDO",
+      "version": 2,
+      "acceptingMembers": false
+    },
+    {
+      "id": "f37a8643-5aaa-4a2a-884d-fbede9bdec57",
+      "status": "ATIVO",
+      "version": 4,
+      "acceptingMembers": true
+    }
+  ],
+  "currentMemberships": 1,
+  "plannings": [
+    {
+      "id": "3e95c082-58a4-4d8c-b803-2250c38b42d3",
+      "projectId": "f37a8643-5aaa-4a2a-884d-fbede9bdec57",
+      "version": 1
+    }
+  ],
+  "tasks": [
+    {
+      "id": "ee3e7ca3-d204-4f14-aeb1-21cf7cafd9ec",
+      "projectId": "f37a8643-5aaa-4a2a-884d-fbede9bdec57",
+      "planningId": "3e95c082-58a4-4d8c-b803-2250c38b42d3",
+      "status": "EM_EXECUCAO",
+      "version": 2
+    }
+  ],
+  "interests": 1,
+  "activeInstitutionalMembers": 1,
+  "v43": {
+    "checksum": 630061813,
+    "success": true
+  },
+  "preservedAttendanceSegmentAudit": 4
+}

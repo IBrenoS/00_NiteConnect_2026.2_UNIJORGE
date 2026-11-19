@@ -1,6 +1,7 @@
-import type { CatalogProject, ProjectStatus } from "./visual-data";
+import type { ProjectDisplay } from "./presentation";
+import type { ProjectStatus } from "./integration-contracts";
 
-/** V42 ProjectParticipationService.CatalogProject; transport is intentionally absent. */
+/** V42 ProjectParticipationService.CatalogProject; public response projection. */
 export type CatalogProjectContract = {
   id: string; name: string; summary: string; status: ProjectStatus; image: string | null;
   leaderName: string | null; leadershipVacant: boolean; memberCount: number;
@@ -10,7 +11,7 @@ export type CatalogProjectContract = {
     canViewDocuments: boolean; canManageMembers: boolean; canManageAvailability: boolean };
 };
 /** Explicit public projection. V42 currently has no project image. */
-export function projectFromCatalog(value: CatalogProjectContract): CatalogProject {
+export function projectFromCatalog(value: CatalogProjectContract): ProjectDisplay {
   return { id: value.id, title: value.name, publicSummary: value.summary, status: value.status,
     imageUrl: null, leaderName: value.leaderName, leadershipVacant: value.leadershipVacant,
     teamSize: value.memberCount, acceptingMembers: value.acceptingMembers,

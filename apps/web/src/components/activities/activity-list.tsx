@@ -23,7 +23,7 @@ const statusTextStyles: Record<ActivityStatus, string> = {
 };
 
 export function ActivityStatusBadge({ status }: { status: ActivityStatus }) {
-  return <span className={`inline-flex min-h-6 shrink-0 items-center whitespace-nowrap rounded-pill border px-2.5 py-1 text-type-metadata font-medium ${statusStyles[status]}`}>{activityStatusLabel[status]}</span>;
+  return <span className={`inline-flex min-h-7 shrink-0 items-center whitespace-nowrap rounded-control border px-2.5 py-1 text-type-body-compact font-medium ${statusStyles[status]}`}>{activityStatusLabel[status]}</span>;
 }
 
 function ActivityStatusText({ status }: { status: ActivityStatus }) {

@@ -19,3 +19,9 @@ describe("CollaboraFrame imersivo", () => {
     expect(html).not.toContain("rounded-control border");
   });
 });
+
+it("oferece retorno contextual no projeto preservando o iframe canônico",()=>{
+ const path="/meus-projetos/11111111-1111-4111-8111-111111111111/documentos";
+ const html=renderToStaticMarkup(<CollaboraFrame actionUrl="https://collabora.example/browser/action" token="wopi-test" ttl={1234} title="Plano.docx" returnTo={path}/>);
+ expect(html).toContain(`href="${path}"`);expect(html).toContain("Voltar aos documentos do projeto");expect(html).toContain('name="nite-collabora-editor"');
+});

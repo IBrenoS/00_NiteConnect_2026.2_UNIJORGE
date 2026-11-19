@@ -1,0 +1,13 @@
+import {beforeEach,expect,it,vi} from "vitest";
+const mocks=vi.hoisted(()=>({session:vi.fn(),workspace:vi.fn(),trash:vi.fn()}));
+vi.mock("../../../../../../lib/auth/server-session",()=>({requireAuthenticatedNiteSession:mocks.session}));
+vi.mock("../../../../../../lib/projects/data",()=>({getProjectWorkspace:mocks.workspace}));
+vi.mock("../../../../../../lib/documents/library",()=>({getProjectTrashListing:mocks.trash}));
+vi.mock("../../../../../../components/documents/trash-explorer",()=>({TrashExplorer:()=>null}));
+vi.mock("../../../../../../components/projects/project-ui",()=>({ProjectIssue:()=>null}));
+vi.mock("next/navigation",()=>({notFound:()=>{throw new Error("NOT_FOUND");}}));
+import Page from "./page";
+const id="11111111-1111-4111-8111-111111111111",params=Promise.resolve({id});
+beforeEach(()=>{vi.resetAllMocks();mocks.session.mockResolvedValue({bearer:"server-only"});mocks.workspace.mockResolvedValue({data:{name:"Projeto",capabilities:{canViewDocuments:true,canManageMembers:true}},issue:null});mocks.trash.mockResolvedValue({data:{items:[]},issue:null});});
+it("participante não consulta Lixeira institucional sem capacidade de gestão",async()=>{mocks.workspace.mockResolvedValue({data:{capabilities:{canViewDocuments:true,canManageMembers:false}},issue:null});await Page({params,searchParams:Promise.resolve({})});expect(mocks.trash).not.toHaveBeenCalled();});
+it("lê só o projeto e preserva ordenação/página sem serializar bearer",async()=>{const result=await Page({params,searchParams:Promise.resolve({offset:"50",sortBy:"name",direction:"asc"})});expect(mocks.trash).toHaveBeenCalledWith("server-only",id,expect.objectContaining({offset:50,sortBy:"name"}));expect(JSON.stringify(result.props.children.props)).not.toContain("server-only");expect(result.props.children.props.projectContext.basePath).toBe(`/meus-projetos/${id}/documentos/lixeira`);});

@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { AlertDialog } from "../ui/alert-dialog";
 import { deletePlanningAction } from "../../lib/activities/planning-actions";
 
-export function PlanningDeleteMenu({ id, version, title, canDelete, leaveWorkspace = false }: {
-  id: string; version: number; title: string; canDelete: boolean; leaveWorkspace?: boolean;
+export function PlanningDeleteMenu({ id, version, title, canDelete, leaveWorkspace = false, returnHref = "/atividades" }: {
+  id: string; version: number; title: string; canDelete: boolean; leaveWorkspace?: boolean; returnHref?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -26,7 +26,7 @@ export function PlanningDeleteMenu({ id, version, title, canDelete, leaveWorkspa
         return;
       }
       setOpen(false);
-      if (leaveWorkspace) router.push("/atividades");
+      if (leaveWorkspace) router.push(returnHref);
       router.refresh();
     } catch {
       setError("Não foi possível excluir a atividade. Tente novamente.");

@@ -5,14 +5,9 @@ import { revalidatePath } from "next/cache";
 import { requireAuthenticatedNiteSession } from "../auth/server-session";
 import { resolveApiUrl } from "../api/server";
 import { validUuid } from "./library";
+import { documentReturnTo } from "./navigation";
 
-function target(form:FormData) {
-  const requested=form.get("returnTo");
-  if(typeof requested!=="string")return "/documentos";
-  // No untrusted external redirection or unexpected application routes.
-  if(!/^\/(?:documentos(?:\/lixeira)?|biblioteca|projetos\/[a-f0-9-]+\/arquivos)(?:\?[a-zA-Z0-9=_&%-]+)?$/.test(requested))return "/documentos";
-  return requested;
-}
+function target(form:FormData) { return documentReturnTo(form.get("returnTo")); }
 function field(form:FormData,key:string):string {
   const value=form.get(key);return typeof value==="string"?value.trim():"";
 }
@@ -34,6 +29,8 @@ async function request(path:string,method:string,body:BodyInit|null,contentType?
 function finish(form:FormData,outcome:string):never {
   revalidatePath("/documentos");revalidatePath("/documentos/lixeira");revalidatePath("/biblioteca");
   const url=target(form);
+  const project=url.match(/^\/meus-projetos\/([a-f0-9-]{36})\/documentos(?:[/?]|$)/i)?.[1];
+  if(project){revalidatePath(`/meus-projetos/${project}/documentos`,"layout");revalidatePath(`/projetos/${project}/arquivos`);revalidatePath(`/meus-projetos/${project}`); }
   redirect(`${url}${url.includes("?")?"&":"?"}${outcome==="ok"?`saved=${Date.now()}`:`error=${outcome}`}`);
 }
 export async function uploadLibraryFile(form:FormData):Promise<void> {

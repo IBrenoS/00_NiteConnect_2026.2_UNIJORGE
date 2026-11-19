@@ -32,6 +32,22 @@ const statistics = {
 };
 
 describe("workspace de planejamento integrado", () => {
+  it("mantém o contexto do projeto ao trocar visualização", () => {
+    const markup = renderToStaticMarkup(<ActivityPlanningWorkspace
+      planning={planning} tasks={[row]} statistics={statistics} nextDue={null} projectTitle="Projeto real" view="status"
+      query="busca" statusFilter="Todas" sort="Título" currentMember={{ id: "member-1", name: "Integrante" }}
+      canCreateTasks={false} canDeletePlanning={false}
+      projectContext={{ id: "projeto", title: "Projeto real", basePath: "/meus-projetos/projeto/atividades" }}
+    />);
+    expect(markup).toContain('href="/meus-projetos/projeto/atividades"');
+    expect(markup).toContain(`planejamento=${planning.id}`);
+    expect(markup).toContain('view=priority');
+    expect(markup).toContain('q=busca');
+    expect(markup).toContain("Somente este projeto");
+    expect(markup).not.toContain('href="/atividades"');
+    expect(markup).not.toContain("Nova tarefa");
+  });
+
   it("oferece exclusão contextual somente com canDelete", () => {
     expect(renderToStaticMarkup(<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete/>)).toContain("Excluir atividade");
     expect(renderToStaticMarkup(<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete={false}/>)).toBe("");

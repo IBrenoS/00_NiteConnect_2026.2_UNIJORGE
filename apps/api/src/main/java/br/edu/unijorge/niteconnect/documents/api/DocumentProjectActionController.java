@@ -27,8 +27,9 @@ public class DocumentProjectActionController {
         return requests.visible(identities.member(jwt),id);
     }
     @GetMapping public List<DocumentProjectActionService.Request> pending(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue="50") int limit) {
-        return requests.pending(identities.member(jwt),limit);
+            @RequestParam(defaultValue="50") int limit,@RequestParam(defaultValue="0") int offset,
+            @RequestParam(required=false) UUID projectId) {
+        return requests.pending(identities.member(jwt),projectId,limit,offset);
     }
     @PostMapping("/{id}/decision") public DocumentProjectActionService.Request decide(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID id,@RequestBody Decision body) {
