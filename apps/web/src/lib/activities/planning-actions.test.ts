@@ -57,6 +57,14 @@ describe("activity planning actions", () => {
     const result = await movePlanningTaskAction(planningId, activityId, 4, "priority", "MEDIA");
     expect(result).toEqual({ data: null, issue: "conflict" });
   });
+
+  it("identifies a pause blocked status move without changing the activity", async () => {
+    mocks.getActivity.mockResolvedValue({ data: { ...activity, status: "PLANEJADA" }, issue: null });
+    mocks.getActivityCapabilities.mockResolvedValue({ data: { edit: true, changePriority: true, canDelete: false, transitions: [], history: false, manageAssignees: false, addEvidence: false, upload: false, executionBlockedByProjectPause: true, canResumeProject: false }, issue: null });
+    const result = await movePlanningTaskAction(planningId, activityId, 4, "status", "EM_EXECUCAO");
+    expect(result).toEqual({ data: null, issue: "project-paused" });
+    expect(mocks.mutateActivity).not.toHaveBeenCalled();
+  });
 });
 
 it("updates all editor properties atomically", async () => {

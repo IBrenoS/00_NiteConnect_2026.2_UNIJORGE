@@ -79,6 +79,12 @@ Estas projeções são instantâneos consultados após autorização de leitura;
 substituem validação, motivo, confirmação ou `expectedVersion` das mutações.
 Disponibilidade de armazenamento não garante sucesso de uma gravação futura.
 
+As capacidades também retornam `executionBlockedByProjectPause` e
+`canResumeProject`. O primeiro identifica o bloqueio contextual da pausa; o
+segundo só é verdadeiro para a administração autorizada a reativar o projeto.
+Uma mutação de execução bloqueada pela pausa responde `409` com `code` igual a
+`PROJECT_PAUSED`; conflitos de versão continuam sem esse código.
+
 Evento operacional: `id,activityId,actorId,action,reason,occurredAt,
 activityVersion,before,after`, sem conteúdo integral de evidência/anexo.
 Auditoria administrativa completa continua exclusivamente em `/api/v1/audit-events`.

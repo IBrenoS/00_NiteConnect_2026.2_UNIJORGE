@@ -21,7 +21,7 @@ function refresh(id: string) {
 }
 async function send<T = null>(bearer: string, path: string, method: "POST" | "PATCH" | "DELETE", body: unknown, id?: string, parse?: (value: unknown) => T | null): Promise<ProjectActionResult<T>> {
  const result = await mutateActivity(path, bearer, method, body, parse);
- if (result.issue) return fail(result.issue === "too-large" || result.issue === "unsupported" ? "invalid" : result.issue);
+ if (result.issue) return fail(result.issue === "too-large" || result.issue === "unsupported" ? "invalid" : result.issue === "project-paused" ? "conflict" : result.issue);
  if (parse && !result.data) return fail("invalid");
  if (id) refresh(id); else if (result.data && typeof result.data === "object" && "id" in result.data && typeof result.data.id === "string") refresh(result.data.id);
  return { data: result.data, issue: null, issueText: null };

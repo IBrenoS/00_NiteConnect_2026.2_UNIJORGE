@@ -27,6 +27,18 @@ const props = {
 } as const;
 
 describe("vistas pessoais de atividades", () => {
+  it("explica o bloqueio de projeto pausado e só oferece retomada a quem pode fazê-la", () => {
+    const activity = previewActivities.find((item) => item.projectId !== null);
+    if (!activity) throw new Error("Atividade de projeto indisponível");
+    const pausedCapabilities = { ...capabilities, transitions: [], executionBlockedByProjectPause: true, canResumeProject: false };
+    const withoutResume = renderToStaticMarkup(<ActivityWorkspace {...props} activities={[activity]} capabilities={{ [activity.id]: pausedCapabilities }} view="status"/>);
+    expect(withoutResume).toContain("Atividades de projetos pausados não podem mudar de situação");
+    expect(withoutResume).toContain("peça a um administrador para retomar o projeto");
+    expect(withoutResume).not.toContain("retome o projeto em Administração");
+    const withResume = renderToStaticMarkup(<ActivityWorkspace {...props} activities={[activity]} capabilities={{ [activity.id]: { ...pausedCapabilities, canResumeProject: true } }} view="priority"/>);
+    expect(withResume).toContain("retome o projeto em Administração");
+  });
+
   it("agrupa os cards nas quatro situações e mantém propriedades editáveis acessíveis", () => {
     const html = renderToStaticMarkup(<ActivityWorkspace {...props} view="status" />);
 

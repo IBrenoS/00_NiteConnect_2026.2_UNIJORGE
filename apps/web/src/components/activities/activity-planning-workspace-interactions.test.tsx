@@ -112,6 +112,13 @@ describe("interações persistidas do planejamento", () => {
     expect(movePlanningTaskAction).toHaveBeenLastCalledWith(planning.id, "task", 8, "priority", "ALTA", false);
   });
 
+  it("restaura o card e libera novos movimentos quando a ação técnica falha", async () => {
+    vi.mocked(movePlanningTaskAction).mockRejectedValueOnce(new Error("falha simulada"));
+    await board().onMove("task", "status", "Em andamento");
+    expect(board().tasks[0].status).toBe("Planejada");
+    expect(find(render(), (node) => isValidElement(node) && node.type === TransientFeedback)).not.toBeNull();
+  });
+
   it("carrega candidatos reais e envia responsável, colaboradores e situação do editor", async () => {
     vi.mocked(getPlanningCreationCandidatesAction).mockResolvedValue({ data: [{ id: "owner", name: "Nome" }], issue: null });
     vi.mocked(createPlanningTaskAction).mockResolvedValue({ data: { id: "new" }, issue: null });

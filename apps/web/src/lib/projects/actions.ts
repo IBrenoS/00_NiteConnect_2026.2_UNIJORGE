@@ -28,7 +28,7 @@ function refresh(id: string) {
 }
 async function mutate<T>(id: string, bearer: string, suffix: string, method: "POST" | "PATCH", body: unknown, parse?: (v: unknown) => T | null): Promise<ProjectActionResult<T>> {
   const result = await mutateActivity(`/api/v1/projects/${encodeURIComponent(id)}/${suffix}`, bearer, method, body, parse);
-  if (result.issue) return failure(result.issue === "unsupported" || result.issue === "too-large" ? "invalid" : result.issue);
+  if (result.issue) return failure(result.issue === "unsupported" || result.issue === "too-large" ? "invalid" : result.issue === "project-paused" ? "conflict" : result.issue);
   if (parse && result.data === null) return failure("invalid");
   refresh(id);
   return { data: result.data, issue: null, issueText: null };

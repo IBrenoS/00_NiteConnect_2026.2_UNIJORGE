@@ -3,7 +3,7 @@ import "server-only";
 import { resolveApiUrl } from "../api/server";
 import { apiIssueFromStatus, type ApiIssue } from "../api/contracts";
 
-export type ActivityMutationIssue = ApiIssue | "conflict" | "too-large" | "unsupported";
+export type ActivityMutationIssue = ApiIssue | "conflict" | "project-paused" | "too-large" | "unsupported";
 export type ActivityMutationResult<T> = { data: T | null; issue: null } | { data: null; issue: ActivityMutationIssue };
 
 export function activityMutationIssueFromStatus(status: number): ActivityMutationIssue {
@@ -38,6 +38,14 @@ export async function mutateActivity<T>(
     });
     if (!response.ok) {
       console.warn("NITE API request failed", { path: url.pathname, status: response.status });
+      if (response.status === 409) {
+        try {
+          const problem: unknown = await response.json();
+          if (typeof problem === "object" && problem !== null && "code" in problem && problem.code === "PROJECT_PAUSED") {
+            return { data: null, issue: "project-paused" };
+          }
+        } catch { /* Non-ProblemDetail responses retain the status-based classification. */ }
+      }
       return { data: null, issue: activityMutationIssueFromStatus(response.status) };
     }
     if (!parse || response.status === 204) return { data: null, issue: null };

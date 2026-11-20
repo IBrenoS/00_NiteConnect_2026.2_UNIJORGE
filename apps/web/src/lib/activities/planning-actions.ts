@@ -4,7 +4,7 @@ import { getApiJson } from "../api/server";
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedNiteSession } from "../auth/server-session";
 import { getActivity, getAllActivityAssignees, getAllActivityCandidates, getActivityPlanning, getActivityPlanningCapabilities, getActivityCapabilities } from "./data";
-import { parseActivity, parseActivityPlanning, type ActivityAssignee, type ActivityCandidate, type ActivityCapabilities, type ActivityStatus, parseActivityCandidate, parsePage, type Activity } from "./contracts";
+import { activityStatuses, parseActivity, parseActivityPlanning, type ActivityAssignee, type ActivityCandidate, type ActivityCapabilities, type ActivityStatus, parseActivityCandidate, parsePage, type Activity } from "./contracts";
 import { mutateActivity, type ActivityMutationIssue } from "./mutations";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -90,9 +90,11 @@ export async function movePlanningTaskAction(planningId: string, activityId: str
   if (capabilities.issue || !capabilities.data) return { data: null, issue: capabilities.issue ?? "unavailable" };
   let result;
   if (field === "status") {
-    const allowed = capabilities.data.transitions.some((status) => status === value);
+    const allowed = activityStatuses.some((status) => status === value);
     const confirmationRequired = value === "CANCELADA" || current.data.status === "CANCELADA" || current.data.status === "CONCLUIDA";
     if (!allowed || confirmationRequired && !confirmed) return { data: null, issue: "forbidden" };
+    const next = value as ActivityStatus;
+    if (!capabilities.data.transitions.includes(next)) return { data: null, issue: capabilities.data.executionBlockedByProjectPause ? "project-paused" : "forbidden" };
     result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(activityId)}/status`, session.bearer, "PATCH", {
       status: value, expectedVersion, ...(confirmationRequired ? { confirmed: true } : {}),
     }, parseActivity);
