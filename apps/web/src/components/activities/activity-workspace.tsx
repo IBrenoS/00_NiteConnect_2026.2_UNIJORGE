@@ -49,7 +49,9 @@ function dateMeta(activity: Activity): string {
 }
 
 function messageForIssue(issue: string): string {
+  if (issue === "unauthenticated") return "Sua sessão expirou. Entre novamente. A lista foi atualizada.";
   if (issue === "conflict") return "A atividade mudou em outra sessão. A lista foi atualizada.";
+  if (issue === "project-paused") return "O projeto está pausado. Retome-o para iniciar ou concluir atividades.";
   if (issue === "forbidden" || issue === "access") return "Você não tem permissão para alterar esta propriedade.";
   if (issue === "not-found") return "A atividade não está mais disponível.";
   return "Não foi possível salvar a alteração. A lista foi atualizada.";
@@ -67,6 +69,13 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const pausedProjects = [...new Set(activities.flatMap((activity) => capabilities[activity.id]?.executionBlockedByProjectPause && activity.projectId ? [activity.projectId] : []))];
+  const pauseNotice = pausedProjects.length ? <aside role="note" className="mb-3 rounded-control border border-status-warning-border bg-status-warning-soft px-3 py-2 text-type-body-compact text-nite-text-primary">
+    <p>Atividades de projetos pausados não podem mudar de situação. A edição e a prioridade continuam disponíveis quando autorizadas.</p>
+    {pausedProjects.map((projectId) => <p key={projectId} className="mt-1">{projectTitles[projectId] ?? "Projeto"}: {activities.some((activity) => activity.projectId === projectId && capabilities[activity.id]?.canResumeProject)
+      ? <Link className="font-medium underline" href={`/projetos/${encodeURIComponent(projectId)}/administrar`}>retome o projeto em Administração</Link>
+      : "peça a um administrador para retomar o projeto"}.</p>)}
+  </aside> : null;
   async function move(id: string, field: MoveField, value: ActivityStatus | ActivityPriority | null) {
     if (pendingId || moving.current) return;
     const activity = activities.find((item) => item.id === id);
@@ -190,6 +199,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   }
 
   if (view === "list") return <section className="min-w-0" aria-label="Lista de atividades">
+    {pauseNotice}
     {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice("")}><p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p><span className="sr-only" role="status">{pendingId ? "Salvando alteração." : notice}</span></TransientFeedback> : null}
     <div className="overflow-x-auto rounded-panel border border-nite-border-soft">
       <table className="w-full min-w-[820px] border-collapse text-left">
@@ -211,6 +221,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   </section>;
 
   if (view === "status") return <section aria-label="Quadro por situação" className="min-w-0">
+    {pauseNotice}
     {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice("")}><p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p></TransientFeedback> : null}
     <div className="flex min-w-0 snap-x gap-3 overflow-x-auto pb-3 [scrollbar-width:thin]" onDragOver={(event) => event.preventDefault()}>
       {statusGroups.map((group) => {
@@ -230,6 +241,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   </section>;
 
   return <section aria-label="Quadro por prioridade" className="min-w-0">
+    {pauseNotice}
     {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice("")}><p role="status" aria-live="polite" className="mb-3 rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p></TransientFeedback> : null}
     <div className="flex min-w-0 snap-x gap-3 overflow-x-auto pb-3 [scrollbar-width:thin]">
       {priorityGroups.map((group) => {

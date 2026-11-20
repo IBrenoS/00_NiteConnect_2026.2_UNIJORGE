@@ -32,6 +32,26 @@ const statistics = {
 };
 
 describe("workspace de planejamento integrado", () => {
+  it("orienta sobre a pausa e mostra a retomada apenas para quem pode administrar o projeto", () => {
+    if (!row.capabilities) throw new Error("Capacidades não carregadas");
+    const pausedTask = { ...row, capabilities: { ...row.capabilities, transitions: [], executionBlockedByProjectPause: true, canResumeProject: false } };
+    const context = { id: "projeto", title: "Projeto real", basePath: "/meus-projetos/projeto/atividades" };
+    const member = renderToStaticMarkup(<ActivityPlanningWorkspace
+      planning={planning} tasks={[pausedTask]} statistics={statistics} nextDue={null} projectTitle="Projeto real" view="priority"
+      query="" statusFilter="Todas" sort="Título" currentMember={{ id: "member-1", name: "Integrante" }}
+      canCreateTasks={false} canDeletePlanning={false} projectContext={context}
+    />);
+    expect(member).toContain("O projeto está pausado");
+    expect(member).toContain("Peça a um administrador para retomar o projeto");
+    expect(member).not.toContain('href="/projetos/projeto/administrar"');
+    const administrator = renderToStaticMarkup(<ActivityPlanningWorkspace
+      planning={planning} tasks={[{ ...pausedTask, capabilities: { ...pausedTask.capabilities, canResumeProject: true } }]} statistics={statistics} nextDue={null} projectTitle="Projeto real" view="status"
+      query="" statusFilter="Todas" sort="Título" currentMember={{ id: "member-1", name: "Integrante" }}
+      canCreateTasks={false} canDeletePlanning={false} projectContext={context}
+    />);
+    expect(administrator).toContain('href="/projetos/projeto/administrar"');
+  });
+
   it("mantém o contexto do projeto ao trocar visualização", () => {
     const markup = renderToStaticMarkup(<ActivityPlanningWorkspace
       planning={planning} tasks={[row]} statistics={statistics} nextDue={null} projectTitle="Projeto real" view="status"

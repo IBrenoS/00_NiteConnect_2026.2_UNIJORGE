@@ -4,6 +4,7 @@ import br.edu.unijorge.niteconnect.access.application.AccessService;
 import br.edu.unijorge.niteconnect.activities.domain.ActivityStatus;
 import br.edu.unijorge.niteconnect.activities.infrastructure.ActivityRepository;
 import br.edu.unijorge.niteconnect.activities.infrastructure.EvidenceRepository;
+import br.edu.unijorge.niteconnect.projects.domain.ProjectStatus;
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -44,12 +45,18 @@ public class ActivityCapabilities {
         }
         boolean manage=allows(() -> policy.manage(actor,activity));
         boolean edit=manage && allows(() -> policy.editable(activity));
+        boolean paused=policy.projectStatus(activity)==ProjectStatus.PAUSADO;
         boolean assign=allows(() -> policy.assign(actor,activity));
         boolean contribute=allows(() -> policy.contribute(actor,activity));
         List<ActivityStatus> transitions=Arrays.stream(ActivityStatus.values()).filter(activity.status()::canTransitionTo).filter(next -> {
             return allows(() -> policy.transition(actor,activity,next));
         }).toList();
-        return new View(edit,edit,transitions,manage,assign,assign,contribute,contribute && storage.enabled(),canDelete);
+        boolean executionBlockedByProjectPause=paused && Arrays.stream(ActivityStatus.values())
+                .filter(activity.status()::canTransitionTo)
+                .filter(next -> next!=ActivityStatus.CANCELADA || activity.status().terminal())
+                .anyMatch(next -> allows(() -> policy.transitionAuthorization(actor,activity,next)));
+        return new View(edit,edit,transitions,manage,assign,assign,contribute,contribute && storage.enabled(),canDelete,
+                executionBlockedByProjectPause,paused && access.isAdministrator(actor));
     }
     private static boolean allows(Runnable check) {
         try { check.run();return true; }
@@ -61,7 +68,8 @@ public class ActivityCapabilities {
     public record Personal(boolean createIndependent) {}
     public record EvidenceView(boolean withdraw) {}
     public record View(boolean edit,boolean changePriority,List<ActivityStatus> transitions,boolean history,
-                       boolean manageAssignees,boolean collaborate,boolean addEvidence,boolean upload,boolean canDelete) {
-        private static View deletionOnly() { return new View(false,false,List.of(),false,false,false,false,false,true); }
+                       boolean manageAssignees,boolean collaborate,boolean addEvidence,boolean upload,boolean canDelete,
+                       boolean executionBlockedByProjectPause,boolean canResumeProject) {
+        private static View deletionOnly() { return new View(false,false,List.of(),false,false,false,false,false,true,false,false); }
     }
 }

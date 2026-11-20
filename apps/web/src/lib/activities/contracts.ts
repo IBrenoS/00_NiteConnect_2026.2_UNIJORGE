@@ -13,7 +13,7 @@ export type Page<T> = { items: T[]; page: number; size: number; total: number };
 export type ActivityPlanning = { id: string; title: string; description: string; projectId: string | null; createdBy: string; version: number; createdAt: string; updatedAt: string; canEdit: boolean; canCreateTasks: boolean; canDelete: boolean };
 export type ActivityPlanningCapabilities = { canRead: boolean; canEdit: boolean; canCreateTasks: boolean; canDelete: boolean; version: number };
 export type ActivityStatistics = { total: number; planned: number; inProgress: number; completed: number; cancelled: number; overdue: number; completionDenominator: number; plannedRate: number; inProgressRate: number; completedRate: number; cancelledRate: number; completionRate: number };
-export type ActivityCapabilities = { edit: boolean; changePriority: boolean; canDelete: boolean; transitions: ActivityStatus[]; history: boolean; manageAssignees: boolean; addEvidence: boolean; upload: boolean };
+export type ActivityCapabilities = { edit: boolean; changePriority: boolean; canDelete: boolean; transitions: ActivityStatus[]; history: boolean; manageAssignees: boolean; addEvidence: boolean; upload: boolean; executionBlockedByProjectPause?: boolean; canResumeProject?: boolean };
 export type PersonalActivityCapabilities = { createIndependent: boolean };
 export type ActivityAssignee = { id: string; memberId: string; memberName: string | null; role: "EXECUTOR" | "COLLABORATOR"; startedAt: string; available: boolean };
 export type ActivityCandidate = { id: string; name: string };
@@ -31,11 +31,11 @@ const nullableString = (v: unknown): v is string | null => v === null || typeof 
 const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 export function parseActivityCapabilities(value: unknown): ActivityCapabilities | null {
   if (!record(value)) return null;
-  const { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload } = value;
-  if (typeof edit !== "boolean" || typeof changePriority !== "boolean" || typeof canDelete !== "boolean" || typeof history !== "boolean" || typeof manageAssignees !== "boolean" || typeof addEvidence !== "boolean" || typeof upload !== "boolean" || !Array.isArray(transitions)) return null;
+  const { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload, executionBlockedByProjectPause, canResumeProject } = value;
+  if (typeof edit !== "boolean" || typeof changePriority !== "boolean" || typeof canDelete !== "boolean" || typeof history !== "boolean" || typeof manageAssignees !== "boolean" || typeof addEvidence !== "boolean" || typeof upload !== "boolean" || (executionBlockedByProjectPause !== undefined && typeof executionBlockedByProjectPause !== "boolean") || (canResumeProject !== undefined && typeof canResumeProject !== "boolean") || !Array.isArray(transitions)) return null;
   const valid = (v: unknown): v is ActivityStatus => v === "PLANEJADA" || v === "EM_EXECUCAO" || v === "CONCLUIDA" || v === "CANCELADA";
   if (!transitions.every(valid)) return null;
-  return { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload };
+  return { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload, executionBlockedByProjectPause: executionBlockedByProjectPause === true, canResumeProject: canResumeProject === true };
 }
 export function parsePersonalActivityCapabilities(value: unknown): PersonalActivityCapabilities | null {
   return record(value) && typeof value.createIndependent === "boolean" ? { createIndependent: value.createIndependent } : null;
