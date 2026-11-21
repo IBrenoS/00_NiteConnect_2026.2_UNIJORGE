@@ -27,7 +27,14 @@ public class InstitutionalLibraryController {
     @GetMapping("/api/v1/library/members/{memberId}/documents")
     InstitutionalLibraryService.MemberListing memberDocuments(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID memberId,
             @RequestParam(required=false) UUID parentId,@RequestParam(required=false) String type,
-            @RequestParam(defaultValue="50") int limit,@RequestParam(defaultValue="0") int offset) {
-        return library.memberDocuments(identities.member(jwt),memberId,parentId,type,limit,offset);
+            @RequestParam(defaultValue="50") int limit,@RequestParam(defaultValue="0") int offset,
+            @RequestParam(defaultValue="false") boolean reportsOnly) {
+        return library.memberDocuments(identities.member(jwt),memberId,parentId,type,limit,offset,reportsOnly);
+    }
+    public record ClassificationInput(String classification) {}
+    @PutMapping("/api/v1/library/documents/{id}/classification")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    void classify(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody ClassificationInput input) {
+        library.classify(identities.member(jwt),id,input.classification());
     }
 }

@@ -44,6 +44,13 @@ export async function createLibraryFolder(form:FormData):Promise<void> {
   if(!name||name.length>190||(parentId&&!validUuid(parentId)))finish(form,"invalid");
   finish(form,await request("/api/v1/library/folders","POST",JSON.stringify({parentId:parentId||null,name,color}),"application/json"));
 }
+export async function classifyReportDocument(form:FormData):Promise<void> {
+  const id=field(form,"id"),classification=field(form,"classification");
+  if(!validUuid(id)||!["GENERAL","REPORT"].includes(classification))finish(form,"invalid");
+  const outcome=await request(`/api/v1/library/documents/${id}/classification`,"PUT",JSON.stringify({classification}),"application/json");
+  revalidatePath("/relatorios","layout");
+  finish(form,outcome);
+}
 export async function updateLibraryFolder(form:FormData):Promise<void> {
   const id=field(form,"id"),parentId=field(form,"parentId"),name=field(form,"name"),color=field(form,"color");
   if(!validUuid(id)||(parentId&&!validUuid(parentId)))finish(form,"invalid");

@@ -17,7 +17,7 @@ function EditorUnavailable({back}:{back:string}) {
           Não foi possível iniciar uma sessão de visualização ou edição. Verifique a disponibilidade do documento, do CODE e suas permissões.
         </p>
         <Link href={back} className="inline-flex min-h-11 items-center justify-center rounded-control px-4 font-medium text-nite-brand-primary underline underline-offset-4">
-          {back.startsWith("/meus-projetos/")?"Voltar aos documentos do projeto":"Voltar a Meus Arquivos"}
+          {back.startsWith("/relatorios")?"Voltar aos relatórios":back.startsWith("/meus-projetos/")?"Voltar aos documentos do projeto":"Voltar a Meus Arquivos"}
         </Link>
       </section>
     </main>
@@ -36,5 +36,5 @@ export default async function DocumentEditorPage({ params,searchParams }: { para
   const launch = await getEditorLaunch(session.bearer, id);
   if (!launch) return <EditorUnavailable back={back}/>;
 
-  return <CollaboraFrame actionUrl={launch.actionUrl} token={launch.accessToken} ttl={launch.accessTokenTtl} title={document.data.title} returnTo={back.startsWith("/meus-projetos/")?back:undefined}/>;
+  return <CollaboraFrame actionUrl={launch.actionUrl} token={launch.accessToken} ttl={launch.accessTokenTtl} title={document.data.title} returnTo={back.startsWith("/meus-projetos/")||back.startsWith("/relatorios")?back:undefined}/>;
 }

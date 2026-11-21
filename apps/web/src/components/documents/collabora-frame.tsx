@@ -9,7 +9,7 @@ const FRAME_LOAD_TIMEOUT_MS = 45_000;
 /** WOPI's access_token is an editor-scoped capability token, not the user's Entra Bearer token. */
 export function CollaboraFrame({ actionUrl, token, ttl, title, returnTo }: { actionUrl: string; token: string; ttl: number; title: string; returnTo?: string }) {
   const back = documentReturnTo(returnTo);
-  const backLabel = back.startsWith("/meus-projetos/") ? "Voltar aos documentos do projeto" : "Voltar a Meus Arquivos";
+  const backLabel = back.startsWith("/relatorios")?"Voltar aos relatórios":back.startsWith("/meus-projetos/") ? "Voltar aos documentos do projeto" : "Voltar a Meus Arquivos";
   const form = useRef<HTMLFormElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const started = useRef(false);

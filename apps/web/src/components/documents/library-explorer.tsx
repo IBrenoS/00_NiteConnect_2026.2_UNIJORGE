@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { LibraryFolder,LibraryListing } from "../../lib/documents/library";
 import { resourceOwnerLabel } from "../../lib/documents/library-contracts";
 import { LibraryUploadForm } from "./library-upload-form";
-import { archiveLibraryFile,archiveLibraryFolder,createLibraryFolder,organizeLibraryFile,updateLibraryFolder,setProjectDocumentEditGrant } from "../../lib/documents/library-actions";
+import { archiveLibraryFile,archiveLibraryFolder,classifyReportDocument,createLibraryFolder,organizeLibraryFile,updateLibraryFolder,setProjectDocumentEditGrant } from "../../lib/documents/library-actions";
 
 type Props={listing:LibraryListing; base:string; personal?:boolean; canManage?:boolean; tree?:LibraryFolder[]; members?:{memberId:string;memberName:string}[]; temporary?:boolean};
 const nav=(base:string,id:string)=>`${base}${base.includes("?")?"&":"?"}folder=${encodeURIComponent(id)}`;
@@ -69,6 +69,14 @@ export function LibraryExplorer({listing,base,personal=false,canManage:requested
             <td className="p-3 text-nite-text-secondary">{when(file.modifiedAt)}<div className="text-type-metadata">{file.modifiedByName??file.createdByName}</div>
               {file.lastOpenedAt&&<div className="mt-1 text-type-metadata">Aberto em {when(file.lastOpenedAt)}{file.lastOpenedByName?` por ${file.lastOpenedByName}`:""}</div>}</td>
             <td className="p-3">{temporary?<span className="text-nite-text-muted">Exemplo · sem download</span>:<Link href={`/api/library/download/${file.id}`} className="text-nite-brand-primary underline underline-offset-4">Baixar</Link>}
+              {canManage&&base==="/biblioteca"&&file.identity?.spaceOwnerId===null&&["INSTITUTION","PROJECT"].includes(file.identity.resourceOwnerKind)&&file.capabilities?.canShare&&<details className="mt-2"><summary className="cursor-pointer text-nite-brand-primary">Classificação para Relatórios</summary>
+                <p className="mt-2 max-w-64 text-type-metadata text-nite-text-secondary">A classificação identifica o relatório. O acesso dos integrantes depende do vínculo ou compartilhamento existente.</p>
+                <form action={classifyReportDocument} className="mt-2 grid gap-2">
+                  <input type="hidden" name="id" value={file.id}/><input type="hidden" name="returnTo" value={returnTo}/>
+                  <button name="classification" value="REPORT" className="min-h-9 rounded-control border border-nite-border-control px-2">Usar em Relatórios</button>
+                  <button name="classification" value="GENERAL" className="min-h-9 rounded-control border border-nite-border-control px-2">Retirar de Relatórios</button>
+                </form>
+              </details>}
               {canManage&&(file.capabilities?.canRename!==false||file.capabilities?.canArchiveInstitutionally===true)&&<details className="mt-2"><summary className="cursor-pointer text-nite-brand-primary">Organizar</summary>
                 {file.capabilities?.canRename!==false&&<form action={organizeLibraryFile} className="mt-2 grid max-w-56 gap-2">
                   <input type="hidden" name="id" value={file.id}/><input type="hidden" name="returnTo" value={returnTo}/>

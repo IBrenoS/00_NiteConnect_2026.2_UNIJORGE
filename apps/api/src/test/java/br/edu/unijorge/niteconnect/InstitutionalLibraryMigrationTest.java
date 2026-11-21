@@ -37,6 +37,7 @@ class InstitutionalLibraryMigrationTest {
                 .isEqualTo("Materiais institucionais / Histórico.docx");
         assertThat(jdbc.queryForObject("select permission from nite_connect.document_grants where id=?",String.class,grant)).isEqualTo("EDIT");
         assertThat(jdbc.queryForObject("select message from nite_connect.document_grants where id=?",String.class,grant)).isNull();
+        assertThat(jdbc.queryForObject("select classification from nite_connect.documents where id=?",String.class,document)).isEqualTo("GENERAL");
         assertThat(jdbc.queryForObject("select id from nite_connect.document_folders where system_key='MATERIAIS'",UUID.class)).isEqualTo(root);
         assertThat(Flyway.configure().dataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword())
                 .locations("classpath:Migrations").load().migrate().migrationsExecuted).isZero();

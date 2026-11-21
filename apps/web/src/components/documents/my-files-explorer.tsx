@@ -1,5 +1,6 @@
 "use client";
 import { TransientFeedback } from "../ui/transient-feedback";
+import { DocumentDataGrid, DocumentFolderIcon as FolderGlyph } from "./document-data-grid";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -86,9 +87,6 @@ function FileGlyph({label,tone,className="size-6"}:{label:string;tone:string;cla
     </svg>;
 }
 
-function FolderGlyph({color,className="size-5"}:{color:string;className?:string}) {
-  return <svg aria-hidden="true" viewBox="0 0 32 26" className={`${className} shrink-0`} fill="none"><path d="M2.5 5A2.5 2.5 0 0 1 5 2.5h7.1l3 3H27A2.5 2.5 0 0 1 29.5 8v13A2.5 2.5 0 0 1 27 23.5H5A2.5 2.5 0 0 1 2.5 21z" fill={color} stroke="color-mix(in srgb, currentColor 18%, transparent)" strokeWidth=".7"/><path d="M2.8 8h26.4" stroke="white" strokeOpacity=".48" strokeWidth="1"/></svg>;
-}
 
 function ListGlyph() {
   return <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M7 4h10M7 8h10M7 12h10M7 16h10"/><circle cx="3.5" cy="4" r=".7" fill="currentColor"/><circle cx="3.5" cy="8" r=".7" fill="currentColor"/><circle cx="3.5" cy="12" r=".7" fill="currentColor"/><circle cx="3.5" cy="16" r=".7" fill="currentColor"/></svg>;
@@ -564,7 +562,7 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
       <div className={`flex h-full min-w-0 min-h-0 flex-col overflow-hidden rounded-[8px] ${projectContext?"bg-nite-surface-elevated":"bg-[#292827]"}`} style={{fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
         {displayedItems.length===0?<div className="grid min-h-80 flex-1 place-content-center gap-2 px-5 text-center"><p className="font-display text-[20px] font-semibold leading-[27px] text-nite-text-primary">{params.search||params.type?"Nenhum resultado encontrado":view==="shared"?"Nenhum arquivo compartilhado com você":view==="sent"?"Nenhum arquivo compartilhado por você":"Esta pasta está vazia"}</p><p className="max-w-md text-xs leading-4 text-nite-text-secondary">{params.search||params.type?"Ajuste a pesquisa ou remova o filtro para ver outros arquivos.":view==="shared"?"Quando alguém compartilhar um arquivo ou pasta com você, o item aparecerá aqui.":view==="sent"?"Os itens que você compartilhar aparecerão aqui.":"Crie uma pasta ou carregue arquivos para começar."}</p>{canAddContent&&!params.search&&!params.type&&<button onClick={openFilesPicker} className="mx-auto min-h-10 rounded-control bg-nite-brand-primary px-4 text-white">Carregar arquivos</button>}</div>
           :layout==="grid"?<div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-4 sm:grid-cols-2 xl:grid-cols-3">{displayedItems.map((item)=><button key={item.id} onClick={()=>select(item.id,!selected.includes(item.id))} onDoubleClick={()=>openItem(item)} className={`rounded-panel border p-4 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${selected.includes(item.id)?"border-nite-brand-primary bg-nite-brand-soft":"border-nite-border-soft hover:bg-nite-surface-subtle"}`}><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-control bg-nite-surface-subtle"><ItemIcon item={item}/></span><span className="min-w-0 truncate font-medium text-nite-text-primary">{item.name}</span></span><span className="mt-3 block text-type-metadata text-nite-text-muted">{item.kind==="folder"?"Pasta":item.file?bytes(item.file.size):"Arquivo"}</span></button>)}</div>
-          :<div style={{containerType:"inline-size"}} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"><table style={{"--document-baseline-width":`${gridWidth}px`} as React.CSSProperties} className={`w-full min-w-0 table-fixed text-left ${layout==="compact"?"text-type-metadata":"text-type-body-compact"}`}>
+          :<div style={{containerType:"inline-size"}} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"><DocumentDataGrid style={{"--document-baseline-width":`${gridWidth}px`} as React.CSSProperties} className={layout==="compact"?"text-type-metadata":"text-type-body-compact"}>
             <colgroup>
               <col className="w-[3.55%] 2xl:w-[56px]"/><col className="w-[2.55%] 2xl:w-[40px]"/>
               <col className="w-[93.9%] md:w-[51.9%] lg:w-[39.9%] xl:w-[31.9%] 2xl:w-auto document-column-name"/>
@@ -623,7 +621,7 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
               <td className="hidden whitespace-nowrap px-3 py-2 text-nite-text-secondary lg:table-cell">{item.kind==="folder"?"Não disponível":item.file?bytes(item.file.size):"Não disponível"}</td>
               <td className="hidden truncate px-3 py-2 text-nite-text-secondary xl:table-cell" title={item.sent?item.sent.recipients.map((grant)=>grant.memberName).join(", "):item.shared?.sharedByName??(item.kind==="folder"?projectContext?"Projeto":"Particular":item.file?.sharedWithCount?`${item.file.sharedWithCount} acesso(s)`:item.permission??"Particular")}>{item.sent?`${item.sent.recipients.length} destinatário(s)`:item.shared?.sharedByName??(item.kind==="folder"?projectContext?"Projeto":"Particular":item.file?.sharedWithCount?`${item.file.sharedWithCount} acesso(s)`:item.permission??"Particular")}</td>
               <td className="hidden px-3 py-2 text-nite-text-secondary 2xl:table-cell">{item.kind==="file"&&item.file?.lastOpenedAt?`Aberto ${date(item.file.lastOpenedAt)}`:"—"}</td>
-            </tr>;})}</tbody></table></div>}
+            </tr>;})}</tbody></DocumentDataGrid></div>}
         {(listing?.hasMore||listing?.nextCursor||receivedHasMore||receivedCursor)&&<div className="border-t border-nite-border-soft p-3 text-center"><button type="button" onClick={()=>void loadMore()} className="min-h-10 rounded-control border border-nite-border-control px-4 text-type-body-compact font-medium text-nite-text-primary hover:bg-nite-surface-subtle">Carregar mais arquivos</button></div>}
       </div>
     </div>}

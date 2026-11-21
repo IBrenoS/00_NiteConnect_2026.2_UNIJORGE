@@ -23,6 +23,37 @@ class InstitutionalLibraryTest extends ProjectTestSupport {
     @org.springframework.beans.factory.annotation.Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
     @org.springframework.beans.factory.annotation.Autowired DocumentFoundationTest.InMemoryStore store;
     private static final String DOCX="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    @Test void reportsRequireExplicitClassificationAndNeverIncludePersonalDocuments() throws Exception {
+        UUID parent=folder(library(),"Relatórios"),child=folder(parent,"Mensais"),document=upload(ADMIN,child);
+        mvc.perform(post("/api/v1/library/folders/"+parent+"/shares").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"memberId\":\""+MEMBER+"\",\"permission\":\"EDIT\"}")).andExpect(status().isCreated());
+        String query="/api/v1/library/members/"+MEMBER+"/documents?reportsOnly=true";
+        mvc.perform(get(query).with(token(ADMIN))).andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+        String classify="/api/v1/library/documents/"+document+"/classification";
+        mvc.perform(put(classify).with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON).content("{\"classification\":\"REPORT\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(put(classify).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("{\"classification\":\"REPORT\"}"))
+                .andExpect(status().isNoContent());
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_GERAL',?,'Teste')",LEADER,ADMIN);
+        mvc.perform(put(classify).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON).content("{\"classification\":\"REPORT\"}"))
+                .andExpect(status().isNoContent()); // Idempotent classification does not duplicate events or content.
+        mvc.perform(get(query).with(token(ADMIN))).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(parent.toString())).andExpect(jsonPath("$.items[0].capabilities.canView").value(true));
+        mvc.perform(get(query+"&parentId="+child).with(token(ADMIN))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(document.toString())).andExpect(jsonPath("$.items[0].mimeType").value(DOCX));
+        mvc.perform(get(query).with(token(MEMBER))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/library/members/"+OTHER+"/documents?reportsOnly=true").with(token(ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+        String personal=mvc.perform(get("/api/v1/me/library").with(token(MEMBER))).andReturn().getResponse().getContentAsString();
+        UUID privateDocument=upload(MEMBER,id(personal,"$.folder.id"));
+        mvc.perform(put("/api/v1/library/documents/"+privateDocument+"/classification").with(token(ADMIN))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"classification\":\"REPORT\"}")).andExpect(status().isConflict());
+        jdbc.update("update nite_connect.documents set classification='REPORT',resource_owner_kind='INSTITUTION',resource_owner_id=null,created_for=? where id=?",MEMBER,privateDocument);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_events where document_id=? and action='DOCUMENT_CLASSIFIED'",Integer.class,document)).isEqualTo(1);
+        mvc.perform(put(classify).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("{\"classification\":\"GENERAL\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(get(query).with(token(ADMIN))).andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+    }
     private UUID id(String json,String path) {return UUID.fromString(com.jayway.jsonpath.JsonPath.read(json,path));}
     private UUID library() throws Exception {
         return id(mvc.perform(get("/api/v1/library/institutional").with(token(ADMIN)))

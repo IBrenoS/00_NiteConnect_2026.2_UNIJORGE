@@ -68,7 +68,7 @@ function parseDocumentIdentity(value:unknown):value is DocumentIdentity {
     &&typeof value.retentionHold==="boolean"&&optionalStr(value.protectionReason)&&optionalUuid(value.protectionSetBy)
     &&Number.isInteger(value.protectionRevision);
 }
-function parseDocumentCapabilities(value:unknown):value is DocumentCapabilities {
+export function parseDocumentCapabilities(value:unknown):value is DocumentCapabilities {
   const flags=["canView","canDownload","canEdit","canAddChild","canRename","canMove","canCopy","canShare",
     "canDeleteToTrash","canRestore","canPermanentlyDelete","canArchiveInstitutionally","canManageProtection"];
   return object(value)&&Number.isInteger(value.policyVersion)&&flags.every(flag=>typeof value[flag]==="boolean")

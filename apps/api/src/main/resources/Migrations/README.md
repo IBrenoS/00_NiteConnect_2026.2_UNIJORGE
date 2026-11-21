@@ -49,6 +49,7 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V42 | [`V42__project_discovery_and_participation.sql`](V42__project_discovery_and_participation.sql) | B08.2: disponibilidade de ingresso, pedidos e manifestações de interesse, e notificações persistidas idempotentes, sem recriar vínculos ou armazenamentos de atividades/documentos. |
 | V43 | [`V43__activity_planning_hierarchy.sql`](V43__activity_planning_hierarchy.sql) | B08.2B: agrupamentos de planejamento versionados e relação opcional/restritiva de tarefas existentes, mantendo escopo de projeto compatível e sem converter registros legados. |
 | V44 | [`V44__institutional_library.sql`](V44__institutional_library.sql) | Biblioteca institucional: mensagem opcional nos grants, snapshot do caminho/projeto de origem na exclusão e índice para consulta institucional por integrante; preserva IDs, objetos e política de expurgo. |
+| V45 | [`V45__document_report_classification.sql`](V45__document_report_classification.sql) | Classificação explícita GENERAL/REPORT, sem classificar registros existentes por inferência e sem novos arquivos ou armazenamento. |
 
 ## Aplicação
 

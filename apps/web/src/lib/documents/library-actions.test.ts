@@ -8,7 +8,7 @@ vi.mock("next/cache",()=>({revalidatePath:mocks.revalidatePath}));
 vi.mock("next/navigation",()=>({redirect:(path:string)=>{throw new Error(`redirect:${path}`);}}));
 vi.mock("./library",()=>({validUuid:(value:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)}));
 
-import { archiveLibraryFile,archiveLibraryFolder,createLibraryFolder } from "./library-actions";
+import { archiveLibraryFile,archiveLibraryFolder,classifyReportDocument,createLibraryFolder } from "./library-actions";
 
 function form(returnTo:string) {
   const result=new FormData();
@@ -29,6 +29,14 @@ describe("ações da biblioteca documental",()=>{
   afterEach(()=>{
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+  });
+  it("classifica explicitamente o mesmo documento e atualiza Relatórios sem criar arquivos",async()=>{
+    const input=new FormData(),id="11111111-1111-4111-8111-111111111111";
+    input.set("id",id);input.set("classification","REPORT");input.set("returnTo","/biblioteca");
+    mocks.fetch.mockResolvedValue(new Response(null,{status:204}));
+    await expect(classifyReportDocument(input)).rejects.toThrow("redirect:/biblioteca?saved=1");
+    expect(mocks.fetch).toHaveBeenCalledWith(`http://localhost:8080/api/v1/library/documents/${id}/classification`,expect.objectContaining({method:"PUT",body:JSON.stringify({classification:"REPORT"})}));
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/relatorios","layout");
   });
 
   it("retorna para Meus Arquivos com confirmação de sucesso",async()=>{

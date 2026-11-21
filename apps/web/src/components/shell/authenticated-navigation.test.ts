@@ -44,7 +44,7 @@ describe("navegação autenticada", () => {
       "Gestão do NITE",
       "Acompanhamento acadêmico",
     ]);
-    expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira", "/projetos", "/biblioteca"]);
+    expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira", "/projetos", "/relatorios", "/biblioteca"]);
     expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ label }) => label === "Frequência")).toHaveLength(1);
   });
 });

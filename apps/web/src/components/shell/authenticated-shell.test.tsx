@@ -97,7 +97,8 @@ describe("shell autenticado", () => {
     expect(markup).toContain('href="/dashboard"');
     expect(markup).toContain('href="/atividades"');
     expect(markup).toContain('href="/projetos"');
-    expect(markup).not.toMatch(/<a[^>]+(?:Minha participação|Projetos|Frequência e revisões|Relatórios|Administração)/);
+    expect(markup).toContain('href="/relatorios"');
+    expect(markup).not.toMatch(/<a[^>]+(?:Minha participação|Projetos|Frequência e revisões|Administração)/);
     expect(markup).not.toContain("Espaço de trabalho");
   });
 
