@@ -73,12 +73,13 @@ public class ActivityManagementRepository {
         });
         params.addValue("size", size).addValue("offset", (long) page * size);
         List<Item> items = jdbc.query("""
-                select a.id,a.title,a.project_id,p.title project_title,p.status project_status,a.planning_id,a.status,a.priority,
+                select a.id,a.title,a.project_id,p.title project_title,p.status project_status,a.planning_id,pl.title planning_title,a.status,a.priority,
                        a.start_on,a.due_on,a.created_by,x.member_id executor_id,a.created_at,a.completed_at,
                        %s overdue, (%s) attention_required, (select count(*) %s) evidence_count,
                        array(select c.member_id from nite_connect.activity_assignments c where c.activity_id=a.id
                              and c.role='COLLABORATOR' and c.ended_at is null order by c.member_id) collaborator_ids
-                """.formatted(OVERDUE, ATTENTION, EVIDENCE) + scope + " order by a.created_at desc,a.id limit :size offset :offset",
+                """.formatted(OVERDUE, ATTENTION, EVIDENCE) + FROM + " left join nite_connect.activity_plannings pl on pl.id=a.planning_id and pl.project_id is not distinct from a.project_id "
+                + where + " order by a.created_at desc,a.id limit :size offset :offset",
                 params, (r, n) -> {
             UUID creator = r.getObject("created_by", UUID.class), executor = r.getObject("executor_id", UUID.class);
             String projectStatus = r.getString("project_status");
@@ -96,9 +97,9 @@ public class ActivityManagementRepository {
             var completedAt = r.getTimestamp("completed_at");
             return new Item(r.getObject("id", UUID.class), r.getString("title"), r.getObject("project_id", UUID.class),
                     r.getString("project_title"), projectStatus == null ? null : ProjectStatus.valueOf(projectStatus),
-                    r.getObject("planning_id", UUID.class), ActivityStatus.valueOf(r.getString("status")), r.getString("priority"),
-                    r.getObject("start_on", LocalDate.class), r.getObject("due_on", LocalDate.class), creator, executor,
-                    collaborators, List.copyOf(links), r.getLong("evidence_count"), r.getTimestamp("created_at").toInstant(),
+                    r.getObject("planning_id", UUID.class), r.getString("planning_title"), ActivityStatus.valueOf(r.getString("status")), r.getString("priority"),
+                    r.getObject("start_on", LocalDate.class), r.getObject("due_on", LocalDate.class), creator, null, executor, null,
+                    collaborators, List.of(), List.copyOf(links), r.getLong("evidence_count"), r.getTimestamp("created_at").toInstant(),
                     completedAt == null ? null : completedAt.toInstant(), r.getBoolean("overdue"), r.getBoolean("attention_required"));
         });
         return new Result(items, page, size, summary.total(), today, summary);

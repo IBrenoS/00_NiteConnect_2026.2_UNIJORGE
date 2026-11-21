@@ -1,13 +1,13 @@
 import "server-only";
 import { getApiJson } from "../api/server";
 import type { ApiResult } from "../api/contracts";
-import { activityPriorities, activityStatuses, type ActivityPriority, type ActivityStatus } from "./contracts";
+import { activityPriorities, activityStatuses, parseActivityCandidate, parsePage, type ActivityPriority, type ActivityStatus } from "./contracts";
 
 export type ManagementActivity = {
   activityId: string; title: string; projectId: string | null; projectTitle: string | null;
-  projectStatus: "PLANEJAMENTO" | "ATIVO" | "PAUSADO" | "CONCLUIDO" | null; planningId: string | null;
+  projectStatus: "PLANEJAMENTO" | "ATIVO" | "PAUSADO" | "CONCLUIDO" | null; planningId: string | null; planningTitle?: string | null;
   status: ActivityStatus; priority: ActivityPriority | null; startOn: string | null; dueOn: string | null;
-  createdById: string; primaryExecutorId: string; collaboratorIds: string[];
+  createdById: string; createdByName?: string | null; primaryExecutorId: string; primaryExecutorName?: string | null; collaboratorIds: string[]; collaborators?: { id: string; name: string | null }[];
   linkKinds: ("CREATED" | "EXECUTOR" | "COLLABORATOR")[]; activeEvidenceCount: number;
   createdAt: string; completedAt: string | null; overdue: boolean; attentionRequired: boolean;
 };
@@ -26,6 +26,8 @@ export type ManagementFilters = {
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const count = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const nullableText = (value: unknown): value is string | null => value === null || typeof value === "string";
+type Person = NonNullable<ManagementActivity["collaborators"]>[number];
+const isPerson = (value: unknown): value is Person => record(value) && typeof value.id === "string" && nullableText(value.name);
 const isStatus = (value: unknown): value is ActivityStatus => activityStatuses.some(status => status === value);
 const isPriority = (value: unknown): value is ActivityPriority => activityPriorities.some(priority => priority === value);
 const isProjectStatus = (value: unknown): value is ManagementActivity["projectStatus"] => value === null || value === "PLANEJAMENTO" || value === "ATIVO" || value === "PAUSADO" || value === "CONCLUIDO";
@@ -35,8 +37,8 @@ function parseResult(value: unknown): ManagementActivityResult | null {
   if (!record(value) || !Array.isArray(value.items) || !count(value.page) || !count(value.size) || value.size < 1 || value.size > 100 || !count(value.total) || typeof value.asOfDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.asOfDate) || !record(value.summary)) return null;
   const items: ManagementActivity[] = [];
   for (const item of value.items) {
-    if (!record(item) || typeof item.activityId !== "string" || typeof item.title !== "string" || !nullableText(item.projectId) || !nullableText(item.projectTitle) || !isProjectStatus(item.projectStatus) || !nullableText(item.planningId) || !isStatus(item.status) || !(item.priority === null || isPriority(item.priority)) || !nullableText(item.startOn) || !nullableText(item.dueOn) || typeof item.createdById !== "string" || typeof item.primaryExecutorId !== "string" || !Array.isArray(item.collaboratorIds) || !item.collaboratorIds.every(id => typeof id === "string") || !Array.isArray(item.linkKinds) || !item.linkKinds.every(isLinkKind) || !count(item.activeEvidenceCount) || typeof item.createdAt !== "string" || !nullableText(item.completedAt) || typeof item.overdue !== "boolean" || typeof item.attentionRequired !== "boolean") return null;
-    items.push({ activityId: item.activityId, title: item.title, projectId: item.projectId, projectTitle: item.projectTitle, projectStatus: item.projectStatus, planningId: item.planningId, status: item.status, priority: item.priority, startOn: item.startOn, dueOn: item.dueOn, createdById: item.createdById, primaryExecutorId: item.primaryExecutorId, collaboratorIds: item.collaboratorIds, linkKinds: item.linkKinds, activeEvidenceCount: item.activeEvidenceCount, createdAt: item.createdAt, completedAt: item.completedAt, overdue: item.overdue, attentionRequired: item.attentionRequired });
+    if (!record(item) || typeof item.activityId !== "string" || typeof item.title !== "string" || !nullableText(item.projectId) || !nullableText(item.projectTitle) || !isProjectStatus(item.projectStatus) || !nullableText(item.planningId) || (item.planningTitle !== undefined && !nullableText(item.planningTitle)) || !isStatus(item.status) || !(item.priority === null || isPriority(item.priority)) || !nullableText(item.startOn) || !nullableText(item.dueOn) || typeof item.createdById !== "string" || (item.createdByName !== undefined && !nullableText(item.createdByName)) || typeof item.primaryExecutorId !== "string" || (item.primaryExecutorName !== undefined && !nullableText(item.primaryExecutorName)) || !Array.isArray(item.collaboratorIds) || (item.collaborators !== undefined && !Array.isArray(item.collaborators)) || (Array.isArray(item.collaborators) && !item.collaborators.every(isPerson)) || !item.collaboratorIds.every(id => typeof id === "string") || !Array.isArray(item.linkKinds) || !item.linkKinds.every(isLinkKind) || !count(item.activeEvidenceCount) || typeof item.createdAt !== "string" || !nullableText(item.completedAt) || typeof item.overdue !== "boolean" || typeof item.attentionRequired !== "boolean") return null;
+    items.push({ activityId: item.activityId, title: item.title, projectId: item.projectId, projectTitle: item.projectTitle, projectStatus: item.projectStatus, planningId: item.planningId, planningTitle: item.planningTitle === undefined ? null : item.planningTitle, status: item.status, priority: item.priority, startOn: item.startOn, dueOn: item.dueOn, createdById: item.createdById, createdByName: item.createdByName === undefined ? null : item.createdByName, primaryExecutorId: item.primaryExecutorId, primaryExecutorName: item.primaryExecutorName === undefined ? null : item.primaryExecutorName, collaboratorIds: item.collaboratorIds, collaborators: Array.isArray(item.collaborators) ? item.collaborators.filter(isPerson) : item.collaboratorIds.map(id => ({ id, name: null })), linkKinds: item.linkKinds, activeEvidenceCount: item.activeEvidenceCount, createdAt: item.createdAt, completedAt: item.completedAt, overdue: item.overdue, attentionRequired: item.attentionRequired });
   }
   const raw = value.summary;
   const keys = ["total", "planned", "inProgress", "completed", "cancelled", "pending", "overdue", "attentionRequired", "withEvidence", "completionDenominator"] as const;
@@ -63,3 +65,15 @@ export function getManagementActivities(bearer: string, filters: ManagementFilte
 }
 
 
+export const managementIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function getManagementPeople(bearer: string, options: { query?: string; selected?: string; page?: number; projectId?: string; contextual?: boolean }) {
+  const query = new URLSearchParams({ page: String(options.page ?? 0), size: "20" });
+  if (options.selected) query.set("selected", options.selected);
+  else if (options.query) query.set("query", options.query);
+  if (options.projectId && !options.contextual) query.set("projectId", options.projectId);
+  const path = options.contextual && options.projectId
+    ? `/api/v1/projects/${encodeURIComponent(options.projectId)}/management/activities/people`
+    : "/api/v1/management/activities/people";
+  return getApiJson(`${path}?${query}`, bearer, (value) => parsePage(value, parseActivityCandidate));
+}

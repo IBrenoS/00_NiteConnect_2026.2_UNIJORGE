@@ -37,6 +37,22 @@ export function getActivityPlannings(bearer: string, query = new URLSearchParams
 export function getProjectActivityPlannings(bearer: string, projectId: string, query = new URLSearchParams({ page: "0", size: "20" })) {
   return getApiJson(`/api/v1/projects/${encodeURIComponent(projectId)}/activity-plannings?${query}`, bearer, parseActivityPlanningPage);
 }
+export async function getManagementPlanningOptions(bearer: string, projectId?: string) {
+  const load = (page: number) => {
+    const query = new URLSearchParams({ page: String(page), size: "100" });
+    return projectId ? getProjectActivityPlannings(bearer, projectId, query)
+      : getApiJson(`/api/v1/admin/activity-plannings?${query}`, bearer, parseActivityPlanningPage);
+  };
+  const first = await load(0);
+  if (first.issue) return first;
+  const options = first.data.items.map(({ id, title, projectId }) => ({ id, title, projectId }));
+  for (let page = 1; page * first.data.size < first.data.total; page++) {
+    const next = await load(page);
+    if (next.issue) return next;
+    options.push(...next.data.items.map(({ id, title, projectId }) => ({ id, title, projectId })));
+  }
+  return { data: options, issue: null } as const;
+}
 export function getActivityPlanning(bearer: string, id: string) {
   return getApiJson(`/api/v1/activity-plannings/${encodeURIComponent(id)}`, bearer, parseActivityPlanning);
 }

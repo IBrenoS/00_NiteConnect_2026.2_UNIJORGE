@@ -13,10 +13,11 @@ public final class ActivityManagementContracts {
     public enum LinkKind { CREATED, EXECUTOR, COLLABORATOR }
 
     public record Item(UUID activityId, String title, UUID projectId, String projectTitle, ProjectStatus projectStatus,
-                       UUID planningId, ActivityStatus status, String priority, LocalDate startOn, LocalDate dueOn,
-                       UUID createdById, UUID primaryExecutorId, List<UUID> collaboratorIds, List<LinkKind> linkKinds,
+                       UUID planningId, String planningTitle, ActivityStatus status, String priority, LocalDate startOn, LocalDate dueOn,
+                       UUID createdById, String createdByName, UUID primaryExecutorId, String primaryExecutorName, List<UUID> collaboratorIds, List<Person> collaborators, List<LinkKind> linkKinds,
                        long activeEvidenceCount, Instant createdAt, Instant completedAt, boolean overdue,
                        boolean attentionRequired) {}
+    public record Person(UUID id, String name) {}
 
     public record Summary(long total, long planned, long inProgress, long completed, long cancelled, long pending,
                           long overdue, long attentionRequired, long withEvidence, long completionDenominator,

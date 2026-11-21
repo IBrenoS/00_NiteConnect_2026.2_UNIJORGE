@@ -7,6 +7,8 @@ import br.edu.unijorge.niteconnect.identity.application.IdentityDirectory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import br.edu.unijorge.niteconnect.members.application.MemberDirectory.Candidate;
+import br.edu.unijorge.niteconnect.shared.api.PageResult;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -15,6 +17,21 @@ public class ActivityManagementController {
     private final ActivityManagementService service;
     private final IdentityDirectory identities;
     public ActivityManagementController(ActivityManagementService service,IdentityDirectory identities) { this.service=service;this.identities=identities; }
+    @GetMapping("/api/v1/management/activities/people")
+    PageResult<Candidate> globalPeople(@AuthenticationPrincipal Jwt jwt, @RequestParam(required=false) UUID projectId,
+            @RequestParam(required=false) UUID selected, @RequestParam(required=false) String query,
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
+        UUID actor = identities.member(jwt);
+        return service.globalPeople(actor, projectId, selected, query, page, size);
+    }
+
+    @GetMapping("/api/v1/projects/{projectId}/management/activities/people")
+    PageResult<Candidate> projectPeople(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID projectId,
+            @RequestParam(required=false) UUID selected, @RequestParam(required=false) String query,
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
+        return service.people(identities.member(jwt), projectId, selected, query, page, size);
+    }
+
     @GetMapping("/api/v1/management/activities")
     ActivityManagementContracts.Result global(@AuthenticationPrincipal Jwt jwt,@RequestParam(required=false) UUID projectId,@RequestParam(required=false) UUID memberId,
             @RequestParam(required=false) UUID planningId,@RequestParam(required=false) ActivityStatus status,@RequestParam(required=false) String priority,

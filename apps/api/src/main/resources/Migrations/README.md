@@ -50,6 +50,7 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V43 | [`V43__activity_planning_hierarchy.sql`](V43__activity_planning_hierarchy.sql) | B08.2B: agrupamentos de planejamento versionados e relação opcional/restritiva de tarefas existentes, mantendo escopo de projeto compatível e sem converter registros legados. |
 | V44 | [`V44__institutional_library.sql`](V44__institutional_library.sql) | Biblioteca institucional: mensagem opcional nos grants, snapshot do caminho/projeto de origem na exclusão e índice para consulta institucional por integrante; preserva IDs, objetos e política de expurgo. |
 | V45 | [`V45__document_report_classification.sql`](V45__document_report_classification.sql) | Classificação explícita GENERAL/REPORT, sem classificar registros existentes por inferência e sem novos arquivos ou armazenamento. |
+| V46 | [`V46__narrow_audit_entity_types.sql`](V46__narrow_audit_entity_types.sql) | Restringe os tipos aceitos em `audit_entity_check`, preservando V43 imutável e aplicando a alteração em bancos já migrados. |
 
 ## Aplicação
 

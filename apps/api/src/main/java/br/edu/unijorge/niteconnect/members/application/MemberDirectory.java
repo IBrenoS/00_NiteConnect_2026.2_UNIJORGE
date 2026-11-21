@@ -60,6 +60,37 @@ public class MemberDirectory {
     }
     public record Candidate(UUID id, String name) {}
 
+    /** Identity filter for management. The caller must authorize the global or project scope first. */
+    public PageResult<Candidate> managementCandidates(UUID project, UUID selected, String query, int page, int size) {
+        PageResult.validate(page, size);
+        var args = new java.util.ArrayList<Object>();
+        String where = " from nite_connect.members m where ";
+        if (selected != null) {
+            where += "m.id=?";
+            args.add(selected);
+        } else {
+            String term = query == null ? "" : query.strip();
+            if (term.codePointCount(0, term.length()) < 2 || term.length() > 160) {
+                throw ApiException.invalid("Informe de 2 a 160 caracteres para pesquisar integrantes");
+            }
+            where += "m.name ilike ? escape '!'";
+            args.add("%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
+        }
+        if (project != null) {
+            where += """
+                     and exists (select 1 from nite_connect.activities a where a.project_id=?
+                       and (a.created_by=m.id or exists (select 1 from nite_connect.activity_assignments x
+                         where x.activity_id=a.id and x.member_id=m.id and x.ended_at is null)))
+                    """;
+            args.add(project);
+        }
+        long total = jdbc.queryForObject("select count(*)" + where, Long.class, args.toArray());
+        args.add(size);
+        args.add((long) page * size);
+        return new PageResult<>(jdbc.query("select m.id,m.name" + where + " order by m.name,m.id limit ? offset ?",
+                (rs, row) -> new Candidate(rs.getObject("id", UUID.class), rs.getString("name")), args.toArray()), page, size, total);
+    }
+
     /** Search contract for active members that can be selected as meeting invitees. */
     public PageResult<Candidate> activeCandidates(String query, int page, int size) {
         PageResult.validate(page, size);

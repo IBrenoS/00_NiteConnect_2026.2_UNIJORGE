@@ -146,4 +146,64 @@ class ActivityManagementTest extends ActivityTestSupport {
         jdbc.update("update nite_connect.members set status='AFASTADO' where id=?", OTHER);
         mvc.perform(get(global).with(token(OTHER))).andExpect(status().isForbidden());
     }
+
+    @Test
+    void resolvesNamesAndPlanningTitlesWithoutExposingUuidAsLabel() throws Exception {
+        UUID project = activeProject();
+        jdbc.update("update nite_connect.members set name='Ana Responsável' where id=?", MEMBER);
+        jdbc.update("update nite_connect.members set name='João Colaborador' where id=?", OTHER);
+        mvc.perform(post("/api/v1/activity-plannings").with(token(LEADER)).contentType(APPLICATION_JSON)
+                        .content("{\"title\":\"Plano de entregas\",\"projectId\":\"" + project + "\"}"))
+                .andExpect(status().isCreated());
+        UUID plan = jdbc.queryForObject("select id from nite_connect.activity_plannings where project_id=?", UUID.class, project);
+        UUID task = activity(LEADER, project, MEMBER);
+        mvc.perform(post("/api/v1/activities/" + task + "/collaborators").with(token(LEADER)).contentType(APPLICATION_JSON)
+                        .content(command(task, ",\"memberId\":\"" + OTHER + "\"")))
+                .andExpect(status().isCreated());
+        jdbc.update("update nite_connect.activities set planning_id=? where id=?", plan, task);
+
+        mvc.perform(get("/api/v1/management/activities").with(token(ADMIN)).param("projectId", project.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].planningTitle").value("Plano de entregas"))
+                .andExpect(jsonPath("$.items[0].primaryExecutorName").value("Ana Responsável"))
+                .andExpect(jsonPath("$.items[0].createdByName").value("Teste"))
+                .andExpect(jsonPath("$.items[0].collaborators[0].name").value("João Colaborador"));
+
+        mvc.perform(get("/api/v1/management/activities/people").with(token(ADMIN)).param("query", "Ana").param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].name").value("Ana Responsável"));
+        mvc.perform(get("/api/v1/projects/" + project + "/management/activities/people").with(token(LEADER))
+                        .param("query", "João").param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].name").value("João Colaborador"));
+        mvc.perform(get("/api/v1/management/activities/people").with(token(MEMBER)).param("query", "Ana"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/management/activities/people").with(token(ADMIN)).param("query", "A"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/projects/" + project + "/management/activities/people").with(token(MEMBER))
+                        .param("query", "Ana"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/projects/" + project + "/management/activities/people").with(token(LEADER))
+                        .param("selected", ADMIN.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void pagesPeopleByNameAndResolvesSelectedIdentity() throws Exception {
+        jdbc.update("update nite_connect.members set name='Pessoa Ana' where id=?", MEMBER);
+        jdbc.update("update nite_connect.members set name='Pessoa Bia' where id=?", OTHER);
+        mvc.perform(get("/api/v1/management/activities/people").with(token(ADMIN))
+                        .param("query", "Pessoa").param("page", "0").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.items[0].name").value("Pessoa Ana"));
+        mvc.perform(get("/api/v1/management/activities/people").with(token(ADMIN))
+                        .param("query", "Pessoa").param("page", "1").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.items[0].name").value("Pessoa Bia"));
+        mvc.perform(get("/api/v1/management/activities/people").with(token(ADMIN))
+                        .param("selected", OTHER.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].name").value("Pessoa Bia"));
+    }
 }
