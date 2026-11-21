@@ -25,9 +25,9 @@ export function ProjectPresentation({ project: value, requests, interests, parti
   const previous = requests.filter(item => item.projectId === project.id && item.state !== "PENDENTE");
   return <div className={styles.page}><ProjectBreadcrumb/>
     <div className={styles.presentationLayout}><article className={styles.presentation}>
-      <div className={styles.presentationActions}><ProjectMark title={project.title} large/>{value.capabilities.canManageMembers && <Link className={styles.button} href={`/projetos/${project.id}/administrar`}>Administrar projeto</Link>}<button className={styles.iconButton} disabled aria-label="Favoritos de projetos indisponíveis" title="Favoritos de projetos indisponíveis">☆</button></div>
+      <div className={styles.presentationActions}><ProjectMark title={project.title} large/>{value.capabilities.canManageMembers && <Link className={styles.button} href={`/projetos/${project.id}/administrar`}>Administrar projeto</Link>}</div>
       <h1>{project.title}</h1><p className={styles.lead}>{project.publicSummary}</p>
-      <div className={styles.inlineProperties}><ProjectStatusBadge project={project}/><span>{project.leaderName ?? "Liderança vacante"}</span><span>{project.teamSize} integrantes</span></div>
+      <div className={styles.inlineProperties}><ProjectStatusBadge project={project}/><span>{project.leaderName ?? "Liderança vacante"}</span><span>{project.teamSize} {project.teamSize === 1 ? "integrante" : "integrantes"}</span></div>
       <section className={styles.participationPanel}><h2>{participates ? "Você faz parte deste projeto" : project.status === "CONCLUIDO" ? "Um ciclo concluído" : "Participação no projeto"}</h2>
         <p>{participates ? "Acompanhe as atividades, a equipe e os documentos no workspace." : action === "interest" ? "O interesse futuro fica registrado, sem criar participação ou acesso ao projeto." : action === "request" ? "Sua solicitação será analisada pela gestão autorizada do projeto." : "Este projeto não recebe novas solicitações de participação neste momento."}</p>
         {value.capabilities.canAccessWorkspace && <Link className={styles.primaryButton} href={`/meus-projetos/${project.id}`}>Abrir workspace ↗</Link>}

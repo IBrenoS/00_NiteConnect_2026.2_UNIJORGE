@@ -20,7 +20,7 @@ const statusLabels: Record<ActivityStatus, BoardTask["status"]> = { PLANEJADA: "
 const statusCodes: Record<BoardTask["status"], ActivityStatus> = { Planejada: "PLANEJADA", "Em andamento": "EM_EXECUCAO", Concluída: "CONCLUIDA", Cancelada: "CANCELADA" };
 const priorityLabels: Record<string, BoardTask["priority"]> = { ALTA: "Alta", MEDIA: "Média", BAIXA: "Baixa" };
 const priorityCodes: Record<BoardTask["priority"], ActivityPriority | null> = { Alta: "ALTA", Média: "MEDIA", Baixa: "BAIXA", "Sem prioridade": null };
-const issueText = (issue: string) => issue === "unauthenticated" ? "Sua sessão expirou. Entre novamente." : issue === "forbidden" ? "Você não tem capacidade para alterar esta tarefa." : issue === "not-found" ? "Esta tarefa não está mais disponível." : issue === "conflict" ? "A tarefa foi alterada em outra sessão. Os dados do servidor foram atualizados." : issue === "access" ? "Você não tem permissão para esta operação." : "Não foi possível salvar a alteração. Tente novamente.";
+const issueText = (issue: string) => issue === "unauthenticated" ? "Sua sessão expirou. Entre novamente." : issue === "forbidden" ? "Você não tem permissão para alterar esta tarefa." : issue === "project-paused" ? "O projeto está pausado e bloqueia operações de execução." : issue === "not-found" ? "Esta tarefa não está mais disponível." : issue === "conflict" ? "A tarefa foi alterada em outra sessão. Os dados do servidor foram atualizados." : issue === "access" ? "Você não tem permissão para esta operação." : "Não foi possível salvar a alteração. Tente novamente.";
 
 function boardTask({ activity, capabilities }: ActivityPlanningTask): BoardTask {
   return {
@@ -93,6 +93,14 @@ export function ActivityPlanningWorkspace({ projectContext, planning, tasks: ini
     });
   }, [tasks, search, filter, sort]);
   const projectedTasks = useMemo(() => visible.map(boardTask), [visible]);
+  const pauseBlocked = tasks.some((item) => item.capabilities?.executionBlockedByProjectPause);
+  const canResumeProject = tasks.some((item) => item.capabilities?.executionBlockedByProjectPause && item.capabilities.canResumeProject);
+  const pauseNotice = pauseBlocked ? <aside role="note" className="mb-3 rounded-control border border-status-warning-border bg-status-warning-soft px-3 py-2 text-type-body-compact text-nite-text-primary">
+    <p>O projeto está pausado. Operações de execução e mudanças de situação estão bloqueadas; edição e prioridade continuam disponíveis quando autorizadas.</p>
+    <p className="mt-1">{canResumeProject && projectContext?.id
+      ? <Link className="font-medium underline" href={`/projetos/${encodeURIComponent(projectContext.id)}/administrar`}>Retome o projeto em Administração.</Link>
+      : "Peça a um administrador para retomar o projeto."}</p>
+  </aside> : null;
 
   async function openEditor(task: BoardTask) {
     const row = tasks.find((item) => item.activity.id === task.id) ?? null;
@@ -136,7 +144,12 @@ export function ActivityPlanningWorkspace({ projectContext, planning, tasks: ini
       const nextPriority = value === null ? null : activityPriorities.find((priority) => priority === value);
       return value === null || nextPriority ? { ...item, activity: { ...item.activity, priority: nextPriority ?? null } } : item;
     }));
-    const result = await movePlanningTaskAction(planning.id, id, row.activity.version, field, value, isSensitiveStatusChange);
+    let result: Awaited<ReturnType<typeof movePlanningTaskAction>>;
+    try {
+      result = await movePlanningTaskAction(planning.id, id, row.activity.version, field, value, isSensitiveStatusChange);
+    } catch {
+      result = { data: null, issue: "unavailable" };
+    }
     moving.current = false;
     setPendingId(null);
     if (result.issue || !result.data) {
@@ -197,7 +210,12 @@ export function ActivityPlanningWorkspace({ projectContext, planning, tasks: ini
     const confirmation = nextStatus === "CANCELADA" ? "Cancelar esta tarefa? Ela permanecerá no planejamento e poderá exigir reativação." : current.status === "CANCELADA" ? "Reativar esta tarefa como Em execução?" : "Reabrir esta tarefa concluída?";
     if (isSensitiveStatusChange && !window.confirm(confirmation)) return "A alteração foi cancelada.";
     if (!editorData?.capabilities.edit) {
-      if (nextStatus === current.status || !editorData?.capabilities.transitions.includes(nextStatus)) return "Você não tem capacidade para editar esta tarefa.";
+      if (nextStatus === current.status) return "Você não tem permissão para editar esta tarefa.";
+      if (!editorData?.capabilities.transitions.includes(nextStatus)) {
+        const message = issueText(editorData?.capabilities.executionBlockedByProjectPause ? "project-paused" : "forbidden");
+        setNotice(message);
+        return message;
+      }
       const moved = await movePlanningTaskAction(planning.id, current.id, current.version, "status", nextStatus, isSensitiveStatusChange);
       if (moved.issue || !moved.data) { setNotice(issueText(moved.issue ?? "unavailable")); router.refresh(); return issueText(moved.issue ?? "unavailable"); }
       setTasks((items) => items.map((item) => item.activity.id === current.id ? { ...item, activity: moved.data.activity } : item));
@@ -270,6 +288,7 @@ export function ActivityPlanningWorkspace({ projectContext, planning, tasks: ini
     <PageHeading eyebrow={projectTitle ?? "Independente"} title={planning.title} action={<div className="flex flex-wrap gap-2">{canCreateTasks ? <button type="button" onClick={() => void openCreationEditor()} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control border border-nite-border-soft bg-nite-surface px-3 text-type-body-compact font-medium text-nite-text-primary hover:bg-nite-surface-subtle"><span aria-hidden="true">＋</span> Nova tarefa</button> : null}<PlanningDeleteMenu id={planning.id} version={planning.version} title={planning.title} canDelete={canDeletePlanning} leaveWorkspace/></div>}/>
     <Toolbar view={view} planningId={planning.id} query={search} setQuery={setSearch} statusFilter={filter} setStatusFilter={setFilter} sort={sort} setSort={setSort} hrefForView={viewQuery} applyLabel="Aplicar" showOptions={false}/>
     </>}
+    {pauseNotice}
     {notice ? <TransientFeedback messageKey={notice} onDismiss={() => setNotice(null)}><p role="status" aria-live="polite" className="rounded-control border border-nite-border-soft bg-nite-surface-subtle px-3 py-2 text-type-body-compact text-nite-text-secondary">{notice}</p></TransientFeedback> : null}
     <div className={projectContext ? styles.taskLayout : "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_225px]"}>
       <div className={projectContext ? styles.tasks : "min-w-0"}>

@@ -360,7 +360,8 @@ public class DocumentPurgeRepository {
                             or (d.resource_owner_kind in ('INSTITUTION','PROJECT') and exists
                               (select 1 from nite_connect.role_assignments r join nite_connect.members m on m.id=r.member_id
                                 where r.member_id=o.actor_id and m.status='ATIVO')))
-                          or (o.operation_type='AUTO' and d.deleted_at+make_interval(days=>30)>clock_timestamp()))
+                          or ((o.operation_type='AUTO' or (d.resource_owner_kind='INSTITUTION' and d.space_owner_id is null))
+                            and d.deleted_at+make_interval(days=>30)>clock_timestamp()))
                         or i.resource_type='FOLDER' and
                         (f.id is null or f.lifecycle_state<>'PURGE_PENDING' or f.archived_at is not null
                           or f.retention_hold or f.resource_owner_kind='UNKNOWN'
@@ -370,7 +371,8 @@ public class DocumentPurgeRepository {
                             or (f.resource_owner_kind in ('INSTITUTION','PROJECT') and exists
                               (select 1 from nite_connect.role_assignments r join nite_connect.members m on m.id=r.member_id
                                 where r.member_id=o.actor_id and m.status='ATIVO')))
-                          or (o.operation_type='AUTO' and f.deleted_at+make_interval(days=>30)>clock_timestamp()))
+                          or ((o.operation_type='AUTO' or (f.resource_owner_kind='INSTITUTION' and f.space_owner_id is null))
+                            and f.deleted_at+make_interval(days=>30)>clock_timestamp()))
                     )))
                 """,Boolean.class,operationId));
     }

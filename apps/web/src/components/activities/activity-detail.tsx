@@ -61,6 +61,7 @@ const feedbackMessages: Record<string, { variant: "success" | "error" | "warning
   forbidden: { variant: "warning", title: "Ação indisponível", description: "Sua identidade não tem autorização para esta operação nesta atividade." },
   "not-found": { variant: "error", title: "Registro indisponível", description: "A atividade ou a evidência não está disponível para esta consulta." },
   conflict: { variant: "warning", title: "A atividade mudou", description: "Atualize a página para carregar a versão mais recente antes de tentar novamente." },
+  "project-paused": { variant: "warning", title: "Projeto pausado", description: "A situação do projeto bloqueia esta operação de execução." },
   "too-large": { variant: "error", title: "Arquivo acima do limite", description: "Escolha um arquivo de até 10 MiB." },
   unsupported: { variant: "error", title: "Formato não aceito", description: "Use um arquivo TXT, PNG ou JPEG." },
   unavailable: { variant: "error", title: "Não foi possível concluir", description: "Tente novamente em alguns instantes." },

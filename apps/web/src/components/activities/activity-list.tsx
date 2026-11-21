@@ -9,10 +9,10 @@ export const activityStatusLabel: Record<ActivityStatus, string> = {
 };
 
 const statusStyles: Record<ActivityStatus, string> = {
-  PLANEJADA: "border-status-draft-border bg-status-draft-soft text-status-draft",
-  EM_EXECUCAO: "border-status-progress-border bg-status-progress-soft text-status-progress",
-  CONCLUIDA: "border-status-done-border bg-status-done-soft text-status-done",
-  CANCELADA: "border-status-cancelled-border bg-status-cancelled-soft text-status-cancelled",
+  PLANEJADA: "bg-status-draft-soft text-status-draft",
+  EM_EXECUCAO: "bg-status-progress-soft text-status-progress",
+  CONCLUIDA: "bg-status-done-soft text-status-done",
+  CANCELADA: "bg-status-cancelled-soft text-status-cancelled",
 };
 
 const statusTextStyles: Record<ActivityStatus, string> = {
@@ -23,7 +23,7 @@ const statusTextStyles: Record<ActivityStatus, string> = {
 };
 
 export function ActivityStatusBadge({ status }: { status: ActivityStatus }) {
-  return <span className={`inline-flex min-h-7 shrink-0 items-center whitespace-nowrap rounded-control border px-2.5 py-1 text-type-body-compact font-medium ${statusStyles[status]}`}>{activityStatusLabel[status]}</span>;
+  return <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-control px-2 py-0.5 text-type-metadata font-medium ${statusStyles[status]}`}>{activityStatusLabel[status]}</span>;
 }
 
 function ActivityStatusText({ status }: { status: ActivityStatus }) {

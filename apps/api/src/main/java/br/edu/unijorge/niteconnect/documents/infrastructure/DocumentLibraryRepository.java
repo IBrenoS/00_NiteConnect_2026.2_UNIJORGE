@@ -64,6 +64,14 @@ public class DocumentLibraryRepository {
     public record ActivityPage(List<Activity> items,boolean hasMore) {}
     public record Template(UUID id,String title,boolean autoAssign,boolean retired,UUID currentVersionId,int revision) {}
     public record Distribution(UUID memberId,UUID documentId,boolean created) {}
+    public record OriginalLocation(String path,String rootKey,UUID projectId,String projectTitle) {}
+    public OriginalLocation trashLocation(UUID id,String type) {
+        String table=switch(type) {case "DOCUMENT" -> "documents";case "FOLDER" -> "document_folders";
+            default -> throw ApiException.invalid("Tipo documental inválido");};
+        return jdbc.query("select trash_original_path,trash_root_key,trash_project_id,trash_project_title from nite_connect."+table+" where id=?",
+                (rs,row)->new OriginalLocation(rs.getString(1),rs.getString(2),rs.getObject(3,UUID.class),rs.getString(4)),id)
+                .stream().findFirst().orElseThrow(ApiException::notFound);
+    }
     public record TrashItem(UUID id,String name,String type,UUID spaceOwnerId,UUID resourceOwnerId,String resourceOwnerKind,
                             UUID createdBy,String createdByName,Instant createdAt,UUID deletedBy,String deletedByName,Instant deletedAt,
                             UUID originalFolderId,String originalFolderName,String origin,String protection,boolean retentionHold,
@@ -567,7 +575,7 @@ public class DocumentLibraryRepository {
                     left join nite_connect.document_folders f on f.id=d.folder_id
                     left join nite_connect.document_versions v on v.id=d.current_version_id
                   where d.lifecycle_state='TRASHED' and d.archived_at is null
-                    and (? or d.space_owner_id=? or (cast(? as uuid) is not null and d.resource_owner_kind='PROJECT' and d.resource_owner_id=cast(? as uuid)))
+                    and (? or d.space_owner_id=? or (cast(? as uuid) is not null and d.trash_project_id=cast(? as uuid)))
                   union all
                   select f.id,f.name,'FOLDER',f.space_owner_id,f.resource_owner_id,f.resource_owner_kind,f.created_by,c.name,f.created_at,
                     f.deleted_by,m.name,f.deleted_at,f.parent_id,p.name,
@@ -580,7 +588,7 @@ public class DocumentLibraryRepository {
                     left join nite_connect.members c on c.id=f.created_by
                     left join nite_connect.document_folders p on p.id=f.parent_id
                   where f.lifecycle_state='TRASHED' and f.archived_at is null
-                    and (? or f.space_owner_id=? or (cast(? as uuid) is not null and f.resource_owner_kind='PROJECT' and f.resource_owner_id=cast(? as uuid)))
+                    and (? or f.space_owner_id=? or (cast(? as uuid) is not null and f.trash_project_id=cast(? as uuid)))
                     and not exists(select 1 from nite_connect.document_folders p0 where p0.id=f.parent_id and p0.trash_batch_id=f.trash_batch_id)
                 ) items where (cast(? as varchar) is null or type=cast(? as varchar))
                 order by %s %s,id %s limit ? offset ?

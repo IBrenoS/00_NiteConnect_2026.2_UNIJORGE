@@ -18,18 +18,18 @@ export function Avatar({ name }: { name: string }) {
 export function ProjectStatusBadge({ project }: { project: ProjectDisplay }) {
   return <span className={styles.projectStatus} data-status={project.status}>{projectStatusLabels[project.status]}</span>;
 }
-export function EmptyProjects({ title, description, reset }: { title: string; description: string; reset?: () => void }) {
-  return <div className={styles.empty}><span aria-hidden="true">▦</span><h2>{title}</h2><p>{description}</p>{reset && <button className={styles.button} onClick={reset}>Limpar filtros</button>}</div>;
+export function EmptyProjects({ title, description, reset, resetLabel = "Limpar filtros" }: { title: string; description: string; reset?: () => void; resetLabel?: string }) {
+  return <div className={styles.empty}><span aria-hidden="true">▦</span><h2>{title}</h2><p>{description}</p>{reset && <button className={styles.button} onClick={reset}>{resetLabel}</button>}</div>;
 }
 export function ProjectProperties({ project }: { project: ProjectDisplay }) {
   const date = (value: string | null) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "Não definido";
   return <dl className={styles.properties}>
     <div><dt>Situação</dt><dd><ProjectStatusBadge project={project}/></dd></div>
     <div><dt>Gestor</dt><dd>{project.leaderName ? <><Avatar name={project.leaderName}/>{project.leaderName}</> : "Liderança vacante"}</dd></div>
-    <div><dt>Integrantes</dt><dd>{project.teamSize} integrantes</dd></div>
+    <div><dt>Integrantes</dt><dd>{project.teamSize} {project.teamSize === 1 ? "integrante" : "integrantes"}</dd></div>
     <div><dt>Início</dt><dd>{date(project.startsOn)}</dd></div>
     <div><dt>Previsão de término</dt><dd>{date(project.endsOn)}</dd></div>
-    <div><dt>Novas participações</dt><dd>{project.acceptingMembers && project.status !== "CONCLUIDO" && project.status !== "PAUSADO" && !project.leadershipVacant ? "Recebendo solicitações" : "Indisponíveis no momento"}</dd></div>
+    <div><dt>Ingresso</dt><dd>{project.canRequestMembership ? "Recebendo solicitações" : project.canExpressInterest ? "Aberto a manifestações de interesse" : project.canRequestMembership === false || project.canExpressInterest === false ? "Indisponível no momento" : project.acceptingMembers && project.status !== "CONCLUIDO" && project.status !== "PAUSADO" && !project.leadershipVacant ? "Recebendo solicitações" : "Indisponível no momento"}</dd></div>
   </dl>;
 }
 export function ProjectBreadcrumb({ personal = false }: { title?: string; personal?: boolean }) {

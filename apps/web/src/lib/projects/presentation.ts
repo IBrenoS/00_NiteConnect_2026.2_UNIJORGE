@@ -1,5 +1,5 @@
 import type { ProjectStatus, WorkspaceOverview } from "./integration-contracts";
-export type ProjectDisplay = { id: string; title: string; publicSummary: string; status: ProjectStatus; imageUrl: string | null; leaderName: string | null; leadershipVacant: boolean; teamSize: number; acceptingMembers: boolean; startsOn: string | null; endsOn: string | null };
+export type ProjectDisplay = { id: string; title: string; publicSummary: string; status: ProjectStatus; imageUrl: string | null; leaderName: string | null; leadershipVacant: boolean; teamSize: number; acceptingMembers: boolean; startsOn: string | null; endsOn: string | null; canRequestMembership?: boolean; canExpressInterest?: boolean };
 export const projectStatusLabels: Record<ProjectStatus, string> = { PLANEJAMENTO: "Em planejamento", ATIVO: "Em andamento", PAUSADO: "Pausado", CONCLUIDO: "Concluído" };
 export const requestStateLabels: Record<string, string> = { PENDENTE: "Aguardando decisão", APROVADA: "Aprovada", REJEITADA: "Rejeitada", ENCERRADA: "Encerrada" };
 export function workspaceProject(workspace: WorkspaceOverview): ProjectDisplay {

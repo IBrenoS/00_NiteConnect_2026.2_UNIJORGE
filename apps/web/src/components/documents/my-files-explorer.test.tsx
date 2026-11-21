@@ -29,7 +29,7 @@ describe("explorador Meus arquivos", () => {
     expect(html).toContain("Carregamento de arquivos");
     expect(html).toContain("Carregamento de pasta");
     expect(html).toContain(projectContext.trashPath);
-    expect(html).toContain(projectContext.requestsPath);
+    expect(html).not.toContain('href="'+projectContext.requestsPath+'"');
     expect(html).toContain(`${projectContext.basePath}?folder=51467e62-310f-45b0-b0c4-54c17a3c06d1&amp;search=planejamento`);
     expect(html).toContain(`${projectContext.basePath}?folder=${projectFolder.id}&amp;search=planejamento&amp;sort=name&amp;direction=asc`);
     expect(html).toContain("Solicitar exclusão");
@@ -42,7 +42,8 @@ describe("explorador Meus arquivos", () => {
     const root={...projectFolder,kind:"PROJECT" as const,name:projectContext.name};
     const html=renderToStaticMarkup(<MyFilesExplorer projectContext={projectContext} listing={{folder:root,folders:[],files:[],totalFiles:0,hasMore:false,nextCursor:null}} issue={null} view="personal" templates={[]} params={{folder:root.id}}/>);
     expect(html).not.toContain('aria-label="Caminho da pasta"');
-    expect(html).toContain("Documentos · Projeto Aurora");
+    expect(html).toContain('aria-current="page"');
+    expect(html).not.toContain("Documentos · Projeto Aurora");
   });
 
   it("não oferece lixeira nem aprovação sem autorização de gestão",()=>{

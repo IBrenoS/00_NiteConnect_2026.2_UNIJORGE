@@ -15,5 +15,7 @@ export function projectFromCatalog(value: CatalogProjectContract): ProjectDispla
   return { id: value.id, title: value.name, publicSummary: value.summary, status: value.status,
     imageUrl: null, leaderName: value.leaderName, leadershipVacant: value.leadershipVacant,
     teamSize: value.memberCount, acceptingMembers: value.acceptingMembers,
-    startsOn: value.startsOn, endsOn: value.endsOn };
+    startsOn: value.startsOn, endsOn: value.endsOn,
+    canRequestMembership: value.capabilities.canRequestMembership,
+    canExpressInterest: value.capabilities.canExpressInterest };
 }

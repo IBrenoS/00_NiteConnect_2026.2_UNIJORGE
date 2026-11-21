@@ -19,5 +19,5 @@ export default async function ProjectTrashPage({params,searchParams}:{params:Pro
  if(!Number.isSafeInteger(offset)||offset<0)return <ProjectIssue issue="invalid"/>;
  const listing=await getProjectTrashListing(session.bearer,id,{offset,limit:50,type:query.type,sortBy:query.sortBy,direction:query.direction});
  const base=`/meus-projetos/${id}/documentos`;
- return <div className={styles.sectionPage}><TrashExplorer key={JSON.stringify([id,query])} listing={listing.data} issue={listing.issue} params={query} projectContext={{id,name:workspace.data.name,basePath:`${base}/lixeira`,libraryPath:base,requestsPath:`${base}/aprovacoes`,canRequestActions:workspace.data.capabilities.canManageMembers}}/></div>;
+ return <div className={styles.documentSection}><TrashExplorer key={JSON.stringify([id,query])} listing={listing.data} issue={listing.issue} params={query} projectContext={{id,name:workspace.data.name,basePath:`${base}/lixeira`,libraryPath:base,requestsPath:`${base}/aprovacoes`,canRequestActions:workspace.data.capabilities.canManageMembers}}/></div>;
 }

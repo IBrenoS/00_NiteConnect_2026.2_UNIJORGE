@@ -1,8 +1,8 @@
-.page,.workspace{color:var(--nite-text-primary);font-size:1rem;line-height:1.55;min-width:0}
+.page,.workspace{color:var(--nite-text-primary);font-size:.875rem;line-height:1.5;min-width:0}
 .page{max-width:1500px;margin:0 auto;padding:24px 40px 64px}
 .page h1,.workspace h1{font-family:var(--font-sora),sans-serif;letter-spacing:-.035em;font-weight:600;line-height:1.25}
-.page h1{font-size:32px;margin:8px 0 10px}
-.page h2,.workspace h2{font-size:1.25rem;font-weight:600;letter-spacing:-.02em}
+.page h1{font-size:1.75rem;margin:8px 0 10px}
+.page h2,.workspace h2{font-size:1.125rem;font-weight:600;letter-spacing:-.02em}
 .page h3,.workspace h3{font-weight:600}
 .page p,.workspace p{color:var(--nite-text-secondary)}
 
@@ -32,7 +32,7 @@
 .search>span{font-size:22px;color:var(--nite-text-secondary)}
 .search input{border:0!important;background:transparent;min-width:0;flex:1;outline:none;min-height:42px;font-size:.875rem}
 .search button{cursor:pointer;color:var(--nite-text-secondary)}
-.search:focus-within{outline:2px solid var(--nite-focus);outline-offset:2px}
+.search:focus-within{outline:0;box-shadow:inset 0 0 0 2px var(--nite-focus)}
 .resultLine{display:flex;justify-content:space-between;color:var(--nite-text-secondary);font-size:.8125rem;margin:22px 0 14px}
 
 .gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
@@ -41,18 +41,19 @@
 .cardTop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:24px 22px 18px;min-height:100px}
 .mark{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border:1px solid var(--nite-border-soft);border-radius:8px;color:var(--nite-brand-accent);background:var(--nite-brand-soft);font-size:.9375rem;font-weight:600;flex-shrink:0}
 .markLarge{width:80px;height:80px;border-radius:14px;font-size:26px}
-.projectCard h2{font-size:1.125rem;padding:0 22px;margin:5px 0 9px}
-.projectCard>p{font-size:.9375rem;line-height:1.65;padding:0 22px;min-height:64px;max-width:430px}
+.projectCard h2{font-size:.9375rem;padding:0 22px;margin:5px 0 9px}
+.projectCard>p{font-size:.875rem;line-height:1.5;padding:0 22px;min-height:64px;max-width:430px}
 .cardProperties{display:grid;grid-template-columns:72px 1fr;gap:8px;font-size:.8125rem;padding:20px 22px 22px;margin-top:auto}
 .cardProperties>span{color:var(--nite-text-secondary)}
 .cardProperties strong{font-weight:400;color:var(--nite-text-secondary)}
+.cardProperties strong{min-width:0;overflow-wrap:anywhere}
 .projectCard footer{border-top:1px solid var(--nite-border-soft);display:flex;justify-content:space-between;gap:8px;padding:12px 22px;font-size:.8125rem;color:var(--nite-text-secondary)}
 
 .badge{display:inline-flex;align-items:center;border-radius:4px;padding:4px 8px;background:var(--nite-surface-subtle);color:var(--nite-text-secondary);font-size:.8125rem;line-height:1.5;font-weight:500;max-width:100%}
-.projectStatus{display:inline-flex;align-items:center;min-height:30px;max-width:100%;border:1px solid var(--nite-status-draft-border);border-radius:6px;padding:4px 9px;background:var(--nite-status-draft-soft);color:var(--nite-status-draft);font-size:.875rem;line-height:1.4;font-weight:500;white-space:nowrap}
-.projectStatus[data-status=ATIVO]{border-color:var(--nite-status-progress-border);background:var(--nite-status-progress-soft);color:var(--nite-status-progress)}
-.projectStatus[data-status=PAUSADO]{border-color:var(--nite-status-warning-border);background:var(--nite-status-warning-soft);color:var(--nite-status-warning)}
-.projectStatus[data-status=CONCLUIDO]{border-color:var(--nite-status-done-border);background:var(--nite-status-done-soft);color:var(--nite-status-done)}
+.projectStatus{display:inline-flex;align-items:center;max-width:100%;border-radius:4px;padding:2px 7px;background:var(--nite-status-draft-soft);color:var(--nite-status-draft);font-size:.75rem;line-height:1.4;font-weight:400;white-space:nowrap}
+.projectStatus[data-status=ATIVO]{background:var(--nite-status-progress-soft);color:var(--nite-status-progress)}
+.projectStatus[data-status=PAUSADO]{background:var(--nite-status-warning-soft);color:var(--nite-status-warning)}
+.projectStatus[data-status=CONCLUIDO]{background:var(--nite-status-done-soft);color:var(--nite-status-done)}
 .empty{display:grid;justify-items:center;gap:9px;padding:70px 20px;border:1px dashed var(--nite-border-soft);border-radius:8px;text-align:center}
 .empty>span{font-size:28px;color:var(--nite-text-secondary)}
 .empty p{font-size:.875rem;max-width:440px}
@@ -60,17 +61,19 @@
 
 .personalLayout{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:22px}
 .tableScroll{position:relative;overflow-x:auto;min-width:0}
-.projectTable{width:100%;text-align:left;border-collapse:collapse;font-size:.9375rem;min-width:760px}
+.projectTable{width:100%;text-align:left;border-collapse:collapse;font-size:.875rem;min-width:760px}
 .projectTable th{font-size:.8125rem;font-weight:400;color:var(--nite-text-secondary);padding:12px 10px;border-bottom:1px solid var(--nite-border-soft)}
-.projectTable td{padding:18px 10px;border-bottom:1px solid var(--nite-border-soft);white-space:nowrap}
+.projectTable td{padding:12px 10px;border-bottom:1px solid var(--nite-border-soft);white-space:nowrap;vertical-align:middle}
 .projectTable tr:hover td{background:var(--nite-surface-subtle)}
-.projectName{display:flex;gap:16px;align-items:center;font-weight:500;min-width:270px;white-space:normal}
-.projectName small{display:block;font-weight:400;color:var(--nite-text-secondary);font-size:.875rem;max-width:340px;white-space:normal;line-height:1.5;margin-top:4px}
-.summary{padding:18px;border:1px solid var(--nite-border-soft);border-radius:10px;min-height:360px}
+.projectName{display:flex;gap:12px;align-items:center;font-weight:500;min-width:270px;white-space:normal}
+.projectName>span:last-child{min-width:0;overflow-wrap:anywhere}
+.projectName small{display:block;font-weight:400;color:var(--nite-text-secondary);font-size:.75rem;max-width:340px;white-space:normal;line-height:1.4;margin-top:3px}
+.projectLeader{white-space:normal!important;max-width:220px;overflow-wrap:anywhere}
+.summary{padding:18px;border:1px solid var(--nite-border-soft);border-radius:10px;min-height:0}
 .summary h2{font-size:.9375rem;padding-bottom:16px;border-bottom:1px solid var(--nite-border-soft)}
 .summary>div{display:flex;justify-content:space-between;gap:10px;margin-top:20px;font-size:.875rem;color:var(--nite-text-secondary)}
 .summary strong{font-weight:500}
-.summary>p{font-size:.8125rem;line-height:1.8;margin-top:28px}
+.summary>p{font-size:.8125rem;line-height:1.6;margin-top:20px}
 
 .presentationLayout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:40px;margin:40px 0}
 .presentation{min-width:0;padding:10px 0 0 12px}
@@ -86,13 +89,14 @@
 .requestTracking strong{font-weight:500;font-size:.875rem}
 .requestTracking p{margin:10px 0 16px}
 .editorial{margin:36px 0}
-.editorial>p{line-height:1.75;margin:16px 0;font-size:1rem;max-width:70ch}
+.overviewMain>.editorial:first-child{margin-top:0}
+.editorial>p{line-height:1.6;margin:12px 0;font-size:.875rem;max-width:70ch}
 .editorial h3{margin:26px 0 10px}
 .privacyNote{display:flex;align-items:flex-start;gap:12px;padding:18px;background:var(--nite-surface-subtle);border-radius:6px;margin-top:30px}
 .privacyNote p{font-size:.8125rem;line-height:1.8}
 .propertyPanel{border:1px solid var(--nite-border-soft);border-radius:10px;padding:20px;height:fit-content}
 .propertyPanel h2{font-size:.9375rem;margin-bottom:22px}
-.properties{font-size:.875rem;display:grid;gap:20px}
+.properties{font-size:.875rem;display:grid;gap:14px}
 .properties>div{display:grid;grid-template-columns:105px 1fr;gap:12px;align-items:start}
 .properties dt{color:var(--nite-text-secondary)}
 .properties dd{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
@@ -116,18 +120,17 @@
 .workspaceTop{padding:18px 30px 0}
 .workspaceTop .temporary{margin-bottom:20px}
 .workspaceHeader{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.workspaceHeader h1{font-size:28px;overflow-wrap:anywhere;flex:1;min-width:180px}
+.workspaceHeader h1{font-size:1.375rem;overflow-wrap:anywhere;flex:1;min-width:180px}
 .workspaceHeader>a{margin-left:auto}
 .workspaceTabs{display:flex;gap:28px;border-bottom:1px solid var(--nite-border-soft);margin-top:18px;overflow-x:auto}
 .workspaceTabs a{white-space:nowrap;font-size:.875rem;padding:12px 0 14px;color:var(--nite-text-secondary);border-bottom:2px solid transparent}
 .workspaceTabs a[aria-current=page]{border-color:var(--nite-brand-primary);color:var(--nite-text-primary);font-weight:500}
-.adminNotice{margin:0;padding:10px 30px;font-size:.8125rem;color:var(--nite-text-secondary)!important;background:var(--nite-surface-subtle)}
 
-.overviewLayout{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start}
-.overviewMain{min-width:0;padding:0 40px 40px}
-.overviewAside{position:sticky;top:80px;max-height:calc(100dvh - 96px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;background:var(--nite-surface-subtle);padding:30px 24px;border-left:1px solid var(--nite-border-soft)}
+.overviewLayout{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start;gap:24px;padding:24px 30px 40px}
+.overviewMain{min-width:0}
+.overviewAside{position:sticky;top:24px;align-self:start;height:fit-content;max-height:calc(100dvh - 48px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;background:var(--nite-surface);padding:20px;border:1px solid var(--nite-border-soft);border-radius:10px}
 .overviewAside>h2{font-size:1rem;margin-bottom:16px}
-.overviewAside>.properties{margin-top:32px}
+.overviewAside>.properties{margin-top:12px}
 .overviewAside .properties>div{grid-template-columns:1fr;gap:5px}
 .overviewPanel{padding:20px;border:1px solid var(--nite-border-soft);border-radius:8px}
 .overviewPanel>header{display:flex;gap:10px;justify-content:space-between;align-items:center}
@@ -136,7 +139,7 @@
 .overviewStats>div{display:grid;gap:5px;padding:0 18px;border-right:1px solid var(--nite-border-soft)}
 .overviewStats>div:first-child{padding-left:0}
 .overviewStats>div:last-child{border:0}
-.overviewStats strong{font-size:27px;font-weight:500;line-height:1.2;letter-spacing:-.04em}
+.overviewStats strong{font-size:1.5rem;font-weight:500;line-height:1.2;letter-spacing:-.03em}
 .overviewStats span{font-size:.8125rem;color:var(--nite-text-secondary)}
 .overviewPanel footer{border-top:1px solid var(--nite-border-soft);padding-top:14px;display:flex;justify-content:space-between;gap:10px;font-size:.8125rem;color:var(--nite-text-secondary)}
 .objectives{display:grid;gap:14px;margin-top:18px;font-size:1rem;color:var(--nite-text-secondary)}
@@ -145,23 +148,25 @@
 .peopleSummary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:24px;margin-top:22px}
 .peopleSummary>div{display:flex;align-items:center;gap:14px;min-width:0}
 .peopleSummary>div>span:last-child{min-width:0;overflow-wrap:anywhere}
-.peopleSummary strong{display:block;font-size:1rem;font-weight:500}
-.peopleSummary small{display:block;font-size:.875rem;color:var(--nite-text-secondary);margin-top:4px}
+.peopleSummary strong{display:block;font-size:.875rem;font-weight:500}
+.peopleSummary small{display:block;font-size:.75rem;color:var(--nite-text-secondary);margin-top:3px}
 .asideNote{border-top:1px solid var(--nite-border-soft);margin-top:32px;padding-top:20px;font-size:.875rem}
 .asideNote p{margin:10px 0 20px}
 .asideNote h3{font-size:.875rem}
 
 .sectionPage{padding:28px 30px 50px;min-width:0}
+.documentSection{min-width:0;padding:16px 30px 20px}
 .sectionHeader{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 24px}
 .sectionHeader p{font-size:.875rem;margin-top:7px}
-.sectionHeader h2{font-size:22px}
+.sectionHeader h2{font-size:1.25rem}
 .sectionHeader h3{font-size:.9375rem}
 .sectionHeader a{font-size:.8125rem}
 .sectionHeader .textLink{display:block;margin-bottom:14px}
 .muted{font-size:.8125rem;color:var(--nite-text-secondary)}
 .teamList{margin-top:22px}
 .personRow{display:flex;gap:14px;align-items:center;padding:18px 0;border-bottom:1px solid var(--nite-border-soft)}
-.personRow>div{flex:1;min-width:0;overflow-wrap:anywhere}
+.personRow>div{flex:1;min-width:0}
+.personRow>div h3,.personRow>div p{overflow-wrap:anywhere}
 .personRow h3{font-size:1rem;font-weight:500}
 .personRow p{font-size:.9375rem;margin-top:4px}
 .personRow>.avatar{width:48px;height:48px}
@@ -184,6 +189,7 @@
 .documentNote{font-size:.8125rem;padding:14px 16px;border:1px solid var(--nite-border-soft);border-radius:7px;color:var(--nite-text-secondary);margin-bottom:24px}
 
 .page :is(button,a,input,select,textarea):focus-visible,.workspace :is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--nite-focus);outline-offset:3px}
+.page .search input:focus-visible,.workspace .search input:focus-visible{outline:0!important;outline-offset:0;box-shadow:none}
 
 @media(min-width:1550px){.gallery{grid-template-columns:repeat(4,minmax(0,1fr))}
 .page{padding-top:28px}
@@ -194,7 +200,7 @@
 .summary{min-height:0;max-width:500px}
 .presentationLayout{gap:28px;grid-template-columns:minmax(0,1fr) 260px}
 .overviewLayout{grid-template-columns:minmax(0,1fr) 300px}
-.overviewMain{padding:0 28px 28px}
+.overviewMain{padding:0}
 .taskLayout{grid-template-columns:minmax(0,1fr)}
 .planningGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
@@ -204,12 +210,12 @@
 .presentation{padding:0}
 .propertyPanel{max-width:none}
 .overviewLayout{grid-template-columns:1fr}
-.overviewAside{position:static;max-height:none;overflow:visible;border-left:0;border-top:1px solid var(--nite-border-soft)}
+.overviewAside{position:static;max-height:none;overflow:visible}
 .overviewAside .properties>div{grid-template-columns:140px 1fr}
 .workspaceTop{padding:16px 22px 0}
 .sectionPage{padding:24px 22px}
-.overviewMain{padding:24px 22px}
-.workspaceHeader h1{font-size:24px}
+.overviewLayout{padding:24px 22px}
+.workspaceHeader h1{font-size:1.25rem}
 .workspaceTabs{gap:22px}
 .rowActions{flex-wrap:wrap}
 .requestRow{flex-wrap:wrap}
@@ -220,7 +226,7 @@
 
 @media(max-width:520px){.page{padding:14px 16px 32px}
 .pageHeader{align-items:flex-start;flex-direction:column;margin:24px 0}
-.page h1{font-size:28px}
+.page h1{font-size:1.5rem}
 .pageHeader>div>p:last-child{font-size:.875rem}
 .gallery{grid-template-columns:1fr;gap:16px}
 .toolbar{gap:8px}
@@ -232,11 +238,12 @@
 .presentation h1{font-size:27px}
 .lead{font-size:1rem}
 .workspaceHeader>a{margin-left:0}
-.workspaceHeader h1{font-size:22px}
+.workspaceHeader h1{font-size:1.125rem}
 .workspaceTop{padding:14px 16px 0}
 .workspaceHeader .projectStatus{margin-left:0}
 .sectionPage{padding:22px 16px}
-.overviewMain{padding:24px 16px}
+.documentSection{padding:14px 16px 18px}
+.overviewLayout{padding:22px 16px}
 .overviewPanel{padding:16px}
 .overviewPanel>header{align-items:flex-start;flex-direction:column}
 .overviewStats>div{padding:0 10px}
@@ -252,7 +259,6 @@
 .requestContent small{display:block;margin:4px 0 0}
 .dialogFooter{flex-direction:column-reverse}
 .dialogFooter>*{width:100%}
-.adminNotice{padding:10px 16px}
 }
 
 @media(prefers-reduced-motion:reduce){.projectCard{transition:none}
@@ -262,16 +268,19 @@
 .projectMenu{position:relative}.projectMenu summary{cursor:pointer;list-style:none;padding:7px 10px;border:1px solid var(--nite-border-control);border-radius:6px}.projectMenu summary::-webkit-details-marker{display:none}.projectMenu>div{position:absolute;right:0;top:42px;z-index:20;display:grid;width:230px;padding:6px;border:1px solid var(--nite-border-soft);border-radius:8px;background:var(--nite-surface-elevated);box-shadow:var(--nite-shadow-floating)}.projectMenu a{padding:10px;font-size:.875rem;border-radius:4px}.projectMenu a:hover{background:var(--nite-surface-subtle)}
 
 /* Refine the existing planning and library components only inside this module. */
-.workspace :global(.text-type-metadata){font-size:.8125rem;line-height:1.5}
-.workspace :global(.text-type-body-compact){font-size:.9375rem;line-height:1.5}
+.workspace :global(.text-type-metadata){font-size:.75rem;line-height:1.5}
+.workspace :global(.text-type-body-compact){font-size:.875rem;line-height:1.5}
 .workspace :global(.text-nite-text-muted){color:var(--nite-text-secondary)}
 .workspace :global(.text-nite-brand-primary){color:var(--nite-brand-accent)}
 .planningGrid>a{padding:20px}
 .sectionPage :global(input),.sectionPage :global(textarea){font-size:1rem}
-.workspaceHeader>.mark{width:60px;height:60px;font-size:1.25rem}
+.workspaceHeader>.mark{width:42px;height:42px;font-size:.875rem}
+.documentSection :global(.document-explorer){height:calc(100dvh - 18.75rem);min-height:22rem;margin-bottom:0}
+.documentSection :global(.document-project-trash){height:calc(100dvh - 18.75rem);min-height:22rem}
 .projectMenu summary{min-width:42px;min-height:42px;display:grid;place-items:center}
-@media(max-width:1050px) and (min-width:801px){.overviewLayout{grid-template-columns:minmax(0,1fr)}.overviewAside{position:static;max-height:none;overflow:visible;border-left:0;border-top:1px solid var(--nite-border-soft)}.overviewAside .properties{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:520px){.workspaceHeader h1{min-width:0;flex-basis:calc(100% - 80px)}.workspaceHeader>.projectStatus{margin-right:auto}.overviewAside{padding:24px 16px}.overviewAside .properties>div{grid-template-columns:1fr;gap:6px}.toolbar>label{max-width:100%}.toolbar select,.toolbar input,.search input,.field input,.field textarea{font-size:1rem}.personRow>.avatar{width:48px;height:48px}.rowActions{margin-left:58px}.projectCard footer{align-items:flex-start}}
+@media(max-width:1050px) and (min-width:801px){.overviewLayout{grid-template-columns:minmax(0,1fr)}.overviewAside{position:static;max-height:none;overflow:visible}.overviewAside .properties{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.workspaceHeader h1{min-width:0;flex-basis:calc(100% - 80px)}.workspaceHeader>.projectStatus{margin-right:auto}.overviewAside{padding:20px 16px}.overviewAside .properties>div{grid-template-columns:1fr;gap:6px}.toolbar>label{max-width:100%}.toolbar select,.toolbar input,.search input,.field input,.field textarea{font-size:1rem}.personRow>.avatar{width:48px;height:48px}.rowActions{margin-left:58px}.projectCard footer{align-items:flex-start}}
+@media(max-height:650px){.documentSection :global(.document-explorer),.documentSection :global(.document-project-trash){min-height:0}}
 
 .overviewAside:focus-visible{outline:2px solid var(--nite-focus);outline-offset:-3px}
 .planningGrid>a:hover h2,.tasks button:hover>span:first-child{color:var(--nite-brand-accent)}

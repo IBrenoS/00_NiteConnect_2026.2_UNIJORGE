@@ -20,7 +20,9 @@ public class ApiErrors {
     }
     @ExceptionHandler(ApiException.class)
     ProblemDetail domain(ApiException ex) {
-        return ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+        if (ex.code() != null) problem.setProperty("code", ex.code());
+        return problem;
     }
     @ExceptionHandler(MeetingProviderApiException.class)
     ProblemDetail meetingProvider(MeetingProviderApiException ex) {

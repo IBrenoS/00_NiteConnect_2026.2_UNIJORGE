@@ -37,7 +37,12 @@ public class ActivityPolicy {
     public void context(Activity a,boolean execution) {
         if(a.projectId()==null) return;
         ProjectStatus status=projects.require(a.projectId()).status();
-        if(status==ProjectStatus.CONCLUIDO || execution && status!=ProjectStatus.ATIVO) throw ApiException.conflict("Estado do projeto impede esta operação");
+        if(status==ProjectStatus.CONCLUIDO) throw ApiException.conflict("Projeto concluído impede esta operação");
+        if(execution && status==ProjectStatus.PAUSADO) throw ApiException.projectPaused();
+        if(execution && status!=ProjectStatus.ATIVO) throw ApiException.conflict("Estado do projeto impede esta operação");
+    }
+    public ProjectStatus projectStatus(Activity a) {
+        return a.projectId()==null ? null : projects.require(a.projectId()).status();
     }
     public void editable(Activity a) { context(a,false);if(a.status().terminal()) throw ApiException.conflict("Reabra a atividade antes de alterá-la"); }
     public void contribute(UUID actor,Activity a) {
@@ -47,7 +52,14 @@ public class ActivityPolicy {
         if(!manages(actor,a)) eligible(actor,a.projectId());
     }
     public void execute(UUID actor,Activity a) {
-        read(actor,a);context(a,true);
+        read(actor,a);
+        if(!manages(actor,a) && !a.primaryExecutorId().equals(actor)) throw ApiException.forbidden();
+        if(!manages(actor,a)) eligible(actor,a.projectId());
+        context(a,true);
+    }
+    public void transitionAuthorization(UUID actor,Activity a,ActivityStatus next) {
+        if(next==ActivityStatus.CANCELADA || a.status().terminal()) { manage(actor,a);return; }
+        read(actor,a);
         if(!manages(actor,a) && !a.primaryExecutorId().equals(actor)) throw ApiException.forbidden();
         if(!manages(actor,a)) eligible(actor,a.projectId());
     }

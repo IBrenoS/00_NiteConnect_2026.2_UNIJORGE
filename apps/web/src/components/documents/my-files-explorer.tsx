@@ -465,7 +465,7 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
     paneMedia.addEventListener("change",updatePaneLayout);
     return ()=>paneMedia.removeEventListener("change",updatePaneLayout);
   },[]);
-  const pageTitle=inFolder?current?.name??"Pasta":view==="shared"?"Com você":view==="sent"?"Por você":projectContext?`Documentos · ${projectContext.name}`:"Meus arquivos";
+  const pageTitle=inFolder?current?.name??"Pasta":view==="shared"?"Com você":view==="sent"?"Por você":projectContext?"Documentos":"Meus arquivos";
   const typeOptions=[{label:"Documento Word",mime:wordMime},{label:"PDF",mime:"application/pdf"},{label:"Imagem PNG",mime:"image/png"},{label:"Imagem JPEG",mime:"image/jpeg"}];
   function toggleType(mime:string) {
     router.push(queryString(view,folderId,{...query,type:params.type===mime?undefined:mime}));
@@ -476,7 +476,7 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
         {inFolder&&<nav aria-label="Caminho da pasta" className="mb-2 flex flex-wrap items-center gap-2 text-type-body-compact">
-          <Link href={rootHref} className="text-nite-text-secondary hover:text-nite-brand-primary">{projectContext?projectContext.name:view==="shared"?"Com você":view==="sent"?"Por você":"Meus arquivos"}</Link>
+          <Link href={rootHref} className="text-nite-text-secondary hover:text-nite-brand-primary">{projectContext?"Documentos":view==="shared"?"Com você":view==="sent"?"Por você":"Meus arquivos"}</Link>
           {ancestors.filter((ancestor)=>!projectContext||(ancestor.projectId===projectContext.id&&ancestor.kind!=="PROJECT")).map((ancestor)=><span key={ancestor.id} className="inline-flex min-w-0 items-center gap-2"><svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5 shrink-0 text-nite-text-muted" fill="none" stroke="currentColor"><path d="m6 3 5 5-5 5"/></svg><Link href={queryString(view,ancestor.id,query)} className="max-w-48 truncate text-nite-text-secondary hover:text-nite-brand-primary">{ancestor.name}</Link></span>)}
           <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5 text-nite-text-muted" fill="none" stroke="currentColor"><path d="m6 3 5 5-5 5"/></svg>
           <span aria-current="page" className="truncate font-semibold text-nite-text-primary">{pageTitle}</span>
@@ -514,7 +514,7 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
     <input ref={filesInputRef} type="file" multiple accept=".docx,.pdf,.png,.jpg,.jpeg" className="hidden" aria-label="Selecionar arquivos para carregar" onChange={(event)=>void loadFiles(event,false)}/>
     <input ref={directoryInputRef} type="file" multiple className="hidden" aria-label="Selecionar pasta para carregar" onChange={(event)=>void loadFiles(event,true)}/>
 
-    {projectContext?<nav aria-label="Documentos do projeto" className="flex gap-4 border-b border-nite-border-soft text-type-body-compact"><Link href={rootHref} className="min-h-10 py-2 text-nite-brand-primary">Documentos</Link>{projectContext.canViewTrash&&<Link href={projectContext.trashPath} className="min-h-10 py-2 text-nite-text-secondary">Lixeira do projeto</Link>}{projectContext.canRequestDeletion&&projectContext.requestsPath&&<Link href={projectContext.requestsPath} className="min-h-10 py-2 text-nite-text-secondary">Aprovações</Link>}</nav>:<nav aria-label="Perspectivas dos arquivos" className="flex flex-wrap gap-1 border-b border-nite-border-soft text-type-body-compact">
+    {projectContext?<nav aria-label="Documentos do projeto" className="flex gap-4 border-b border-nite-border-soft text-type-body-compact"><span aria-current="page" className="min-h-10 border-b-2 border-nite-brand-primary py-2 font-medium text-nite-brand-primary">Documentos</span>{projectContext.canViewTrash&&<Link href={projectContext.trashPath} className="min-h-10 py-2 text-nite-text-secondary">Lixeira</Link>}</nav>:<nav aria-label="Perspectivas dos arquivos" className="flex flex-wrap gap-1 border-b border-nite-border-soft text-type-body-compact">
       {([["personal","Meus arquivos"],["shared","Com você"],["sent","Por você"]] as const).map(([perspective,label])=><Link key={perspective} href={queryString(perspective,undefined,query)} aria-current={view===perspective?"page":undefined} className={`min-h-10 rounded-t-control px-4 py-2.5 focus-visible:outline-2 focus-visible:outline-nite-focus ${view===perspective?"border-b-2 border-nite-brand-primary font-semibold text-nite-brand-primary":"text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>{label}</Link>)}
       <button type="button" onClick={()=>setRequestsOpen(true)} className="ml-auto min-h-10 rounded-t-control px-4 text-nite-text-secondary hover:bg-nite-surface-subtle">Solicitações</button>
       <button type="button" onClick={()=>{setAutomationTarget(current?.capabilities?.canView?{id:current.id,name:current.name,kind:"folder",folder:current}:null);setAutomationOpen(true);}} className="min-h-10 rounded-t-control px-4 text-nite-text-secondary hover:bg-nite-surface-subtle">Automações</button>
@@ -574,12 +574,12 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
               <col className="hidden xl:table-column xl:w-[16.39%] 2xl:w-[160px]"/>
               <col className="hidden 2xl:table-column 2xl:w-auto document-column-activity"/>
             </colgroup>
-            <thead className="sticky top-0 z-10 border-b border-nite-border-soft bg-inherit text-sm font-semibold text-nite-text-secondary"><tr className="h-[49px]">
+            <thead className={`sticky top-0 z-10 border-b border-nite-border-soft text-sm font-medium text-nite-text-secondary ${projectContext?"bg-nite-surface-elevated":"bg-[#292827]"}`}><tr className="h-[49px]">
               <th className="h-[49px] px-3 py-0">{selected.length>0&&<SelectionCheckbox label="Selecionar todas as linhas" checked={allItemsSelected} indeterminate={!allItemsSelected} onChange={selectAll}/>}</th><th className="h-[49px] px-2 py-0"><OneDriveMenuIcon name="page"/></th>
               <th className="h-[49px] min-w-0 px-3 py-0">{view==="sent"?"Nome":<SortLink label="Nome" sort="name" {...{view,folderId,query,projectContext}}/>}</th>
               <th className="hidden h-[49px] min-w-0 px-3 py-0 md:table-cell">{view==="sent"?"Compartilhado":<SortLink label="Modificado" sort="modifiedAt" {...{view,folderId,query,projectContext}}/>}</th>
               <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 xl:table-cell"><span className="block truncate" title="Modificado por">Modificado por</span></th>
-              <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 lg:table-cell">{view==="shared"&&!listing||view==="sent"?<span className="block truncate" title="Tamanho do arquivo">Tamanho do arquivo</span>:<SortLink label="Tamanho do arquivo" sort="size" {...{view,folderId,query,projectContext}}/>}</th>
+              <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 lg:table-cell">{view==="shared"&&!listing||view==="sent"?<span className="block truncate" title="Tamanho do arquivo">Tamanho</span>:<SortLink label="Tamanho" sort="size" {...{view,folderId,query,projectContext}}/>}</th>
               <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 xl:table-cell"><span aria-label="Compartilhamento" title="Compartilhamento" className="block truncate">Compartilhamento</span></th>
               <th className="hidden h-[49px] min-w-0 overflow-hidden px-3 py-0 2xl:table-cell"><span className="block truncate" title="Atividade">Atividade</span></th>
             </tr></thead>
@@ -587,7 +587,7 @@ export function MyFilesExplorer({projectContext,listing:initialListing,ancestors
               <td className="px-3 py-2"><SelectionCheckbox label={`Selecionar ${item.name}`} checked={isSelected} onChange={(checked)=>select(item.id,checked)} className={`transition-opacity focus-within:opacity-100 ${isSelected?"opacity-100":"opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}/></td>
               <td className="px-2 py-2"><ItemIcon item={item}/></td>
               <td className="min-w-0 px-3 py-2"><div className="relative flex min-w-0 items-center gap-2" onClick={(event)=>event.stopPropagation()}>
-                <button onClick={()=>openItem(item)} className={`min-w-0 flex-1 truncate text-left font-medium text-nite-text-primary hover:text-nite-brand-primary hover:underline focus-visible:outline-2 focus-visible:outline-nite-focus ${isSelected?"pr-24":"group-hover:pr-24 group-focus-within:pr-24"}`}>{item.name}</button>
+                <button onClick={()=>openItem(item)} title={item.name} className={`min-w-0 flex-1 truncate text-left font-medium text-nite-text-primary hover:text-nite-brand-primary hover:underline focus-visible:outline-2 focus-visible:outline-nite-focus ${isSelected?"pr-24":"group-hover:pr-24 group-focus-within:pr-24"}`}>{item.name}</button>
                 {item.kind==="file"&&item.file?.sharedWithCount?<span aria-label="Compartilhado" title="Compartilhado" className="shrink-0 text-nite-text-secondary"><svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="7" cy="6" r="2.5"/><path d="M2.5 16a4.5 4.5 0 0 1 9 0m1-8h5m-2.5-2.5v5"/></svg></span>:null}
                 <div className={`absolute right-[-1px] top-1/2 flex -translate-y-1/2 items-center gap-1 ${isSelected?"opacity-100":"opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
                   <div data-item-actions className="relative mr-px">

@@ -202,7 +202,7 @@ public class DocumentLibraryController {
     DocumentLibraryService.AccessInfo folderAccess(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
         return library.accessInfo(identities.member(jwt),"FOLDER",id);
     }
-    public record CreateShare(UUID memberId,String permission) {}
+    public record CreateShare(UUID memberId,String permission,String message) {}
     public record ChangeShare(String permission) {}
     @GetMapping("/api/v1/library/documents/{id}/shares")
     List<Share> documentShares(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
@@ -211,7 +211,7 @@ public class DocumentLibraryController {
     @PostMapping("/api/v1/library/documents/{id}/shares")
     @ResponseStatus(HttpStatus.CREATED)
     Share shareDocument(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody CreateShare input) {
-        return library.shareDocument(identities.member(jwt),id,input.memberId(),input.permission());
+        return library.shareDocument(identities.member(jwt),id,input.memberId(),input.permission(),input.message());
     }
     @GetMapping("/api/v1/library/folders/{id}/shares")
     List<Share> folderShares(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
@@ -220,7 +220,7 @@ public class DocumentLibraryController {
     @PostMapping("/api/v1/library/folders/{id}/shares")
     @ResponseStatus(HttpStatus.CREATED)
     Share shareFolder(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestBody CreateShare input) {
-        return library.shareFolder(identities.member(jwt),id,input.memberId(),input.permission());
+        return library.shareFolder(identities.member(jwt),id,input.memberId(),input.permission(),input.message());
     }
     @PatchMapping("/api/v1/library/shares/{shareId}")
     Share changeShare(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID shareId,@RequestBody ChangeShare input) {

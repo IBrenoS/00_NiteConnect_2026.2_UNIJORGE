@@ -24,18 +24,18 @@ public class DocumentSharingRepository {
     public DocumentSharingRepository(JdbcTemplate jdbc) { this.jdbc=jdbc; }
 
     public record Share(UUID id,UUID documentId,UUID folderId,UUID memberId,String memberName,String permission,
-                        UUID grantedBy,String grantedByName,Instant createdAt,Instant revokedAt) {
+                        UUID grantedBy,String grantedByName,Instant createdAt,Instant revokedAt,String message) {
         public String targetType() { return documentId==null?"FOLDER":"DOCUMENT"; }
     }
     public record SharedItem(UUID grantId,UUID id,String type,String name,String permission,UUID ownerId,
                              String ownerName,UUID sharedBy,String sharedByName,Instant sharedAt,Instant modifiedAt,
                              Instant createdAt,String mimeType,Long size,String createdByName,String modifiedByName,
-                             DocumentIdentity identity,DocumentCapabilities capabilities) {
+                             DocumentIdentity identity,DocumentCapabilities capabilities,String message,String sourceLabel) {
         public SharedItem(UUID grantId,UUID id,String type,String name,String permission,UUID ownerId,
                           String ownerName,UUID sharedBy,String sharedByName,Instant sharedAt,Instant modifiedAt,
                           Instant createdAt,String mimeType,Long size,String createdByName,String modifiedByName) {
             this(grantId,id,type,name,permission,ownerId,ownerName,sharedBy,sharedByName,sharedAt,modifiedAt,
-                    createdAt,mimeType,size,createdByName,modifiedByName,null,null);
+                    createdAt,mimeType,size,createdByName,modifiedByName,null,null,null,null);
         }
     }
     public record SharedPage(List<SharedItem> items,boolean hasMore) {}
@@ -53,7 +53,7 @@ public class DocumentSharingRepository {
                     where a.depth<63
                 )
                 select g.id,g.document_id,g.folder_id,g.member_id,m.name member_name,g.permission,g.granted_by,
-                  issuer.name granted_by_name,g.created_at,g.revoked_at,
+                  issuer.name granted_by_name,g.created_at,g.revoked_at,g.message,
                   case when g.document_id is not null then 'DIRECT' else 'INHERITED' end origin,
                   g.folder_id source_folder_id,coalesce(a.depth,-1) depth
                 from nite_connect.document_grants g
@@ -70,7 +70,7 @@ public class DocumentSharingRepository {
                     where a.depth<63
                 )
                 select g.id,g.document_id,g.folder_id,g.member_id,m.name member_name,g.permission,g.granted_by,
-                  issuer.name granted_by_name,g.created_at,g.revoked_at,
+                  issuer.name granted_by_name,g.created_at,g.revoked_at,g.message,
                   case when a.depth=0 then 'DIRECT' else 'INHERITED' end origin,
                   g.folder_id source_folder_id,a.depth depth
                 from ancestors a join nite_connect.document_grants g on g.folder_id=a.id and g.revoked_at is null
@@ -122,11 +122,11 @@ public class DocumentSharingRepository {
         return new Share(rs.getObject("id",UUID.class),rs.getObject("document_id",UUID.class),
                 rs.getObject("folder_id",UUID.class),rs.getObject("member_id",UUID.class),rs.getString("member_name"),
                 rs.getString("permission"),rs.getObject("granted_by",UUID.class),rs.getString("granted_by_name"),
-                rs.getTimestamp("created_at").toInstant(),revoked==null?null:revoked.toInstant());
+                rs.getTimestamp("created_at").toInstant(),revoked==null?null:revoked.toInstant(),rs.getString("message"));
     }
     private static final String SHARE_COLUMNS="""
             select g.id,g.document_id,g.folder_id,g.member_id,m.name member_name,g.permission,
-                   g.granted_by,issuer.name granted_by_name,g.created_at,g.revoked_at
+                   g.granted_by,issuer.name granted_by_name,g.created_at,g.revoked_at,g.message
             from nite_connect.document_grants g
             join nite_connect.members m on m.id=g.member_id
             join nite_connect.members issuer on issuer.id=g.granted_by
@@ -243,12 +243,15 @@ public class DocumentSharingRepository {
     }
 
     public Share grant(UUID document,UUID folder,UUID member,String permission,UUID actor) {
+        return grant(document,folder,member,permission,actor,null);
+    }
+    public Share grant(UUID document,UUID folder,UUID member,String permission,UUID actor,String message) {
         if(permission==null || !List.of("VIEW","EDIT").contains(permission)) throw ApiException.invalid("Permissão documental inválida");
         UUID id=UUID.randomUUID();
         jdbc.update("""
-                insert into nite_connect.document_grants(id,document_id,folder_id,member_id,permission,can_edit,granted_by)
-                values (?,?,?,?,?,?,?)
-                """,id,document,folder,member,permission,"EDIT".equals(permission),actor);
+                insert into nite_connect.document_grants(id,document_id,folder_id,member_id,permission,can_edit,granted_by,message)
+                values (?,?,?,?,?,?,?,?)
+                """,id,document,folder,member,permission,"EDIT".equals(permission),actor,message);
         event(document,folder,actor,member,"SHARE_GRANTED",permission);
         return require(id);
     }
@@ -260,9 +263,9 @@ public class DocumentSharingRepository {
         revokeSessions(old.documentId(),old.folderId(),old.memberId());
         UUID next=UUID.randomUUID();
         jdbc.update("""
-                insert into nite_connect.document_grants(id,document_id,folder_id,member_id,permission,can_edit,granted_by)
-                values (?,?,?,?,?,?,?)
-                """,next,old.documentId(),old.folderId(),old.memberId(),permission,"EDIT".equals(permission),actor);
+                insert into nite_connect.document_grants(id,document_id,folder_id,member_id,permission,can_edit,granted_by,message)
+                values (?,?,?,?,?,?,?,?)
+                """,next,old.documentId(),old.folderId(),old.memberId(),permission,"EDIT".equals(permission),actor,old.message());
         event(old.documentId(),old.folderId(),actor,old.memberId(),"SHARE_CHANGED",permission);
         return require(next);
     }

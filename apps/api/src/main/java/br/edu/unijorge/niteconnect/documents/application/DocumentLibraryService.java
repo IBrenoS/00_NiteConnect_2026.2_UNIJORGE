@@ -53,7 +53,8 @@ public class DocumentLibraryService {
     }
     public record Listing(Folder folder,List<Folder> folders,List<FileEntry> files,long totalFiles,String nextCursor,boolean hasMore) {}
     public record ActivityListing(List<Activity> items,String nextCursor,boolean hasMore) {}
-    public record TrashEntry(TrashItem item,br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities capabilities) {}
+    public record TrashEntry(TrashItem item,br.edu.unijorge.niteconnect.documents.domain.DocumentCapabilities capabilities,
+                             OriginalLocation originalLocation) {}
     public record TrashListing(List<TrashEntry> items,int limit,int offset,boolean hasMore) {}
     public record FolderChange(UUID parentId,String name,String color,Boolean moveToRoot) {}
     public record DocumentChange(UUID folderId,String title) {}
@@ -338,7 +339,10 @@ public class DocumentLibraryService {
                     item.ownerName(),item.sharedBy(),item.sharedByName(),item.sharedAt(),item.modifiedAt(),
                     item.createdAt(),item.mimeType(),item.size(),item.createdByName(),item.modifiedByName(),
                     identity,
-                    folder?capabilities.folder(actor,folders.folder(item.id())):capabilities.document(actor,documents.require(item.id())));
+                    folder?capabilities.folder(actor,folders.folder(item.id())):capabilities.document(actor,documents.require(item.id())),
+                    sharing.require(item.grantId()).message(),
+                    "PROJECT".equals(identity.resourceOwnerKind())?"Documentos do projeto":
+                            "INSTITUTION".equals(identity.resourceOwnerKind())?"Biblioteca do NITE":"Meus arquivos");
         }).toList();
         return new SharedListing(enriched,next,page.hasMore());
     }
@@ -377,6 +381,10 @@ public class DocumentLibraryService {
     }
     @Transactional
     public Share shareDocument(UUID actor,UUID id,UUID member,String permission) {
+        return shareDocument(actor,id,member,permission,null);
+    }
+    @Transactional
+    public Share shareDocument(UUID actor,UUID id,UUID member,String permission,String message) {
         Document document=core.require(actor,id);
         requireShareManage(actor,document);
         validateRecipient(member,"DOCUMENT",document.projectId());
@@ -384,7 +392,7 @@ public class DocumentLibraryService {
         transactions.lock();
         if(sharing.shares(id,null).stream().anyMatch(share->share.memberId().equals(member)))
             throw ApiException.conflict("Este integrante já possui compartilhamento direto ativo");
-        return sharing.grant(id,null,member,permission,actor);
+        return sharing.grant(id,null,member,permission,actor,shareMessage(message));
     }
     @Transactional(readOnly=true)
     public List<Share> documentShares(UUID actor,UUID id) {
@@ -393,6 +401,10 @@ public class DocumentLibraryService {
     }
     @Transactional
     public Share shareFolder(UUID actor,UUID id,UUID member,String permission) {
+        return shareFolder(actor,id,member,permission,null);
+    }
+    @Transactional
+    public Share shareFolder(UUID actor,UUID id,UUID member,String permission,String message) {
         Folder folder=folders.folder(id);requireShareManage(actor,folder);
         Scope scope=scope(folder);
         validateRecipient(member,"FOLDER","PROJECT".equals(scope.kind())?scope.subject():null);
@@ -400,7 +412,13 @@ public class DocumentLibraryService {
         transactions.lock();
         if(sharing.shares(null,id).stream().anyMatch(share->share.memberId().equals(member)))
             throw ApiException.conflict("Este integrante já possui compartilhamento direto ativo");
-        return sharing.grant(null,id,member,permission,actor);
+        return sharing.grant(null,id,member,permission,actor,shareMessage(message));
+    }
+    private static String shareMessage(String message) {
+        if(message==null||message.isBlank()) return null;
+        if(message.length()>1000||message.chars().anyMatch(c->Character.isISOControl(c)&&c!='\n'&&c!='\r'&&c!='\t'))
+            throw ApiException.invalid("Mensagem de compartilhamento inválida (máximo 1000 caracteres)");
+        return message.strip();
     }
     @Transactional(readOnly=true)
     public List<Share> folderShares(UUID actor,UUID id) {
@@ -565,7 +583,8 @@ public class DocumentLibraryService {
         if(!Set.of("asc","desc").contains(direction)) throw ApiException.invalid("Direção da ordenação inválida");
         List<TrashItem> rows=folders.trash(administrative?null:project==null?actor:null,project,administrative,type,sortBy,direction,requestedLimit+1,offset);
         boolean more=rows.size()>requestedLimit;
-        List<TrashEntry> entries=rows.stream().limit(requestedLimit).map(item->new TrashEntry(item,trashCapabilities(actor,item))).toList();
+        List<TrashEntry> entries=rows.stream().limit(requestedLimit).map(item->new TrashEntry(item,trashCapabilities(actor,item),
+                folders.trashLocation(item.id(),item.type()))).toList();
         return new TrashListing(entries,requestedLimit,offset,more);
     }
     @Transactional

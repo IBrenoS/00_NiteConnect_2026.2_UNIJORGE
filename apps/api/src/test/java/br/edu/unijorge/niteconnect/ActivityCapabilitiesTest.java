@@ -67,13 +67,48 @@ class ActivityCapabilitiesTest extends ActivityTestSupport {
     }
     @Test void inactiveActorCannotInspectCapabilitiesAndPausedProjectBlocksExecution() throws Exception {
         UUID p=activeProject(), id=activity(LEADER,p,MEMBER);
+        mvc.perform(post("/api/v1/activities/"+id+"/collaborators").with(token(LEADER)).contentType("application/json")
+                .content(command(id,",\"memberId\":\""+OTHER+"\""))).andExpect(status().isCreated());
         mvc.perform(patch("/api/v1/projects/"+p+"/status").with(token(ADMIN)).contentType("application/json")
                 .content("{\"status\":\"PAUSADO\",\"expectedVersion\":"+version(p)+",\"reason\":\"Pausa\"}")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(MEMBER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.addEvidence").value(false)).andExpect(jsonPath("$.upload").value(false))
-                .andExpect(jsonPath("$.transitions.length()").value(0));
+                .andExpect(jsonPath("$.transitions.length()").value(0))
+                .andExpect(jsonPath("$.executionBlockedByProjectPause").value(true))
+                .andExpect(jsonPath("$.canResumeProject").value(false));
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(LEADER))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.edit").value(true));
+                .andExpect(jsonPath("$.edit").value(true)).andExpect(jsonPath("$.changePriority").value(true))
+                .andExpect(jsonPath("$.executionBlockedByProjectPause").value(true))
+                .andExpect(jsonPath("$.canResumeProject").value(false));
+        mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(ADMIN))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.canResumeProject").value(true));
+        mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(OTHER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.executionBlockedByProjectPause").value(false));
+        mvc.perform(patch("/api/v1/activities/"+id+"/status").with(token(OTHER)).contentType("application/json")
+                .content("{\"status\":\"EM_EXECUCAO\",\"expectedVersion\":"+av(id)+"}"))
+                .andExpect(status().isForbidden());
+        long staleVersion=av(id);
+        mvc.perform(patch("/api/v1/activities/"+id).with(token(LEADER)).contentType("application/json")
+                .content("{\"priority\":\"ALTA\",\"expectedVersion\":"+av(id)+"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.priority").value("ALTA"));
+        mvc.perform(patch("/api/v1/activities/"+id+"/status").with(token(LEADER)).contentType("application/json")
+                .content("{\"status\":\"EM_EXECUCAO\",\"expectedVersion\":"+staleVersion+"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").doesNotExist());
+        mvc.perform(patch("/api/v1/activities/"+id+"/status").with(token(LEADER)).contentType("application/json")
+                .content("{\"status\":\"EM_EXECUCAO\",\"expectedVersion\":"+av(id)+"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PROJECT_PAUSED"));
+        mvc.perform(patch("/api/v1/activities/"+id+"/status").with(token(MEMBER)).contentType("application/json")
+                .content("{\"status\":\"EM_EXECUCAO\",\"expectedVersion\":"+av(id)+"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PROJECT_PAUSED"));
+        mvc.perform(patch("/api/v1/projects/"+p+"/status").with(token(ADMIN)).contentType("application/json")
+                .content("{\"status\":\"ATIVO\",\"expectedVersion\":"+version(p)+",\"reason\":\"Retomada\"}"))
+                .andExpect(status().isOk());
+        state(id,LEADER,"EM_EXECUCAO");
+        mvc.perform(get("/api/v1/activities/"+id).with(token(MEMBER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EM_EXECUCAO"))
+                .andExpect(jsonPath("$.priority").value("ALTA"));
+        mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(MEMBER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.executionBlockedByProjectPause").value(false));
         jdbc.update("update nite_connect.members set status='AFASTADO' where id=?",MEMBER);
         mvc.perform(get("/api/v1/me/activities/capabilities").with(token(MEMBER))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/activities/"+id+"/capabilities").with(token(MEMBER))).andExpect(status().isForbidden());

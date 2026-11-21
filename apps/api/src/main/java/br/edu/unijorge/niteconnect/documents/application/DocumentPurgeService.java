@@ -102,7 +102,8 @@ public class DocumentPurgeService {
         UUID policyId=null;
         for(var item:items) {
             if(!actor.equals(item.spaceOwnerId())&&!access.isAdministrator(actor)) return new Evaluation(null,"OUT_OF_SCOPE");
-            var policy=repository.policyEligibility(item,false);
+            boolean institutionalLibrary="INSTITUTION".equals(item.resourceOwnerKind())&&item.spaceOwnerId()==null;
+            var policy=repository.policyEligibility(item,institutionalLibrary);
             String reason=capabilities.purgeDeniedReason(actor,item,policy.eligible(),purgeWorkerEnabled);
             if("POLICY_NOT_APPROVED".equals(reason)&&policy.reasonCode()!=null) reason=policy.reasonCode();
             if(!reason.isEmpty()) return new Evaluation(policy.policyId(),reason);

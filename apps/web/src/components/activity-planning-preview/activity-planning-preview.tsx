@@ -145,11 +145,11 @@ export function Toolbar({ view, planningId, query, setQuery, statusFilter, setSt
 
 export function StatusPill({ status }: { status: Status }) {
   const color = status === "Concluída" ? "bg-status-done-soft text-status-done" : status === "Em andamento" ? "bg-status-progress-soft text-status-progress" : status === "Cancelada" ? "bg-status-cancelled-soft text-status-cancelled" : "bg-status-draft-soft text-status-draft";
-  return <span className={"inline-flex min-h-7 max-w-full items-center whitespace-nowrap rounded-control px-2 py-1 text-type-body-compact font-medium " + color}>{status}</span>;
+  return <span className={"inline-flex max-w-full items-center whitespace-nowrap rounded-control px-2 py-0.5 text-type-metadata font-medium " + color}>{status}</span>;
 }
 export function PriorityPill({ priority }: { priority: Priority }) {
   const color = priority === "Alta" ? "bg-status-error-soft text-status-error" : priority === "Média" ? "bg-status-warning-soft text-status-warning" : priority === "Baixa" ? "bg-status-done-soft text-status-done" : "bg-nite-surface-subtle text-nite-text-muted";
-  return <span className={"inline-flex items-center rounded-pill px-2 py-0.5 text-type-metadata font-medium " + color}>{priority}</span>;
+  return <span className={"inline-flex items-center rounded-control px-2 py-0.5 text-type-metadata font-medium " + color}>{priority}</span>;
 }
 
 export function TaskCard({ task, onEdit, draggable = true }: { task: Task; onEdit: (task: Task) => void; draggable?: boolean }) {
@@ -182,8 +182,8 @@ export function KanbanColumn({ title, tone, tasks, grouping, onEdit, onAdd, onMo
     if (saved !== false) cancel();
   }
   return <section
-    className="flex min-w-[210px] flex-1 flex-col rounded-panel bg-nite-surface-subtle/60 p-2"
-    aria-label={title + ", " + tasks.length + " tarefas"}
+    className="flex min-w-[210px] flex-1 flex-col rounded-panel bg-nite-surface-subtle/40 p-2"
+    aria-label={title + ", " + tasks.length + (tasks.length === 1 ? " tarefa" : " tarefas")}
     onDragOver={(event) => event.preventDefault()}
     onDrop={(event) => {
       event.preventDefault();
@@ -191,7 +191,7 @@ export function KanbanColumn({ title, tone, tasks, grouping, onEdit, onAdd, onMo
       if (rawTaskId) onMove(/^\d+$/.test(rawTaskId) ? Number(rawTaskId) : rawTaskId, grouping, title);
     }}
   >
-    <header className={"mb-2 flex min-h-9 items-center justify-between rounded-control px-2 " + tone}><h3 className="text-type-body-compact font-medium text-nite-text-primary">{title}</h3><span className="min-w-6 rounded-pill bg-nite-surface/80 px-1.5 py-0.5 text-center text-type-metadata text-nite-text-secondary">{tasks.length}</span></header>
+    <header className="mb-2 flex min-h-9 items-center justify-between rounded-control px-2"><h3 className="text-type-body-compact font-medium text-nite-text-primary"><span className={"rounded-control px-2 py-0.5 " + tone}>{title}</span></h3><span className="min-w-6 rounded-control bg-nite-surface/80 px-1.5 py-0.5 text-center text-type-metadata text-nite-text-secondary">{tasks.length}</span></header>
     <div className="grid content-start gap-2">{tasks.map((task) => <TaskCard key={task.id} task={task} onEdit={onEdit} draggable={task.canMoveStatus === undefined && task.canChangePriority === undefined ? true : Boolean(grouping === "status" ? task.canMoveStatus : task.canChangePriority)}/>)}</div>
     {creating ? <form onSubmit={submit} className="mt-1">
       <label className="sr-only" htmlFor={inputId}>Título da nova tarefa</label>
@@ -211,6 +211,7 @@ export function StatsPanel({ tasks, stats, nextDue: serverNextDue, showOptions =
   const active = stats?.inProgress ?? tasks.filter((task) => task.status === "Em andamento").length;
   const done = stats?.completed ?? tasks.filter((task) => task.status === "Concluída").length;
   const percent = stats?.completionRate ?? getCompletionPercent(tasks);
+  const completionDenominator = stats?.completionDenominator ?? tasks.filter((task) => task.status !== "Cancelada").length;
   const nextDue = serverNextDue !== undefined ? serverNextDue : tasks
     .filter((task) => task.due !== "Sem prazo" && task.status !== "Concluída" && task.status !== "Cancelada")
     .map((task) => task.due)
@@ -218,9 +219,9 @@ export function StatsPanel({ tasks, stats, nextDue: serverNextDue, showOptions =
   const rows = [{ label: "Em andamento", value: active, color: "bg-status-progress" }, { label: "Concluídas", value: done, color: "bg-status-done" }, { label: "Planejadas", value: tasks.filter((task) => task.status === "Planejada").length, color: "bg-status-draft" }, { label: "Canceladas", value: tasks.filter((task) => task.status === "Cancelada").length, color: "bg-status-cancelled" }];
   return <aside className={`${subtle} rounded-panel p-3.5`} aria-label="Resumo do planejamento">
     <div className="flex items-center justify-between"><h2 className="text-type-body-compact font-semibold text-nite-text-primary">Resumo</h2>{showOptions ? <button type="button" className={iconButton} aria-label="Mais opções do resumo"><Dots/></button> : null}</div>
-    <div className="mt-3 flex items-end gap-2"><strong className="font-display text-3xl font-semibold leading-none text-nite-text-primary">{total}</strong><span className="pb-0.5 text-type-metadata text-nite-text-muted">tarefas no total</span></div>
+    <div className="mt-3 flex items-end gap-2"><strong className="font-display text-3xl font-semibold leading-none text-nite-text-primary">{total}</strong><span className="pb-0.5 text-type-metadata text-nite-text-muted">{total === 1 ? "tarefa no total" : "tarefas no total"}</span></div>
     <div className="mt-3 h-1.5 overflow-hidden rounded-pill bg-nite-surface-subtle"><div className="h-full rounded-pill bg-status-done transition-[width]" style={{ width: percent + "%" }}/></div>
-    <p className="mt-1 text-type-metadata text-nite-text-muted">{percent}% {stats ? "das tarefas não canceladas concluídas" : "concluídas"}</p>
+    <p className="mt-1 text-type-metadata text-nite-text-muted">{completionDenominator > 0 ? stats ? `${percent}% das tarefas não canceladas concluídas` : `${percent}% concluídas` : "Sem tarefas elegíveis para calcular o progresso"}</p>
     <div className="mt-3 grid gap-2 border-t border-nite-border-soft pt-3">{rows.map((row) => {
       const value = stats ? row.label === "Em andamento" ? stats.inProgress : row.label === "Concluídas" ? stats.completed : row.label === "Planejadas" ? stats.planned : stats.cancelled : row.value;
       return <div key={row.label} className="flex items-center gap-2 text-type-metadata"><span className={`size-2 rounded-full ${row.color}`}/><span className="flex-1 text-nite-text-secondary">{row.label}</span><span className="font-medium tabular-nums text-nite-text-primary">{value}</span></div>;

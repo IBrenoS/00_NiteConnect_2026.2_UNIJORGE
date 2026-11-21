@@ -9,7 +9,7 @@ import { getAuthenticatedNiteSession } from "../auth/server-session";
 import { MAX_ACTIVITY_EVIDENCE_BYTES } from "./limits";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-type Feedback = "created" | "updated" | "status" | "evidence" | "upload" | "assigned" | "removed" | "withdrawn" | "deleted" | "invalid" | "forbidden" | "not-found" | "conflict" | "too-large" | "unsupported" | "unavailable";
+type Feedback = "created" | "updated" | "status" | "evidence" | "upload" | "assigned" | "removed" | "withdrawn" | "deleted" | "invalid" | "forbidden" | "not-found" | "conflict" | "project-paused" | "too-large" | "unsupported" | "unavailable";
 
 function field(form: FormData, name: string): string {
   const value = form.get(name);
@@ -49,6 +49,7 @@ function resultFeedback(issue: ActivityMutationIssue): Feedback {
   if (issue === "access") return "forbidden";
   if (issue === "not-found") return "not-found";
   if (issue === "conflict") return "conflict";
+  if (issue === "project-paused") return "project-paused";
   if (issue === "too-large") return "too-large";
   if (issue === "unsupported") return "unsupported";
   if (issue === "invalid") return "invalid";
@@ -143,7 +144,7 @@ export async function moveActivityAction(
 ): Promise<{ issue: ActivityMutationIssue | "forbidden" | null; activity?: Activity }> {
   if (!uuidPattern.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return { issue: "invalid" };
   const session = await getAuthenticatedNiteSession();
-  if (!session) return { issue: "access" };
+  if (!session) return { issue: "unauthenticated" };
   const current = await getActivity(session.bearer, id);
   if (current.issue) return { issue: current.issue };
   if (current.data.version !== expectedVersion) return { issue: "conflict" };
@@ -154,7 +155,8 @@ export async function moveActivityAction(
   let result;
   if (fieldName === "status") {
     const next = activityStatuses.find((status) => status === value);
-    if (!next || next === "CANCELADA" || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA" || !capability.data.transitions.includes(next)) return { issue: "forbidden" };
+    if (!next || next === "CANCELADA" || current.data.status === "CONCLUIDA" || current.data.status === "CANCELADA") return { issue: "forbidden" };
+    if (!capability.data.transitions.includes(next)) return { issue: capability.data.executionBlockedByProjectPause ? "project-paused" : "forbidden" };
     result = await mutateActivity(`/api/v1/activities/${encodeURIComponent(id)}/status`, session.bearer, "PATCH", { status: next, expectedVersion }, parseActivity);
   } else {
     const priority = value === null ? null : activityPriorities.find((item) => item === value) ?? undefined;

@@ -5,5 +5,5 @@ export type ProjectDocumentParams={folder?:string;error?:string;saved?:string;up
 export function ProjectDocuments({projectId,name,listing,ancestors,memberId,canManage,params}:{projectId:string;name:string;listing:LibraryListing;ancestors:LibraryFolder[];memberId:string;canManage:boolean;params:ProjectDocumentParams}) {
  const basePath=`/meus-projetos/${projectId}/documentos`;
  const key=JSON.stringify([projectId,listing.folder.id,params.search,params.type,params.sort,params.direction,params.saved,params.uploaded]);
- return <div className={styles.sectionPage}><MyFilesExplorer key={key} listing={listing} ancestors={ancestors} issue={null} view="personal" memberId={memberId} templates={[]} params={params} projectContext={{id:projectId,name,basePath,trashPath:`${basePath}/lixeira`,requestsPath:`${basePath}/aprovacoes`,canRequestDeletion:canManage,canViewTrash:canManage}}/></div>;
+ return <div className={styles.documentSection}><MyFilesExplorer key={key} listing={listing} ancestors={ancestors} issue={null} view="personal" memberId={memberId} templates={[]} params={params} projectContext={{id:projectId,name,basePath,trashPath:`${basePath}/lixeira`,requestsPath:`${basePath}/aprovacoes`,canRequestDeletion:canManage,canViewTrash:canManage}}/></div>;
 }

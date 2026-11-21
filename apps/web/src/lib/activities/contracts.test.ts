@@ -18,7 +18,7 @@ describe("activity API contract", () => {
     expect(parseActivityStatistics({ total: -1 })).toBeNull();
   });
   it("validates activity capabilities without accepting unknown transitions", () => {
-    expect(parseActivityCapabilities({ edit: true, changePriority: true, canDelete: true, transitions: ["EM_EXECUCAO"], history: true, manageAssignees: false, addEvidence: true, upload: false })?.transitions).toEqual(["EM_EXECUCAO"]);
+    expect(parseActivityCapabilities({ edit: true, changePriority: true, canDelete: true, transitions: ["EM_EXECUCAO"], history: true, manageAssignees: false, addEvidence: true, upload: false, executionBlockedByProjectPause: true, canResumeProject: false })).toMatchObject({ transitions: ["EM_EXECUCAO"], executionBlockedByProjectPause: true, canResumeProject: false });
     expect(parseActivityCapabilities({ edit: true, changePriority: false, canDelete: false, transitions: ["ATRASADA"], history: true, manageAssignees: false, addEvidence: true, upload: false })).toBeNull();
   });
   it("preserves independent activities and the API overdue condition", () => {

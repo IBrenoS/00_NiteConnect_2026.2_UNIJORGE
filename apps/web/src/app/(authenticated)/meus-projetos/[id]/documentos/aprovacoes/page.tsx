@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAuthenticatedNiteSession } from "../../../../../../lib/auth/server-session";
 import { getProjectWorkspace,getProjectAuthority } from "../../../../../../lib/projects/data";
@@ -21,5 +20,5 @@ export default async function ProjectDocumentRequestsPage({params,searchParams}:
  if(query.request&&!validUuid(query.request))return <ProjectIssue issue="invalid"/>;
  const [pending,current]=await Promise.all([authority.data.canCreate?getProjectDocumentRequests(session.bearer,id):Promise.resolve({data:[],issue:null}),query.request?getProjectDocumentRequest(session.bearer,id,query.request):Promise.resolve({data:null,issue:null})]);
  const requests=[...new Map([...(current.data?[current.data]:[]),...(pending.data??[])].map(request=>[request.id,request])).values()];
- return <div className={styles.sectionPage}><Link className={styles.button} href={`/meus-projetos/${id}/documentos`}>Voltar aos documentos</Link><ProjectDocumentRequests projectId={id} requests={requests} issue={current.issue??pending.issue} canDecide={authority.data.canCreate}/></div>;
+ return <div className={styles.sectionPage}><ProjectDocumentRequests projectId={id} requests={requests} issue={current.issue??pending.issue} canDecide={authority.data.canCreate}/></div>;
 }

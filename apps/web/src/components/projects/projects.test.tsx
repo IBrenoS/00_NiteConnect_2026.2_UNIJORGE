@@ -6,7 +6,7 @@ import { ProjectOverview, ProjectWorkspaceShell } from "./project-workspace";
 import { ProjectTeam } from "./project-team";
 import { LibraryExplorer } from "../documents/library-explorer";
 import { getVisualDocuments } from "../../lib/projects/visual-documents";
-import { PlanningForm } from "../activity-planning-preview/activity-planning-preview";
+import { PlanningForm, StatsPanel, TaskBoard, type PreviewTask } from "../activity-planning-preview/activity-planning-preview";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/meus-projetos/p1", useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock("../../lib/projects/actions", () => ({ requestProjectMembershipAction: vi.fn(), expressProjectInterestAction: vi.fn(), decideProjectMembershipAction: vi.fn(), setProjectAvailabilityAction: vi.fn() }));
@@ -49,6 +49,30 @@ describe("interfaces integradas de projetos", () => {
     expect(html).not.toContain("Próximos passos");
     expect(html).not.toContain("Dados de exemplo");
   });
+  it("não exibe progresso calculado quando não há tarefas elegíveis", () => {
+    const html = renderToStaticMarkup(<ProjectOverview workspace={workspace} members={members} statistics={{ total: 1, planned: 0, inProgress: 0, completed: 0, cancelled: 1, overdue: 0, completionDenominator: 0, plannedRate: 0, inProgressRate: 0, completedRate: 0, cancelledRate: 100, completionRate: 0 }}/>);
+    expect(html).toContain("Sem tarefas elegíveis para calcular o progresso");
+    expect(html).not.toContain("0% das tarefas não canceladas concluídas");
+    const planning = renderToStaticMarkup(<StatsPanel tasks={[]} stats={{ total: 1, planned: 0, inProgress: 0, completed: 0, cancelled: 1, overdue: 0, completionDenominator: 0, plannedRate: 0, inProgressRate: 0, completedRate: 0, cancelledRate: 100, completionRate: 0 }}/>);
+    expect(planning).toContain("Sem tarefas elegíveis para calcular o progresso");
+    expect(planning).not.toContain("0 % das tarefas não canceladas concluídas");
+  });
+  it("não anuncia solicitações quando a configuração está ativa mas o projeto não pode recebê-las", () => {
+    const paused = { ...workspace, status: "PAUSADO" as const, acceptingMembers: true, capabilities: { ...workspace.capabilities, canManageAvailability: true } };
+    const html = renderToStaticMarkup(<ProjectOverview workspace={paused} members={members}/>);
+    expect(html).toContain("Solicitações habilitadas, mas indisponíveis no estado atual do projeto.");
+    expect(html).not.toContain("Recebendo solicitações");
+  });
+  it("diferencia interesse futuro de solicitações na apresentação do projeto", () => {
+    const html = renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canExpressInterest: true } }} requests={[]} interests={[]}/>);
+    expect(html).toContain("Aberto a manifestações de interesse");
+    expect(html).not.toContain("Recebendo solicitações");
+  });
+  it("não oferece limpar filtros quando a lista de projetos está realmente vazia", () => {
+    const html = renderToStaticMarkup(<ProjectDirectory projects={[]} ownProjectIds={[]}/>);
+    expect(html).toContain("Nenhum projeto está disponível no catálogo.");
+    expect(html).not.toContain("Limpar filtros");
+  });
   it("oculta navegação de atividades quando a capacidade contextual estiver ausente", () => {
     const html = renderToStaticMarkup(<ProjectOverview workspace={{ ...workspace, capabilities: { ...workspace.capabilities, canViewActivities: false } }} members={members}/>);
     expect(html).not.toContain('href="/meus-projetos/p1/atividades"');
@@ -60,17 +84,39 @@ describe("interfaces integradas de projetos", () => {
     expect(html).not.toContain("Aprovar");
     expect(html).not.toContain("Dados de exemplo");
   });
+  it("diferencia equipe vazia de pesquisa sem resultados e singulariza a contagem", () => {
+    const empty = renderToStaticMarkup(<ProjectTeam workspace={workspace} members={[]} requests={[]}/>);
+    expect(empty).toContain("Nenhuma participação vigente");
+    expect(empty).not.toContain("Limpar filtros");
+    expect(renderToStaticMarkup(<ProjectTeam workspace={workspace} members={members} requests={[]}/>)).toContain("1 integrante");
+  });
   it("mantém o shell e as áreas autorizadas sem aviso demonstrativo global", () => {
     const html = renderToStaticMarkup(<ProjectWorkspaceShell workspace={workspace} participates><p>Conteúdo real</p></ProjectWorkspaceShell>);
     expect(html).toContain("Conteúdo real");
     expect(html).toContain("Atividades e planejamento");
     expect(html).toContain("Documentos");
     expect(html).not.toContain("Dados de exemplo");
+    expect(html).not.toContain("Opções do projeto");
+    expect(html).not.toContain("Apresentação pública");
+    expect(html).not.toContain("acesso ao workspace sem participação na equipe");
+  });
+  it("distingue a administração institucional sem oferecer navegação duplicada", () => {
+    const administrative = { ...workspace, capabilities: { ...workspace.capabilities, canManageMembers: true } };
+    const html = renderToStaticMarkup(<ProjectWorkspaceShell workspace={administrative} participates={false}><p>Conteúdo real</p></ProjectWorkspaceShell>);
+    expect(html).toContain("Administrar institucionalmente");
+    expect(html).toContain('href="/projetos/p1/administrar"');
+    expect(html).not.toContain("Consultar apresentação pública");
+    expect(html).not.toContain("Voltar para Meus projetos");
   });
   it("mantém projeto fixado no formulário canônico", () => {
     const html = renderToStaticMarkup(<PlanningForm fixedProject={{ id: "p1", title: project.name }} onClose={() => undefined} onCreate={() => undefined}/>);
     expect(html).toContain(project.name);
     expect(html).not.toContain("Independente");
+  });
+  it("usa o singular no indicador de tarefas do Kanban", () => {
+    const task: PreviewTask = { id: "task-1", title: "Tarefa persistida", status: "Em andamento", priority: "Alta", owner: "Integrante", start: "Sem data", due: "Sem prazo", description: "" };
+    const html = renderToStaticMarkup(<TaskBoard tasks={[task]} grouping="status" onEdit={() => undefined} onAdd={() => undefined} onMove={() => undefined}/>);
+    expect(html).toContain('aria-label="Em andamento, 1 tarefa"');
   });
   it("preserva os limites da biblioteca temporária até o Bloco 08.4B-3", () => {
     const html = renderToStaticMarkup(<LibraryExplorer listing={getVisualDocuments("p1")} base="/meus-projetos/p1/documentos" canManage personal temporary/>);

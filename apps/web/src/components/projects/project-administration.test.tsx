@@ -17,8 +17,10 @@ it("administração exibe dados reais, transição permitida e equipe vazia sem 
  expect(html).toContain("Projeto persistido"); expect(html).toContain("Ativar");
  expect(html).not.toContain('value="CONCLUIDO"'); expect(html).toContain("Nenhuma participação vigente");
  expect(html).toContain("Histórico de situações"); expect(html).toContain("Liderança");
+ expect(html).toContain('href="/meus-projetos/p1/documentos/aprovacoes"');
 });
 it("liderança contextual não recebe ações globais de situação ou transferência", () => {
  const html = renderToStaticMarkup(<ProjectAdministration {...props} canChangeStatus={false} workspace={{ ...workspace, capabilities: { ...workspace.capabilities, canTransferLeadership: false } }}/>);
  expect(html).not.toContain("Alterar situação"); expect(html).not.toContain("Configurar liderança"); expect(html).toContain("Salvar dados");
+ expect(html).not.toContain("Solicitações de exclusão");
 });
