@@ -69,7 +69,7 @@ public class FrequencyRepository {
     private static final String LIST_COLUMNS = """
             l.*, opener.name as opened_by_name,
             coalesce((select ra.role from nite_connect.role_assignments ra
-                      where ra.member_id=l.opened_by order by ra.role limit 1),'INTEGRANTE') as opened_by_role
+                      where ra.member_id=l.opened_by order by case ra.role when 'COORDENADOR' then 0 when 'GESTOR_GERAL' then 1 else 2 end limit 1),'INTEGRANTE') as opened_by_role
             """;
 
     public Event lockEvent(UUID id) {

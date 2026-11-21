@@ -330,7 +330,7 @@ class IdentityBoundaryTest {
                 .content("{\"status\":\"AFASTADO\",\"expectedVersion\":0,\"reason\":\"   \"}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/members/" + MEMBER + "/roles").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"role\":\"GESTOR_PROJETO\",\"expectedVersion\":0,\"reason\":\"Teste\"}"))
+                .content("{\"role\":\"PAPEL_INEXISTENTE\",\"expectedVersion\":0,\"reason\":\"Teste\"}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(patch("/api/v1/members/" + MEMBER + "/status").with(token(MEMBER_OID)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"ATIVO\",\"expectedVersion\":0,\"reason\":\"Teste\"}"))

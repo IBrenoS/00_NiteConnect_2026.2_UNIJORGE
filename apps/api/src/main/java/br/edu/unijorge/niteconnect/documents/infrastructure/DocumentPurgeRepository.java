@@ -359,7 +359,7 @@ public class DocumentPurgeRepository {
                                 (select 1 from nite_connect.members m where m.id=o.actor_id and m.status='ATIVO'))))
                             or (d.resource_owner_kind in ('INSTITUTION','PROJECT') and exists
                               (select 1 from nite_connect.role_assignments r join nite_connect.members m on m.id=r.member_id
-                                where r.member_id=o.actor_id and m.status='ATIVO')))
+                                where r.member_id=o.actor_id and r.role in ('GESTOR_GERAL','COORDENADOR') and m.status='ATIVO')))
                           or ((o.operation_type='AUTO' or (d.resource_owner_kind='INSTITUTION' and d.space_owner_id is null))
                             and d.deleted_at+make_interval(days=>30)>clock_timestamp()))
                         or i.resource_type='FOLDER' and
@@ -370,7 +370,7 @@ public class DocumentPurgeRepository {
                                 (select 1 from nite_connect.members m where m.id=o.actor_id and m.status='ATIVO'))))
                             or (f.resource_owner_kind in ('INSTITUTION','PROJECT') and exists
                               (select 1 from nite_connect.role_assignments r join nite_connect.members m on m.id=r.member_id
-                                where r.member_id=o.actor_id and m.status='ATIVO')))
+                                where r.member_id=o.actor_id and r.role in ('GESTOR_GERAL','COORDENADOR') and m.status='ATIVO')))
                           or ((o.operation_type='AUTO' or (f.resource_owner_kind='INSTITUTION' and f.space_owner_id is null))
                             and f.deleted_at+make_interval(days=>30)>clock_timestamp()))
                     )))

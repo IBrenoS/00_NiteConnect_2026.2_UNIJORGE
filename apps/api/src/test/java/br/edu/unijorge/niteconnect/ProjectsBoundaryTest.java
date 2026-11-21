@@ -52,6 +52,7 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
         UUID id = project(); join(id, LEADER); join(id, MEMBER); transfer(id, LEADER);
         mvc.perform(delete("/api/v1/projects/" + id + "/members/" + LEADER).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"expectedVersion\":" + version(id) + ",\"reason\":\"Saída\"}")).andExpect(status().isConflict());
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", MEMBER, ADMIN);
         transfer(id, MEMBER);
         mvc.perform(patch("/api/v1/projects/" + id).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
                 .content(updateBody(version(id)))).andExpect(status().isForbidden());
@@ -70,7 +71,9 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
                 .content(updateBody(version(id)))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/projects/" + id + "/leadership").with(token(ADMIN))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.effective").value(false)).andExpect(jsonPath("$.memberId").value(LEADER.toString()));
-        join(id, MEMBER); transfer(id, MEMBER);
+        join(id, MEMBER);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", MEMBER, ADMIN);
+        transfer(id, MEMBER);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=?", Integer.class, id)).isEqualTo(2);
     }
     @Test void stateChangesPauseResumeCompleteAndReopenWithoutLosingHistory() throws Exception {
@@ -104,6 +107,7 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
     }
     @Test void simultaneousLeadershipTransfersHaveOneWinnerAndPreserveHistory() throws Exception {
         UUID id = project(); join(id, LEADER); join(id, MEMBER); long version = version(id);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", MEMBER, ADMIN);
         try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             var start = new java.util.concurrent.CountDownLatch(1);
             var first = executor.submit(() -> transferAfter(start, id, LEADER, version));

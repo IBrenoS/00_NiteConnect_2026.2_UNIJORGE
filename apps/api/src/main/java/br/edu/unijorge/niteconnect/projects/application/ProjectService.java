@@ -137,7 +137,11 @@ public class ProjectService {
         UUID before = projects.leader(project);
         if (Objects.equals(before, target)) throw ApiException.conflict("Liderança já possui a configuração solicitada");
         ProjectDirectory.Participation membership = null;
-        if (target != null) { access.requireActive(target); membership = projects.currentParticipation(project, target); }
+        if (target != null) {
+            access.requireActive(target);
+            if (!access.canLeadProject(target)) throw ApiException.conflict("Integrante sem papel institucional elegível para liderança");
+            membership = projects.currentParticipation(project, target);
+        }
         projects.transfer(actor, project, membership, reason); projects.touch(project, version);
         audit.recordEntity(actor, "PROJECT", project, "PROJECT_LEADERSHIP_TRANSFERRED",
                 before == null ? null : before.toString(), target == null ? null : target.toString(), reason);

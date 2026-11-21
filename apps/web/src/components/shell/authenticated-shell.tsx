@@ -24,6 +24,7 @@ function initials(name: string): string {
 function accountRole(roles: string[]): string {
   if (roles.includes("COORDENADOR")) return "Coordenação";
   if (roles.includes("GESTOR_GERAL")) return "Gestão Geral";
+  if (roles.includes("GESTOR_PROJETO")) return "Gestão de Projeto";
   return "Integrante";
 }
 

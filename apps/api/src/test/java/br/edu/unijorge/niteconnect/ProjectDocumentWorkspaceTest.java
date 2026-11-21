@@ -114,6 +114,7 @@ class ProjectDocumentWorkspaceTest extends ProjectTestSupport {
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/v1/library/documents/"+doc+"/trash").with(token(LEADER)))
                 .andExpect(status().isForbidden());
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')",MEMBER,ADMIN);
         transfer(project,MEMBER);
         mvc.perform(post("/api/v1/library/folders").with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"parentId\":\""+home+"\",\"name\":\"Ex liderança\"}"))

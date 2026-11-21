@@ -113,7 +113,9 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
 
     @Test void requestNamesAreAvailableToContextualManagementAndRequesterOnly() throws Exception {
         UUID id=project();join(id,LEADER);transfer(id,LEADER);
-        UUID another=project();join(another,MEMBER);transfer(another,MEMBER);
+        UUID another=project();join(another,MEMBER);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')",MEMBER,ADMIN);
+        transfer(another,MEMBER);
         jdbc.update("update nite_connect.members set name='Nome solicitante' where id=?",OTHER);
         jdbc.update("update nite_connect.projects set accepting_members=true where id=?",id);
         mvc.perform(post("/api/v1/projects/"+id+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON)
@@ -145,7 +147,9 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
                     .andExpect(jsonPath("$.capabilities.canCreatePlanning").value(management))
                     .andExpect(jsonPath("$.capabilities.canTransferLeadership").value(actor.equals(ADMIN)));
         }
-        UUID otherProject=project();join(otherProject,OTHER);transfer(otherProject,OTHER);
+        UUID otherProject=project();join(otherProject,OTHER);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')",OTHER,ADMIN);
+        transfer(otherProject,OTHER);
         mvc.perform(get("/api/v1/project-catalog").with(token(LEADER)).param("sort","updated"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].capabilities.canManageAvailability").value(false));
         mvc.perform(get("/api/v1/projects/"+otherProject+"/workspace").with(token(LEADER))).andExpect(status().isNotFound());

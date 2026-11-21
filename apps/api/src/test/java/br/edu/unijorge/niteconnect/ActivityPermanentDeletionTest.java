@@ -65,6 +65,7 @@ class ActivityPermanentDeletionTest extends ActivityTestSupport {
         UUID id=activity(LEADER,project,MEMBER);
         mvc.perform(post("/api/v1/activities/"+id+"/collaborators").with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
                 .content(command(id,",\"memberId\":\""+OTHER+"\""))).andExpect(status().isCreated());
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')",OTHER,ADMIN);
         transfer(project,OTHER);
         for(UUID actor:java.util.List.of(MEMBER,OTHER,ADMIN)) {
             mvc.perform(delete("/api/v1/activities/"+id).with(token(actor)).contentType(MediaType.APPLICATION_JSON)

@@ -1,7 +1,6 @@
 package br.edu.unijorge.niteconnect.projects.application;
 
 import br.edu.unijorge.niteconnect.access.application.AccessService;
-import br.edu.unijorge.niteconnect.access.domain.GlobalRole;
 import br.edu.unijorge.niteconnect.audit.application.AuditTrail;
 import br.edu.unijorge.niteconnect.members.application.MemberDirectory;
 import br.edu.unijorge.niteconnect.projects.domain.ProjectStatus;
@@ -243,7 +242,7 @@ public class ProjectParticipationService {
         var names=members.names(requests.stream().map(MembershipRequest::memberId).distinct().toList());
         return requests.stream().map(r->new MembershipRequest(r.id(),r.projectId(),r.memberId(),names.get(r.memberId()),r.message(),r.state(),r.requestedAt(),r.decidedAt(),r.decidedBy(),r.decisionMessage(),r.version())).toList();
     }
-    private void requireDecision(UUID actor,UUID project){projects.require(project);if(!actor.equals(projects.leader(project))&&access.globalRoles(actor).stream().noneMatch(r->r==GlobalRole.COORDENADOR||r==GlobalRole.GESTOR_GERAL))throw ApiException.forbidden();}
+    private void requireDecision(UUID actor,UUID project){projects.require(project);if(!actor.equals(projects.leader(project))&&!access.isAdministrator(actor))throw ApiException.forbidden();}
     private MembershipRequest requireRequest(UUID id){return jdbc.query("select * from nite_connect.project_membership_requests where id=?",ProjectParticipationService::mapRequest,id).stream().findFirst().orElseThrow(ApiException::notFound);}
     private static MembershipRequest mapRequest(java.sql.ResultSet rs,int row)throws java.sql.SQLException{return new MembershipRequest(rs.getObject("id",UUID.class),rs.getObject("project_id",UUID.class),rs.getObject("member_id",UUID.class),null,rs.getString("message"),rs.getString("state"),rs.getTimestamp("requested_at").toInstant(),rs.getTimestamp("decided_at")==null?null:rs.getTimestamp("decided_at").toInstant(),rs.getObject("decided_by",UUID.class),rs.getString("decision_message"),rs.getLong("version"));}
     private static Object[] append(Object[] a,Object... b){Object[] out=java.util.Arrays.copyOf(a,a.length+b.length);System.arraycopy(b,0,out,a.length,b.length);return out;}

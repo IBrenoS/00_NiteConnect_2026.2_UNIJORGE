@@ -35,6 +35,22 @@ vi.mock("../../lib/auth/actions", () => ({ signOutOfNite: async () => undefined 
 import { AuthenticatedShell } from "./authenticated-shell";
 
 describe("shell autenticado", () => {
+  it("identifica o gestor de projeto sem liberar navegação administrativa global", () => {
+    const markup = renderToStaticMarkup(
+      <AuthenticatedShell
+        member={{ id: "member-1", name: "Pessoa de teste", institutionalEmail: "person@example.invalid", status: "ATIVO" }}
+        roles={["INTEGRANTE", "GESTOR_PROJETO"]}
+        projects={[]}
+        leadershipProjectsUnavailable={false}
+      >
+        <p>Conteúdo.</p>
+      </AuthenticatedShell>,
+    );
+
+    expect(markup).toContain("Gestão de Projeto");
+    expect(markup).not.toContain('href="/relatorios"');
+    expect(markup).not.toContain('href="/biblioteca"');
+  });
   it("usa a sidebar desktop a partir do breakpoint de 768 px e reserva o drawer para telas menores", () => {
     const markup = renderToStaticMarkup(
       <AuthenticatedShell

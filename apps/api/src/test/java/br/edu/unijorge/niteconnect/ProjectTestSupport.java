@@ -46,6 +46,7 @@ abstract class ProjectTestSupport {
             jdbc.update("insert into nite_connect.identity_accounts(tenant_id,object_id,member_id) values (?,?,?)", TENANT, id, id);
         }
         jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'COORDENADOR',?,'Fixture')", ADMIN, ADMIN);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", LEADER, ADMIN);
     }
     RequestPostProcessor token(UUID id) {
         return jwt().jwt(j -> j.claim("tid", TENANT.toString()).claim("oid", id.toString()));

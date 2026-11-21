@@ -74,6 +74,7 @@ class InstitutionalLibraryTest extends ProjectTestSupport {
         UUID root=library();
         assertThat(root).isEqualTo(jdbc.queryForObject("select id from nite_connect.document_folders where system_key='MATERIAIS'",UUID.class));
         mvc.perform(get("/api/v1/library/institutional").with(token(MEMBER))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/library/institutional").with(token(LEADER))).andExpect(status().isForbidden());
         String personal=mvc.perform(get("/api/v1/me/library").with(token(MEMBER))).andReturn().getResponse().getContentAsString();
         mvc.perform(get("/api/v1/library/institutional").param("folderId",id(personal,"$.folder.id").toString()).with(token(ADMIN)))
                 .andExpect(status().isNotFound());

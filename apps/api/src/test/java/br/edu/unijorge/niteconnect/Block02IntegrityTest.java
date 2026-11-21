@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class Block02IntegrityTest extends ProjectTestSupport {
     @Test void databaseIndependentlyRejectsDuplicateCurrentMembershipAndLeadership() throws Exception {
         UUID id = project(); join(id, LEADER); join(id, MEMBER); transfer(id, LEADER);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", MEMBER, ADMIN);
         assertThatThrownBy(() -> jdbc.update("""
                 insert into nite_connect.project_memberships(id,project_id,member_id,responsibility,started_by,start_reason)
                 values (?,?,?,'Teste',?,'Duplicidade')
@@ -67,6 +68,7 @@ class Block02IntegrityTest extends ProjectTestSupport {
     }
     @Test void leadershipAuditFailureRestoresPreviousOpenPeriodAndProjectVersion() throws Exception {
         UUID id = project(); join(id, LEADER); join(id, MEMBER); transfer(id, LEADER); long version = version(id);
+        jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", MEMBER, ADMIN);
         jdbc.execute("""
                 create function nite_connect.fail_leadership_test() returns trigger language plpgsql as $$
                 begin if NEW.action='PROJECT_LEADERSHIP_TRANSFERRED' then raise exception 'test fault'; end if; return NEW; end; $$

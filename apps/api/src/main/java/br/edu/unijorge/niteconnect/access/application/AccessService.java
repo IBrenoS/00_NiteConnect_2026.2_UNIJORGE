@@ -31,7 +31,10 @@ public class AccessService {
         return member;
     }
     public boolean isAdministrator(UUID id) {
-        return !globalRoles(id).isEmpty();
+        return institutionalRoles(id).stream().anyMatch(GlobalRole::grantsGlobalAdministration);
+    }
+    public boolean canLeadProject(UUID id) {
+        return institutionalRoles(id).stream().anyMatch(GlobalRole::qualifiesForProjectLeadership);
     }
     public void requireAdministrator(UUID id) {
         requireActive(id);
@@ -41,16 +44,16 @@ public class AccessService {
         requireActive(id);
         List<String> roles = new ArrayList<>();
         roles.add("INTEGRANTE");
-        globalRoles(id).forEach(role -> roles.add(role.name()));
+        institutionalRoles(id).forEach(role -> roles.add(role.name()));
         return List.copyOf(roles);
     }
-    public List<GlobalRole> globalRoles(UUID id) {
+    public List<GlobalRole> institutionalRoles(UUID id) {
         return jdbc.query("select role from nite_connect.role_assignments where member_id=? order by role",
                 (rs, row) -> GlobalRole.valueOf(rs.getString(1)), id);
     }
     public void ensureAnotherAdministrator(UUID target) {
         if (!isAdministrator(target)) return;
-        boolean another = jdbc.query("select distinct member_id from nite_connect.role_assignments where member_id<>?",
+        boolean another = jdbc.query("select distinct member_id from nite_connect.role_assignments where member_id<>? and role in ('GESTOR_GERAL','COORDENADOR')",
                         (rs, row) -> rs.getObject(1, UUID.class), target).stream()
                 .anyMatch(id -> members.require(id).status() == MemberStatus.ATIVO);
         if (!another) throw ApiException.conflict("É necessário preservar um administrador ativo");
@@ -61,7 +64,7 @@ public class AccessService {
         requireAdministrator(actor);
         requireActive(target);
         members.checkVersion(members.require(target), expectedVersion);
-        if (globalRoles(target).contains(role)) throw ApiException.conflict("Papel já atribuído");
+        if (institutionalRoles(target).contains(role)) throw ApiException.conflict("Papel já atribuído");
         jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,?,?,?)",
                 target, role.name(), actor, reason);
         members.touch(target, expectedVersion);
@@ -74,9 +77,14 @@ public class AccessService {
         requireAdministrator(actor);
         Member member = members.require(target);
         members.checkVersion(member, expectedVersion);
-        List<GlobalRole> roles = globalRoles(target);
+        List<GlobalRole> roles = institutionalRoles(target);
         if (!roles.contains(role)) throw ApiException.notFound();
-        if (member.status() == MemberStatus.ATIVO && roles.size() == 1) ensureAnotherAdministrator(target);
+        if (role.grantsGlobalAdministration() && member.status() == MemberStatus.ATIVO
+                && roles.stream().filter(GlobalRole::grantsGlobalAdministration).count() == 1) ensureAnotherAdministrator(target);
+        if (roles.stream().filter(GlobalRole::qualifiesForProjectLeadership).count() == 1
+                && Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.project_leadership_history where member_id=? and ended_at is null)", Boolean.class, target))) {
+            throw ApiException.conflict("Encerre ou transfira as lideranças vigentes antes de revogar o papel");
+        }
         jdbc.update("delete from nite_connect.role_assignments where member_id=? and role=?", target, role.name());
         members.touch(target, expectedVersion);
         audit.record(actor, target, "ROLE_REVOKED", role.name(), null, reason);
@@ -84,6 +92,7 @@ public class AccessService {
     /** Used only by the local, one-shot bootstrap transaction. */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
     public void initialGlobalAdministrator(UUID member, GlobalRole role, String reason) {
+        if (!role.grantsGlobalAdministration()) throw ApiException.invalid("Papel inicial deve conceder administração global");
         if (jdbc.queryForObject("select count(*) from nite_connect.role_assignments", Long.class) != 0) {
             throw ApiException.conflict("Provisionamento inicial já realizado");
         }

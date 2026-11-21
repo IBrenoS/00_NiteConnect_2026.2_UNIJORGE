@@ -12,7 +12,7 @@ public class AcademicAuthorizationPolicy {
     public AcademicAuthorizationPolicy(AccessService access) { this.access=access; }
     public void requireCoordinator(UUID actor) {
         access.requireActive(actor);
-        if(!access.globalRoles(actor).contains(GlobalRole.COORDENADOR)) throw ApiException.forbidden();
+        if(!access.institutionalRoles(actor).contains(GlobalRole.COORDENADOR)) throw ApiException.forbidden();
     }
     public void requireAdministrator(UUID actor) { access.requireAdministrator(actor); }
     public void requireActive(UUID actor) { access.requireActive(actor); }
@@ -20,5 +20,5 @@ public class AcademicAuthorizationPolicy {
         access.requireActive(actor);
         if(!actor.equals(member) && !access.isAdministrator(actor)) throw ApiException.forbidden();
     }
-    public boolean isCoordinator(UUID actor) { access.requireActive(actor);return access.globalRoles(actor).contains(GlobalRole.COORDENADOR); }
+    public boolean isCoordinator(UUID actor) { access.requireActive(actor);return access.institutionalRoles(actor).contains(GlobalRole.COORDENADOR); }
 }
