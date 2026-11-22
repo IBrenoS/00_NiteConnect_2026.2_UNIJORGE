@@ -6,6 +6,8 @@ import { getNiteIdentity, NiteApiUnauthorizedError } from "./src/lib/auth/api";
 import { entraIssuer } from "./src/lib/auth/config";
 import { refreshEntraToken } from "./src/lib/auth/tokens";
 import { parseNiteIdentity } from "./src/lib/auth/identity";
+import { cookies } from "next/headers";
+import { acceptInvitationForSignIn } from "./src/lib/auth/invitation";
 
 const providerId = "microsoft-entra-id";
 const sessionDurationSeconds = 8 * 60 * 60;
@@ -105,6 +107,11 @@ const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider !== providerId || !account.access_token) return false;
       try {
+        const invitationId = (await cookies()).get("nite-invitation")?.value;
+        if (invitationId) {
+          if (!await acceptInvitationForSignIn(invitationId, account.access_token, process.env.API_BASE_URL ?? "")) return false;
+          (await cookies()).delete("nite-invitation");
+        }
         const identity = await getNiteIdentity(account.access_token, process.env.API_BASE_URL ?? "");
         user.niteMember = identity.member;
         user.niteRoles = identity.roles;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ProjectDisplay } from "../../lib/projects/presentation";
 import { projectStatusLabels, projectIssueText } from "../../lib/projects/presentation";
 import styles from "./projects.module.css";
+import { MemberAvatar } from "../ui/member-avatar";
 
 export function TemporaryNotice() {
   return <p className={styles.temporary}><span aria-hidden="true">◌</span> Dados de exemplo · As alterações ficam apenas nesta sessão da interface e não são enviadas.</p>;
@@ -12,8 +13,8 @@ export function TemporaryNotice() {
 export function ProjectMark({ title, large = false }: { title: string; large?: boolean }) {
   return <span aria-hidden="true" className={`${styles.mark} ${large ? styles.markLarge : ""}`}>{title.split(" ").slice(0, 2).map(word => word[0]).join("")}</span>;
 }
-export function Avatar({ name }: { name: string }) {
-  return <span aria-hidden="true" className={styles.avatar}>{name.split(" ").slice(0, 2).map(word => word[0]).join("")}</span>;
+export function Avatar({ name, memberId }: { name: string; memberId?: string | null }) {
+  return <MemberAvatar name={name} memberId={memberId} className={styles.avatar}/>;
 }
 export function ProjectStatusBadge({ project }: { project: ProjectDisplay }) {
   return <span className={styles.projectStatus} data-status={project.status}>{projectStatusLabels[project.status]}</span>;
@@ -25,7 +26,7 @@ export function ProjectProperties({ project }: { project: ProjectDisplay }) {
   const date = (value: string | null) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "Não definido";
   return <dl className={styles.properties}>
     <div><dt>Situação</dt><dd><ProjectStatusBadge project={project}/></dd></div>
-    <div><dt>Gestor</dt><dd>{project.leaderName ? <><Avatar name={project.leaderName}/>{project.leaderName}</> : "Liderança vacante"}</dd></div>
+    <div><dt>Gestor</dt><dd>{project.leaderName ? <><Avatar name={project.leaderName} memberId={project.leaderId}/>{project.leaderName}</> : "Liderança vacante"}</dd></div>
     <div><dt>Integrantes</dt><dd>{project.teamSize} {project.teamSize === 1 ? "integrante" : "integrantes"}</dd></div>
     <div><dt>Início</dt><dd>{date(project.startsOn)}</dd></div>
     <div><dt>Previsão de término</dt><dd>{date(project.endsOn)}</dd></div>

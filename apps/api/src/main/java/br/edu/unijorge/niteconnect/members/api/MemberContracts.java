@@ -14,7 +14,7 @@ public final class MemberContracts {
     public record StatusChange(@NotNull MemberStatus status, @NotNull @PositiveOrZero Long expectedVersion,
                                @NotBlank @Size(max=1000) String reason) {}
     public record RoleGrant(@NotNull GlobalRole role, @NotNull @PositiveOrZero Long expectedVersion,
-                            @NotBlank @Size(max=1000) String reason) {}
+                            @Size(max=1000) @Pattern(regexp="(?s).*\\S.*") String reason) {}
     public record RoleRevoke(@NotNull @PositiveOrZero Long expectedVersion,
-                             @NotBlank @Size(max=1000) String reason) {}
+                             @Size(max=1000) @Pattern(regexp="(?s).*\\S.*") String reason) {}
 }

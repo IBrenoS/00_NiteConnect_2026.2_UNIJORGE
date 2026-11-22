@@ -1,9 +1,9 @@
 import type { ProjectStatus, WorkspaceOverview } from "./integration-contracts";
-export type ProjectDisplay = { id: string; title: string; publicSummary: string; status: ProjectStatus; imageUrl: string | null; leaderName: string | null; leadershipVacant: boolean; teamSize: number; acceptingMembers: boolean; startsOn: string | null; endsOn: string | null; canRequestMembership?: boolean; canExpressInterest?: boolean };
+export type ProjectDisplay = { id: string; title: string; publicSummary: string; status: ProjectStatus; imageUrl: string | null; leaderId?: string | null; leaderName: string | null; leadershipVacant: boolean; teamSize: number; acceptingMembers: boolean; startsOn: string | null; endsOn: string | null; canRequestMembership?: boolean; canExpressInterest?: boolean };
 export const projectStatusLabels: Record<ProjectStatus, string> = { PLANEJAMENTO: "Em planejamento", ATIVO: "Em andamento", PAUSADO: "Pausado", CONCLUIDO: "Concluído" };
 export const requestStateLabels: Record<string, string> = { PENDENTE: "Aguardando decisão", APROVADA: "Aprovada", REJEITADA: "Rejeitada", ENCERRADA: "Encerrada" };
 export function workspaceProject(workspace: WorkspaceOverview): ProjectDisplay {
-  return { id: workspace.projectId, title: workspace.name, publicSummary: workspace.description, status: workspace.status, imageUrl: null, leaderName: workspace.leaderName, leadershipVacant: workspace.leadershipVacant, teamSize: workspace.memberCount, acceptingMembers: workspace.acceptingMembers, startsOn: workspace.startsOn, endsOn: workspace.endsOn };
+  return { id: workspace.projectId, title: workspace.name, publicSummary: workspace.description, status: workspace.status, imageUrl: null, leaderId: workspace.leaderId, leaderName: workspace.leaderName, leadershipVacant: workspace.leadershipVacant, teamSize: workspace.memberCount, acceptingMembers: workspace.acceptingMembers, startsOn: workspace.startsOn, endsOn: workspace.endsOn };
 }
 export function projectIssueText(issue: string): string {
   if (issue === "conflict") return "Os dados foram alterados. A versão atual foi solicitada; confira os dados antes de tentar novamente.";

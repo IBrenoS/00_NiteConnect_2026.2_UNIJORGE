@@ -1,0 +1,27 @@
+# Bloco 08.7A — contrato de acessos e convites
+
+## Contrato HTTP
+
+Todas as rotas exigem access token Microsoft Entra válido para a API. O decoder valida assinatura, emissor, tenant, audience, escopo e validade; o backend verifica o vínculo e as permissões no banco. `GESTOR_GERAL` e `COORDENADOR` administram convites. `GESTOR_PROJETO` não recebe administração global.
+
+A [orientação da Microsoft para validar claims](https://learn.microsoft.com/en-us/entra/identity-platform/claims-validation) recomenda `tid` e `oid` para autorização e rejeita e-mail e `preferred_username` como identificadores de acesso. O Graph é consultado no convite para obter esse par estável; a correspondência de e-mail apenas seleciona o registro do diretório antes da concessão administrativa.
+
+- `POST /api/v1/invitations`: `{name, institutionalEmail, initialRole, expiresAt, message?}`. Papéis: `INTEGRANTE`, `GESTOR_PROJETO`, `GESTOR_GERAL`, `COORDENADOR`. Resolve o `objectId` no tenant Microsoft Graph no servidor, exige um único usuário interno correspondente e cria ou reutiliza integrante pendente pelo e-mail institucional, sem projeto e sem IDs técnicos fornecidos pelo operador. Criação e envio são operações separadas: o cadastro é confirmado antes da chamada ao Resend; a resposta `201` inclui `sendState` e não promete entrega.
+- `GET /api/v1/invitations?page=0&size=20&state=ALL`: `state` aceita `ALL`, `PENDING`, `ACCEPTED`, `EXPIRED`, `REVOKED`, `SEND_FAILED`. Retorna página administrativa com nome, e-mail, papel, datas, tentativas, ID do provedor e código de erro controlado.
+- `POST /api/v1/invitations/{id}/send`: tenta novamente apenas convite ainda válido, não aceito e não revogado. Convite já aceito pelo Resend retorna o mesmo estado sem novo envio.
+- `DELETE /api/v1/invitations/{id}`: revoga convite não aceito. Corpo `{reason?}`.
+- `POST /api/v1/invitations/{id}/accept`: exige access token do destinatário. Compara `tid` com tenant configurado e `oid` com o identificador imutável resolvido no diretório ao criar o convite. O ID do link e os claims de e-mail, isoladamente, não autorizam o aceite. A transação vincula `oid`, ativa o integrante, registra histórico, concede o papel inicial e provisiona a biblioteca documental. Repetição pela mesma identidade ativa devolve o integrante sem nova concessão; identidade divergente não obtém dados do convite.
+- `POST /api/v1/me/access`: registra uso real ao entrar na aplicação, no máximo uma gravação a cada cinco minutos por integrante ativo. Uma ação de servidor é acionada após a montagem de uma página autenticada visível, em navegações e no retorno à aba; pré-renderização e renovação silenciosa do token não acionam o registro. `last_access_at` permanece nulo até o primeiro acesso observado.
+- `POST /api/v1/members/{id}/roles` e `DELETE /api/v1/members/{id}/roles/{role}`: `reason` pode ser omitido. As proteções do último administrador e de lideranças vigentes permanecem no `AccessService`.
+
+O link enviado aponta para `NITE_INVITATION_ACCEPT_URL?id=<uuid>`, normalmente `https://<host>/convites/aceitar`. A rota web grava o ID em cookie `HttpOnly`, remove o parâmetro da URL e redireciona ao login Microsoft. O callback aceita o convite com o access token emitido antes de consultar `/api/v1/me`. Uma sessão SSO Microsoft existente pode concluir o login sem nova digitação de senha. A tela administrativa de Acessos e Convites não faz parte deste bloco.
+
+## Migração e configuração
+
+V50 mantém o vínculo obrigatório com `object_id` também para convites novos, acrescenta papel, mensagem, estado e ID de envio, tentativas e `members.last_access_at`. A V49, já existente, permite motivo nulo em concessões e revogações de papéis. O domínio `@unijorge.com.br` continua sendo a regra do cadastro institucional.
+
+Configuração de servidor: `ENTRA_DIRECTORY_CLIENT_ID` e `ENTRA_DIRECTORY_CLIENT_SECRET` para consulta app-only ao Microsoft Graph, com [permissão `User.Read.All`](https://learn.microsoft.com/en-us/graph/api/user-list?view=graph-rest-1.0) aprovada no tenant; `RESEND_API_KEY`, `RESEND_FROM` (remetente de domínio verificado) e `NITE_INVITATION_ACCEPT_URL`. `RESEND_API_URL` é opcional para testes locais controlados; o padrão é `https://api.resend.com/emails`. Nenhuma credencial é enviada ao navegador. Sem Graph configurado, a criação falha sem cadastro; sem Resend configurado, o convite fica em `FAILED` com `NOT_CONFIGURED` e pode ser reenviado após configurar o serviço. O payload usa texto simples e `Idempotency-Key: nite-invitation/<id>`.
+
+`ACCEPTED_BY_PROVIDER` significa somente que a API Resend devolveu um ID. A implementação não recebe webhooks de entrega: entrega, bounce e leitura permanecem desconhecidos. A [janela de idempotência do Resend](https://resend.com/changelog/idempotency-keys) é de 24 horas; o backend bloqueia reenvio de falha incerta após 23 horas, exigindo revogação e novo convite. Convites automatizados de teste usam sender controlado ou configuração ausente e não usam o serviço real. É necessário validar domínio remetente, configuração HTTPS e login Microsoft real no ambiente de homologação antes da operação.
+
+A consulta ao Graph usa índice de [consistência eventual](https://learn.microsoft.com/en-us/graph/aad-advanced-queries); usuários recém-criados ou com e-mail alterado podem não aparecer imediatamente. Nesse caso a criação falha sem cadastro e pode ser tentada novamente após a sincronização do diretório. Os testes locais usam um diretório controlado e não substituem a homologação com consentimento Graph e sessão Entra reais.

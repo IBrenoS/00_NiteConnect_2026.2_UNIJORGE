@@ -52,6 +52,9 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V45 | [`V45__document_report_classification.sql`](V45__document_report_classification.sql) | Classificação explícita GENERAL/REPORT, sem classificar registros existentes por inferência e sem novos arquivos ou armazenamento. |
 | V46 | [`V46__narrow_audit_entity_types.sql`](V46__narrow_audit_entity_types.sql) | Restringe os tipos aceitos em `audit_entity_check`, preservando V43 imutável e aplicando a alteração em bancos já migrados. |
 | V47 | [`V47__institutional_project_manager_role.sql`](V47__institutional_project_manager_role.sql) | B08.6-0: papel institucional `GESTOR_PROJETO`, regularização auditada de líderes vigentes sem papel superior e integridade entre papel e liderança. |
+| V48 | [`V48__member_profile.sql`](V48__member_profile.sql) | B08.6A: atributos opcionais do cadastro de integrantes e referência à foto privada. |
+| V49 | [`V49__optional_institutional_role_reason.sql`](V49__optional_institutional_role_reason.sql) | B08.6B: motivo opcional em atribuições de papel e eventos MEMBER de concessão/revogação; os demais eventos continuam exigindo motivo. |
+| V50 | [`V50__invitations_and_last_access.sql`](V50__invitations_and_last_access.sql) | B08.7A: papel inicial, estado de envio Resend, vínculo Entra no aceite e último acesso efetivo. |
 
 ## Aplicação
 

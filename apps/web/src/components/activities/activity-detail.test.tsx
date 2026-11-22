@@ -59,6 +59,7 @@ describe("detalhe pessoal de atividade", () => {
     const markup = renderToStaticMarkup(<ActivityDetail {...authorizedProps} participantsOpen />);
 
     expect(markup).toContain("Descrição");
+    expect(markup).toContain(`/api/profile-photos/${activity.primaryExecutorId}`);
     expect(markup).toContain("Evidências");
     expect(markup).toContain("Histórico");
     expect(markup).toContain("Em atraso");

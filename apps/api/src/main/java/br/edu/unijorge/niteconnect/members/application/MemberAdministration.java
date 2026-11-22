@@ -52,6 +52,8 @@ public class MemberAdministration {
     public Member update(UUID actor, UUID target, String name, String email, long version, String reason) {
         transactions.lock(); access.requireAdministrator(actor);
         Member before = members.require(target);
+        if (!before.institutionalEmail().equalsIgnoreCase(email.strip()))
+            throw ApiException.invalid("E-mail institucional vinculado ao Entra não pode ser alterado pela gestão");
         Member after = members.update(target, name, email, version);
         audit.record(actor, target, "MEMBER_UPDATED", before.name() + " <" + before.institutionalEmail() + ">",
                 after.name() + " <" + after.institutionalEmail() + ">", reason);

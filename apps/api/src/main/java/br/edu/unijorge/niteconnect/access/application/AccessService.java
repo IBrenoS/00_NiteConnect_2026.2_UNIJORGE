@@ -62,6 +62,14 @@ public class AccessService {
     public List<String> grant(UUID actor, UUID target, GlobalRole role, long expectedVersion, String reason) {
         transactions.lock();
         requireAdministrator(actor);
+        return grantAuthorized(actor, target, role, expectedVersion, reason);
+    }
+    /** Authorization for this role was recorded when the invitation was created. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public List<String> grantInvitedInitialRole(UUID inviter, UUID target, GlobalRole role, long expectedVersion, UUID invitation) {
+        return grantAuthorized(inviter, target, role, expectedVersion, "Papel inicial do convite " + invitation);
+    }
+    private List<String> grantAuthorized(UUID actor, UUID target, GlobalRole role, long expectedVersion, String reason) {
         requireActive(target);
         members.checkVersion(members.require(target), expectedVersion);
         if (institutionalRoles(target).contains(role)) throw ApiException.conflict("Papel já atribuído");

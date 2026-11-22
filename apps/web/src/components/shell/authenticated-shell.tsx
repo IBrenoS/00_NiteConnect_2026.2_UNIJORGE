@@ -7,6 +7,7 @@ import { signOutOfNite } from "../../lib/auth/actions";
 import type { NiteMember } from "../../lib/auth/identity";
 import type { LeadershipProject } from "../../lib/projects/contracts";
 import { AuthenticatedNavigation, buildAuthenticatedNavigationGroups } from "./authenticated-navigation";
+import { MemberAvatar } from "../ui/member-avatar";
 
 type AuthenticatedShellProps = {
   children: ReactNode;
@@ -15,11 +16,6 @@ type AuthenticatedShellProps = {
   projects: LeadershipProject[];
   leadershipProjectsUnavailable: boolean;
 };
-
-function initials(name: string): string {
-  const value = name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase("pt-BR") ?? "").join("");
-  return value || "NC";
-}
 
 function accountRole(roles: string[]): string {
   if (roles.includes("COORDENADOR")) return "Coordenação";
@@ -166,12 +162,13 @@ export function AuthenticatedShell({ children, member, roles, projects, leadersh
           <div className="min-w-0 flex-1" aria-hidden="true" />
           <details ref={accountMenuRef} onToggle={handleAccountMenuToggle} onKeyDown={handleAccountMenuKeyDown} onBlurCapture={handleAccountMenuBlur} className="relative ml-auto shrink-0">
             <summary ref={accountSummaryRef} aria-label="Abrir menu da conta" aria-controls="account-menu-panel" aria-expanded={accountMenuOpen} title="Conta" className="grid size-10 cursor-pointer list-none place-items-center rounded-full bg-nite-surface-elevated text-type-body-compact font-semibold text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden">
-              {initials(member.name)}
+              <MemberAvatar name={member.name} memberId={member.id} size={40}/>
             </summary>
             <div id="account-menu-panel" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 max-h-[calc(100svh-5rem)] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-panel border border-nite-border-soft bg-nite-background p-4 shadow-nite-floating">
               <p className="truncate text-type-body-compact font-semibold text-nite-text-primary">{member.name}</p>
               <p className="mt-1 break-all text-type-metadata text-nite-text-muted">{member.institutionalEmail}</p>
               <p className="mt-3 border-t border-nite-border-soft pt-3 text-type-metadata text-nite-text-secondary">{accountRole(roles)}</p>
+              <Link href="/meu-perfil" className="mt-3 block min-h-9 rounded-control border-t border-nite-border-soft px-3 pt-3 text-type-body-compact text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" onClick={() => { if (accountMenuRef.current) accountMenuRef.current.open = false; setAccountMenuOpen(false); }}>Meu Perfil</Link>
               <div className="mt-3 flex items-center justify-between gap-3 border-t border-nite-border-soft pt-3">
                 <span className="text-type-body-compact text-nite-text-secondary">Tema</span>
                 <ThemeControl className="theme-control" />

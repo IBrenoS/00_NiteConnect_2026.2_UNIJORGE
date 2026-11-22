@@ -10,6 +10,8 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import br.edu.unijorge.niteconnect.identity.application.EntraRecipientDirectory;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -32,7 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "nite.entra.tenant-id=11111111-1111-4111-8111-111111111111",
         "nite.entra.audience=22222222-2222-4222-8222-222222222222",
         "nite.entra.required-scope=access_as_user",
-        "nite.documents.enabled=false"
+        "nite.documents.enabled=false",
+        "nite.resend.api-key="
 })
 class IdentityBoundaryTest {
     @Container @ServiceConnection
@@ -40,6 +43,7 @@ class IdentityBoundaryTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @MockitoBean EntraRecipientDirectory recipientDirectory;
     static final UUID TENANT = UUID.fromString("11111111-1111-4111-8111-111111111111");
     static final UUID ADMIN = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     static final UUID ADMIN_OID = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
@@ -63,7 +67,10 @@ class IdentityBoundaryTest {
     }
 
     RequestPostProcessor token(UUID oid) {
-        return jwt().jwt(j -> j.subject("test-subject").claim("tid", TENANT.toString()).claim("oid", oid.toString()));
+        String email = oid.equals(ADMIN_OID) ? "admin-test@unijorge.com.br"
+                : oid.equals(MEMBER_OID) ? "member-test@unijorge.com.br" : "invite-test@unijorge.com.br";
+        return jwt().jwt(j -> j.subject("test-subject").claim("tid", TENANT.toString())
+                .claim("oid", oid.toString()).claim("preferred_username", email));
     }
 
     @Test
@@ -155,8 +162,9 @@ class IdentityBoundaryTest {
     }
 
     UUID invite(UUID target, UUID oid) throws Exception {
+        org.mockito.Mockito.when(recipientDirectory.resolve("invite-test@unijorge.com.br")).thenReturn(oid);
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"memberId\":\"" + target + "\",\"objectId\":\"" + oid + "\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\",\"reason\":\"Ingresso autorizado\"}"))
+                .content("{\"name\":\"Convidado de teste\",\"institutionalEmail\":\"invite-test@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\"}"))
                 .andExpect(status().isCreated());
         return jdbc.queryForObject("select id from nite_connect.invitations where member_id=? and accepted_at is null and revoked_at is null", UUID.class, target);
     }
@@ -186,8 +194,9 @@ class IdentityBoundaryTest {
     @Test
     void identityAlreadyLinkedCannotBeInvitedForAnotherMember() throws Exception {
         UUID target = pending();
+        org.mockito.Mockito.when(recipientDirectory.resolve("member-test@unijorge.com.br")).thenReturn(MEMBER_OID);
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"memberId\":\"" + target + "\",\"objectId\":\"" + MEMBER_OID + "\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\",\"reason\":\"Teste\"}"))
+                .content("{\"name\":\"Pessoa de teste\",\"institutionalEmail\":\"member-test@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\"}"))
                 .andExpect(status().isConflict());
     }
 
@@ -270,19 +279,11 @@ class IdentityBoundaryTest {
     }
 
     @Test
-    void expiredInvitationRequiresExplicitRevocationBeforeReplacement() throws Exception {
+    void expiredInvitationCanBeReplacedWithoutDuplicateMember() throws Exception {
         UUID target = pending(); UUID oid = UUID.randomUUID(); UUID invitation = invite(target, oid);
         jdbc.update("update nite_connect.invitations set created_at=current_timestamp - interval '2 days',expires_at=current_timestamp - interval '1 day' where id=?", invitation);
         mvc.perform(post("/api/v1/invitations/" + invitation + "/accept").with(token(oid))).andExpect(status().isConflict());
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.identity_accounts where member_id=?", Integer.class, target)).isZero();
-        mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"memberId\":\"" + target + "\",\"objectId\":\"" + oid + "\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\",\"reason\":\"Substituição de convite expirado\"}"))
-                .andExpect(status().isConflict());
-        assertThat(jdbc.queryForObject("select count(*) from nite_connect.invitations where member_id=?", Integer.class, target)).isEqualTo(1);
-
-        mvc.perform(delete("/api/v1/invitations/" + invitation).with(token(ADMIN_OID))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Revogar convite expirado para substituição\"}"))
-                .andExpect(status().isNoContent());
         UUID replacement = invite(target, oid);
         assertThat(replacement).isNotEqualTo(invitation);
         mvc.perform(post("/api/v1/invitations/" + invitation + "/accept").with(token(oid))).andExpect(status().isConflict());
@@ -293,7 +294,7 @@ class IdentityBoundaryTest {
         assertThat(jdbc.queryForObject("select revoked_at is not null and accepted_at is null from nite_connect.invitations where id=?", Boolean.class, invitation)).isTrue();
         assertThat(jdbc.queryForObject("select accepted_at is not null and revoked_at is null from nite_connect.invitations where id=?", Boolean.class, replacement)).isTrue();
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.identity_accounts where member_id=?", Integer.class, target)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where member_id=? and action='INVITATION_REVOKED'", Integer.class, target)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.members where institutional_email='invite-test@unijorge.com.br'", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where member_id=? and action='INVITATION_ACCEPTED'", Integer.class, target)).isEqualTo(1);
     }
 

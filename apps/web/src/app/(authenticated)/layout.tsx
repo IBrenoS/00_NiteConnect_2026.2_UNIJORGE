@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AuthenticatedShell } from "../../components/shell/authenticated-shell";
 import { requireAuthenticatedNiteSession } from "../../lib/auth/server-session";
 import { getLeadershipProjects } from "../../lib/projects/data";
+import { AccessPresence } from "../../components/auth/access-presence";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function AuthenticatedLayout({ children }: Readonly<{ child
       projects={leadershipResult.data ?? []}
       leadershipProjectsUnavailable={leadershipResult.issue !== null}
     >
+      <AccessPresence />
       {children}
     </AuthenticatedShell>
   );

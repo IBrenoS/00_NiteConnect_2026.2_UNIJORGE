@@ -23,22 +23,33 @@ public class InvitationController {
     public InvitationController(InvitationService invitations, IdentityDirectory identities) { this.invitations=invitations; this.identities=identities; }
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
     InvitationService.Invitation create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Create input) {
-        return invitations.create(identities.member(jwt), input.memberId(), input.objectId(), input.expiresAt(), input.reason());
+        UUID actor = identities.member(jwt);
+        InvitationService.Invitation created = invitations.create(actor, input.name(), input.institutionalEmail(),
+                input.initialRole(), input.expiresAt(), input.message());
+        return invitations.dispatch(actor, created.id());
     }
     @GetMapping
     PageResult<InvitationService.Invitation> list(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return invitations.list(identities.member(jwt), page, size);
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size,
+            @RequestParam(defaultValue="ALL") String state) {
+        return invitations.list(identities.member(jwt), page, size, state);
+    }
+    @PostMapping("/{id}/send")
+    InvitationService.Invitation resend(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return invitations.dispatch(identities.member(jwt), id);
     }
     @PostMapping("/{id}/accept")
     Member accept(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return invitations.accept(id, identities.tenant(jwt), identities.object(jwt));
+        return invitations.accept(id, jwt);
     }
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
     void revoke(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody Revoke input) {
         invitations.revoke(identities.member(jwt), id, input.reason());
     }
-    public record Create(@NotNull UUID memberId, @NotNull UUID objectId, @NotNull @Future Instant expiresAt,
-                         @NotBlank @Size(max=1000) String reason) {}
-    public record Revoke(@NotBlank @Size(max=1000) String reason) {}
+    public record Create(@NotBlank @Size(max=160) String name,
+                         @NotBlank @Email @Size(max=254) String institutionalEmail,
+                         @NotNull InvitationService.InitialRole initialRole,
+                         @NotNull @Future Instant expiresAt,
+                         @Size(max=1000) String message) {}
+    public record Revoke(@Size(max=1000) String reason) {}
 }

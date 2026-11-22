@@ -38,11 +38,19 @@ server:
     include-message: never
     include-stacktrace: never
 nite:
+  invitations:
+    accept-url: ${NITE_INVITATION_ACCEPT_URL:}
+  resend:
+    api-key: ${RESEND_API_KEY:}
+    from: ${RESEND_FROM:}
+    api-url: ${RESEND_API_URL:https://api.resend.com/emails}
   entra:
     enabled: ${ENTRA_ENABLED:false}
     tenant-id: ${ENTRA_TENANT_ID:}
     audience: ${ENTRA_AUDIENCE:}
     required-scope: ${ENTRA_REQUIRED_SCOPE:}
+    directory-client-id: ${ENTRA_DIRECTORY_CLIENT_ID:}
+    directory-client-secret: ${ENTRA_DIRECTORY_CLIENT_SECRET:}
   meetings:
     graph:
       enabled: ${MEETINGS_GRAPH_ENABLED:false}

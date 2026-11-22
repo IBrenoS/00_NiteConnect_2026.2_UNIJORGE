@@ -17,6 +17,7 @@ import { ActivityStatusBadge, formatActivityDate, formatActivityInstant } from "
 import { ActivityActionDialog, ActivityStatusDialog } from "./activity-action-dialog";
 import { ActivityEvidenceDialog } from "./activity-evidence-dialog";
 import { Button, InlineFeedback } from "../ui";
+import { MemberAvatar } from "../ui/member-avatar";
 
 type ActivityDetailProps = {
   activity: Activity;
@@ -393,7 +394,7 @@ export function ActivityDetail({
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Projeto</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{projectTitle ?? (activity.projectId ? "Projeto associado" : "Atividade independente")}</dd></div>
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Prazo</dt><dd className="text-type-body-compact text-nite-text-primary">{activity.dueOn ? <time dateTime={activity.dueOn}>{formatActivityDate(activity.dueOn)}</time> : "Sem prazo definido"}</dd></div>
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Criador</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{activity.createdBy === memberId ? "Você" : "Integrante"}</dd></div>
-          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Responsável principal</dt><dd className="break-words text-type-body-compact text-nite-text-primary">{activity.primaryExecutorName ?? "Integrante"}{!activity.executorAvailable ? <span className="mt-1 block text-type-metadata text-nite-text-secondary">Atribuição indisponível</span> : null}</dd></div>
+          <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Responsável principal</dt><dd className="flex items-center gap-2 break-words text-type-body-compact text-nite-text-primary"><MemberAvatar name={activity.primaryExecutorName ?? "Integrante"} memberId={activity.primaryExecutorId} size={32}/><span>{activity.primaryExecutorName ?? "Integrante"}{!activity.executorAvailable ? <span className="mt-1 block text-type-metadata text-nite-text-secondary">Atribuição indisponível</span> : null}</span></dd></div>
           <div className="grid gap-1"><dt className="text-type-metadata font-medium text-nite-text-secondary">Colaboradores</dt><dd className="grid gap-1 text-type-body-compact text-nite-text-primary">{assigneeIssue ? <span className="text-nite-text-secondary">Participantes indisponíveis</span> : collaborators.length ? collaborators.map((person) => <span key={person.id} className="break-words">{person.memberName ?? "Integrante"}{!person.available ? <span className="text-type-metadata text-nite-text-secondary"> · indisponível</span> : null}</span>) : <span className="text-nite-text-secondary">Nenhum colaborador</span>}</dd></div>
         </dl>
         <ActivityActions props={{ activity, capabilities, candidates, candidateIssue, candidateQuery, candidatePage, candidateSearchInvalid, participantsOpen, assignees, returnTo, evidencePage, historyPage }} />

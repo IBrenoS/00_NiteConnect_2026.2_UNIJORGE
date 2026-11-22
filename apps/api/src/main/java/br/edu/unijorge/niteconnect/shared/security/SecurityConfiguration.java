@@ -144,15 +144,16 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/projects/*", "/api/v1/projects/*/status", "/api/v1/projects/*/availability",
                                 "/api/v1/proposals/*").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/projects/*/members/*").access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/me", "/api/v1/members", "/api/v1/members/*",
+                        .requestMatchers(HttpMethod.GET, "/api/v1/administrative/members", "/api/v1/administrative/members/*", "/api/v1/administrative/members/*/history",
+                                "/api/v1/me", "/api/v1/me/profile", "/api/v1/members/*/photo", "/api/v1/members/*/profile", "/api/v1/members", "/api/v1/members/*",
                                 "/api/v1/members/*/history", "/api/v1/invitations", "/api/v1/audit-events")
                             .access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/members", "/api/v1/invitations",
-                                "/api/v1/invitations/*/accept", "/api/v1/members/*/roles")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/profile/photo", "/api/v1/me/access", "/api/v1/members", "/api/v1/invitations",
+                                "/api/v1/invitations/*/accept", "/api/v1/invitations/*/send", "/api/v1/members/*/roles")
                             .access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/members/*", "/api/v1/members/*/status")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/me/profile", "/api/v1/members/*", "/api/v1/members/*/status")
                             .access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/members/*/roles/*", "/api/v1/invitations/*")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/me/profile/photo", "/api/v1/members/*/roles/*", "/api/v1/invitations/*")
                             .access(authenticatedJwt)
                         .requestMatchers(HttpMethod.PATCH,"/api/v1/library/**").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.PUT,"/api/v1/library/**").access(authenticatedJwt)
