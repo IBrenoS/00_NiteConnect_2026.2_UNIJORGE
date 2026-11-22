@@ -106,17 +106,25 @@ const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider !== providerId || !account.access_token) return false;
+      let acceptingInvitation = false;
       try {
         const invitationId = (await cookies()).get("nite-invitation")?.value;
         if (invitationId) {
-          if (!await acceptInvitationForSignIn(invitationId, account.access_token, process.env.API_BASE_URL ?? "")) return false;
+          acceptingInvitation = true;
+          let result: Awaited<ReturnType<typeof acceptInvitationForSignIn>>;
+          try { result = await acceptInvitationForSignIn(invitationId, account.access_token, process.env.API_BASE_URL ?? ""); }
+          catch { result = "temporary-failure"; }
           (await cookies()).delete("nite-invitation");
+          if (result !== "success") return `/convites/resultado?status=${result}`;
         }
         const identity = await getNiteIdentity(account.access_token, process.env.API_BASE_URL ?? "");
+        if (acceptingInvitation) (await cookies()).set("nite-invitation-success", "1", { httpOnly: true, sameSite: "lax",
+          secure: process.env.NODE_ENV === "production", path: "/convites/resultado", maxAge: 300 });
         user.niteMember = identity.member;
         user.niteRoles = identity.roles;
         return true;
       } catch (error) {
+        if (acceptingInvitation) return `/convites/resultado?status=${error instanceof NiteApiUnauthorizedError ? "identity-failure" : "temporary-failure"}`;
         if (error instanceof NiteApiUnauthorizedError) return false;
         throw error;
       }

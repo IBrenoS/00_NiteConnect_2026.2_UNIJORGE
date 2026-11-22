@@ -22,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "nite.entra.tenant-id=11111111-1111-4111-8111-111111111111",
         "nite.entra.audience=22222222-2222-4222-8222-222222222222",
         "nite.entra.required-scope=access_as_user",
+        "spring.datasource.hikari.maximum-pool-size=3",
         "nite.activities.evidence-deletion-poll-delay-ms=3600000"
 })
 abstract class ProjectTestSupport {

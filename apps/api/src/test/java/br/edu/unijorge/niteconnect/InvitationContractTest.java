@@ -94,6 +94,16 @@ class InvitationContractTest extends ProjectTestSupport {
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.members where institutional_email=?",Integer.class,email)).isEqualTo(1);
     }
 
+    @Test void searchesInvitationsAcrossTheFullPageAndEscapesWildcards() throws Exception {
+        create("ana.teste@unijorge.com.br", "INTEGRANTE");
+        create("bruna@unijorge.com.br", "INTEGRANTE");
+        mvc.perform(get("/api/v1/invitations").with(token(ADMIN)).param("q", "ana.teste").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].email").value("ana.teste@unijorge.com.br"));
+        mvc.perform(get("/api/v1/invitations").with(token(ADMIN)).param("q", "%"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+    }
+
     @Test void optionalRoleReasonAndActualEntryAreRecorded() throws Exception {
         mvc.perform(post("/api/v1/members/"+MEMBER+"/roles").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"role\":\"GESTOR_GERAL\",\"expectedVersion\":0}"))

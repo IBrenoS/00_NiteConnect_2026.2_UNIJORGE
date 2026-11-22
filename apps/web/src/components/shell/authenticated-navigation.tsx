@@ -62,7 +62,7 @@ export function buildAuthenticatedNavigationGroups(options: NavigationOptions): 
     {label:"Relatórios",icon:"report",href:"/relatorios"},
     {label:"Biblioteca do NITE",icon:"projects",href:"/biblioteca"},
     {label:"Integrantes",icon:"team",href:"/gestao/integrantes"},
-    planned("Acessos e convites","access"),
+    {label:"Acessos e convites",icon:"access",href:"/gestao/acessos-e-convites"},
     planned("Regras e parâmetros","settings"),
   ]});
   if(options.canCoordinate)groups.push({label:"Acompanhamento acadêmico",defaultOpen:false,
@@ -116,7 +116,7 @@ function NavigationLink({ item, currentPath, onNavigate }: {
       {item.status === "development" ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-nite-border-strong" /> : null}
     </span>;
   }
-  const isCurrent = item.href === currentPath || ((item.href === "/projetos" || item.href === "/meus-projetos" || item.href === "/relatorios" || item.href === "/gestao/atividades-e-entregas" || item.href === "/gestao/integrantes") && currentPath.startsWith(`${item.href}/`));
+  const isCurrent = item.href === currentPath || ((item.href === "/projetos" || item.href === "/meus-projetos" || item.href === "/relatorios" || item.href === "/gestao/atividades-e-entregas" || item.href === "/gestao/integrantes" || item.href === "/gestao/acessos-e-convites") && currentPath.startsWith(`${item.href}/`));
   return <Link href={item.href} onClick={onNavigate} aria-current={isCurrent ? "page" : undefined} className={`flex min-h-8 items-center gap-2 rounded-control px-3 py-1 text-type-body-compact transition-colors motion-reduce:transition-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${isCurrent ? "bg-nite-brand-soft font-medium text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary"}`}>
     <Icon name={item.icon} />
     <span className="min-w-0 truncate">{item.label}</span>

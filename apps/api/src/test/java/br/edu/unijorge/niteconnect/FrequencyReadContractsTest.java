@@ -170,7 +170,7 @@ class FrequencyReadContractsTest extends AttendanceTestSupport {
         UUID openWindow = openList(event());
 
         LocalDate date = LocalDate.now(clock.withZone(BAHIA));
-        MvcResult result = mvc.perform(get("/api/v1/me/frequency/history?from=" + date + "&to=" + date).with(token(MEMBER)))
+        MvcResult result = mvc.perform(get("/api/v1/me/frequency/history?from=" + date.minusDays(1) + "&to=" + date).with(token(MEMBER)))
                 .andExpect(status().isOk()).andReturn();
         var items = json.readTree(result.getResponse().getContentAsString()).path("items");
 
@@ -252,7 +252,7 @@ class FrequencyReadContractsTest extends AttendanceTestSupport {
     }
 
     private void assertHistoryMomentsMatch(UUID list, LocalDate date, String status, Instant changedAt) throws Exception {
-        String query = "?from=" + date + "&to=" + date;
+        String query = "?from=" + date.minusDays(1) + "&to=" + date;
         MvcResult personalResult = mvc.perform(get("/api/v1/me/frequency/history" + query).with(token(MEMBER)))
                 .andExpect(status().isOk()).andReturn();
         MvcResult collectiveResult = mvc.perform(get("/api/v1/attendance/frequency/members/" + MEMBER + "/history" + query)

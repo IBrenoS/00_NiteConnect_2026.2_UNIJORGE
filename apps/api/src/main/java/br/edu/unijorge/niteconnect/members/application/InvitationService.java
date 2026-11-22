@@ -92,7 +92,7 @@ public class InvitationService {
     }
 
     @Transactional(readOnly=true)
-    public PageResult<Invitation> list(UUID actor, int page, int size, String state) {
+    public PageResult<Invitation> list(UUID actor, int page, int size, String state, String query) {
         access.requireAdministrator(actor); PageResult.validate(page,size);
         String filter = switch (state == null ? "ALL" : state) {
             case "ALL" -> "";
@@ -103,9 +103,13 @@ public class InvitationService {
             case "SEND_FAILED" -> " and i.send_state='FAILED' and i.accepted_at is null and i.revoked_at is null and i.expires_at>current_timestamp";
             default -> throw ApiException.invalid("Situação de convite inválida");
         };
-        String from = " from nite_connect.invitations i join nite_connect.members m on m.id=i.member_id where true" + filter;
+        String term = query == null ? "" : query.strip();
+        if (term.length() > 160) throw ApiException.invalid("Pesquisa deve ter até 160 caracteres");
+        String escaped = "%" + term.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+        String from = " from nite_connect.invitations i join nite_connect.members m on m.id=i.member_id where true" + filter
+                + " and (m.name ilike ? escape '!' or m.institutional_email ilike ? escape '!')";
         return new PageResult<>(jdbc.query("select i.*,m.name,m.institutional_email" + from + " order by i.created_at desc,i.id limit ? offset ?", MAPPER,
-                size, (long) page*size), page, size, jdbc.queryForObject("select count(*)" + from, Long.class));
+                escaped, escaped, size, (long) page*size), page, size, jdbc.queryForObject("select count(*)" + from, Long.class, escaped, escaped));
     }
 
     @Transactional

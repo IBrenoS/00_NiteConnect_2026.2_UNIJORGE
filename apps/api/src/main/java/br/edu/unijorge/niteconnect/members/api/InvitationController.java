@@ -31,8 +31,8 @@ public class InvitationController {
     @GetMapping
     PageResult<InvitationService.Invitation> list(@AuthenticationPrincipal Jwt jwt,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size,
-            @RequestParam(defaultValue="ALL") String state) {
-        return invitations.list(identities.member(jwt), page, size, state);
+            @RequestParam(defaultValue="ALL") String state, @RequestParam(required=false) String q) {
+        return invitations.list(identities.member(jwt), page, size, state, q);
     }
     @PostMapping("/{id}/send")
     InvitationService.Invitation resend(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {

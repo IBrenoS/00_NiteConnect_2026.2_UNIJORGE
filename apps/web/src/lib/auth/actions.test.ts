@@ -42,7 +42,7 @@ describe("destino de autenticação do handoff", () => {
   });
 
   it("continua somente para rota interna fixa quando o cookie protegido existe", async () => {
-    mocks.cookieGet.mockReturnValue({ value: "opaque-handoff-id-12345678901234567890" });
+    mocks.cookieGet.mockImplementation((name: string) => name === "__Host-nite-frequency-handoff" ? { value: "opaque-handoff-id-12345678901234567890" } : undefined);
     await signInWithMicrosoft();
     expect(mocks.signIn).toHaveBeenCalledWith("microsoft-entra-id", { redirectTo: "/frequency/confirm" });
   });

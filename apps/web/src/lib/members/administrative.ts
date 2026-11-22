@@ -4,7 +4,7 @@ import { parsePage } from "../activities/contracts";
 import { memberStatuses, type MemberStatus } from "./status";
 export { statusLabel, roleLabel } from "./status";
 
-export type MemberSummary = { id: string; name: string; institutionalEmail: string; status: MemberStatus; roles: string[]; hasPhoto: boolean };
+export type MemberSummary = { id: string; name: string; institutionalEmail: string; status: MemberStatus; roles: string[]; hasPhoto: boolean; lastAccessAt: string | null };
 export type MemberDetail = MemberSummary & { course: string | null; practiceArea: string | null; birthDate: string | null; version: number };
 export type MemberEvent = { id: string; kind: string; previousValue: string | null; newValue: string | null; actorName: string | null; reason: string | null; occurredAt: string; technical: boolean };
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
@@ -13,9 +13,9 @@ export function parseSummary(value: unknown): MemberSummary | null {
   if (!record(value) || typeof value.id !== "string" || typeof value.name !== "string"
     || typeof value.institutionalEmail !== "string" || !memberStatuses.includes(value.status as MemberStatus)
     || !Array.isArray(value.roles) || !value.roles.every(role => typeof role === "string")
-    || typeof value.hasPhoto !== "boolean") return null;
+    || typeof value.hasPhoto !== "boolean" || !nullable(value.lastAccessAt)) return null;
   return { id: value.id, name: value.name, institutionalEmail: value.institutionalEmail,
-    status: value.status as MemberStatus, roles: value.roles, hasPhoto: value.hasPhoto };
+    status: value.status as MemberStatus, roles: value.roles, hasPhoto: value.hasPhoto, lastAccessAt: value.lastAccessAt };
 }
 export function parseDetail(value: unknown): MemberDetail | null {
   const base = parseSummary(value);

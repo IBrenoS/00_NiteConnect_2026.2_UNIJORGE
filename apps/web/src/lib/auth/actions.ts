@@ -8,7 +8,9 @@ import { isAuthConfigured, meetingsGraphConsentScope } from "./config";
 export async function signInWithMicrosoft(): Promise<void> {
   if (!isAuthConfigured()) redirect("/login?error=Configuration");
   const handoff = (await cookies()).get("__Host-nite-frequency-handoff")?.value;
-  const redirectTo = handoff && /^[A-Za-z0-9_-]{32,64}$/.test(handoff) ? "/frequency/confirm" : "/dashboard";
+  const invitation = (await cookies()).get("nite-invitation")?.value;
+  const redirectTo = invitation ? "/convites/resultado?status=success"
+    : handoff && /^[A-Za-z0-9_-]{32,64}$/.test(handoff) ? "/frequency/confirm" : "/dashboard";
   await signIn("microsoft-entra-id", { redirectTo });
 }
 

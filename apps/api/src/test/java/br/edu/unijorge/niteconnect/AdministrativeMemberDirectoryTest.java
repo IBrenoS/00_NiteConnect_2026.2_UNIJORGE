@@ -32,6 +32,14 @@ class AdministrativeMemberDirectoryTest extends ProjectTestSupport {
                 .andExpect(jsonPath("$.birthDate").doesNotExist());
     }
 
+    @Test void lastAccessDistinguishesNoVisitFromObservedVisit() throws Exception {
+        mvc.perform(get("/api/v1/administrative/members/" + MEMBER).with(token(ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.lastAccessAt").value(org.hamcrest.Matchers.nullValue()));
+        mvc.perform(post("/api/v1/me/access").with(token(MEMBER))).andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/administrative/members").with(token(ADMIN)).param("q", MEMBER.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].lastAccessAt").isNotEmpty());
+    }
+
     @Test void institutionalHistoryUsesActorNamesAndTechnicalMarker() throws Exception {
         jdbc.update("update nite_connect.members set name='Administradora Completa' where id=?", ADMIN);
         jdbc.update("insert into nite_connect.member_status_history(id,member_id,actor_id,previous_status,new_status,reason) values (?,?,?,null,'ATIVO','Ingresso')",

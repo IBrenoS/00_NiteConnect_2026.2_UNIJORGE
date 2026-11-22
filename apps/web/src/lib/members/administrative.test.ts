@@ -5,7 +5,7 @@ vi.mock("../api/server", () => ({ getApiJson: mocks.getApiJson }));
 import { getMember, getMemberHistory, getMembers, parseDetail, parseEvent, parseSummary } from "./administrative";
 
 const summary = { id: "member-id", name: "Ana Souza", institutionalEmail: "ana@unijorge.com.br",
-  status: "ATIVO", roles: ["INTEGRANTE", "GESTOR_PROJETO"], hasPhoto: true };
+  status: "ATIVO", roles: ["INTEGRANTE", "GESTOR_PROJETO"], hasPhoto: true, lastAccessAt: null };
 
 describe("contrato do diretório administrativo", () => {
   it("valida os campos do cadastro e rejeita nascimento na lista", () => {
