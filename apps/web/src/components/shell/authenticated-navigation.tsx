@@ -1,22 +1,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import type { LeadershipProject } from "../../lib/projects/contracts";
-
-export type AuthenticatedNavigationIcon =
-  | "home"
-  | "activity"
-  | "clock"
-  | "projects"
-  | "calendar"
-  | "meeting"
-  | "team"
-  | "report"
-  | "attendance"
-  | "settings"
-  | "academic"
-  | "review"
-  | "access";
+import { AuthenticatedNavigationIconView, type AuthenticatedNavigationIcon, type AuthenticatedNavigationIconHandle } from "./authenticated-navigation-icon";
+import styles from "./authenticated-navigation.module.css";
 
 export type AuthenticatedNavigationItem = {
   label: string;
@@ -45,121 +32,106 @@ function planned(label: string, icon: AuthenticatedNavigationIcon): Authenticate
 
 export function buildAuthenticatedNavigationGroups(options: NavigationOptions): AuthenticatedNavigationGroup[] {
   const groups: AuthenticatedNavigationGroup[] = [
-    {label:"Início",defaultOpen:true,collapsible:false,
-      items:[{label:"Visão geral",icon:"home",href:"/dashboard"}]},
-    {label:"Meu espaço",defaultOpen:true,items:[
-      {label:"Minhas atividades",icon:"activity",href:"/atividades"},
-      {label:"Meus projetos",icon:"projects",href:"/meus-projetos"},
-      {label:"Reuniões",icon:"meeting",href:"/reunioes"},
-      {label:"Frequência",icon:"attendance",href:"/frequencia"},
-      {label:"Meus arquivos",icon:"projects",href:"/documentos"},
-      {label:"Lixeira",icon:"projects",href:"/documentos/lixeira"},
-    ]},
-    {label:"Núcleo",defaultOpen:true,items:[{label:"Projetos",icon:"projects",href:"/projetos"}]},
+    { label: "Início", defaultOpen: true, collapsible: false, items: [{ label: "Visão geral", icon: "dashboard", href: "/dashboard" }] },
+    { label: "Meu espaço", defaultOpen: true, items: [
+      { label: "Minhas atividades", icon: "checklist", href: "/atividades" },
+      { label: "Meus projetos", icon: "cards", href: "/meus-projetos" },
+      { label: "Reuniões", icon: "video", href: "/reunioes" },
+      { label: "Frequência", icon: "clock", href: "/frequencia" },
+      { label: "Meus arquivos", icon: "folder", href: "/documentos" },
+      { label: "Lixeira", icon: "trash", href: "/documentos/lixeira" },
+    ] },
+    { label: "Núcleo", defaultOpen: true, items: [{ label: "Projetos", icon: "network", href: "/projetos" }] },
   ];
-  if(options.canAdminister) groups.push({label:"Gestão do NITE",defaultOpen:true,items:[
-    {label:"Atividades e entregas",icon:"activity",href:"/gestao/atividades-e-entregas"},
-    {label:"Relatórios",icon:"report",href:"/relatorios"},
-    {label:"Biblioteca do NITE",icon:"projects",href:"/biblioteca"},
-    {label:"Integrantes",icon:"team",href:"/gestao/integrantes"},
-    {label:"Acessos e convites",icon:"access",href:"/gestao/acessos-e-convites"},
-    planned("Regras e parâmetros","settings"),
-  ]});
-  if(options.canCoordinate)groups.push({label:"Acompanhamento acadêmico",defaultOpen:false,
-    items:[planned("Avaliações","academic"),planned("Revisões e homologações","review")]});
+  if (options.canAdminister) groups.push({ label: "Gestão do NITE", defaultOpen: true, items: [
+    { label: "Atividades e entregas", icon: "inbox", href: "/gestao/atividades-e-entregas" },
+    { label: "Relatórios", icon: "chart", href: "/relatorios" },
+    { label: "Biblioteca do NITE", icon: "books", href: "/biblioteca" },
+    { label: "Integrantes", icon: "people", href: "/gestao/integrantes" },
+    { label: "Acessos e convites", icon: "invite", href: "/gestao/acessos-e-convites" },
+    planned("Regras e parâmetros", "sliders"),
+  ] });
+  if (options.canCoordinate) groups.push({ label: "Acompanhamento acadêmico", defaultOpen: false,
+    items: [planned("Avaliações", "books"), planned("Revisões e homologações", "checklist")] });
   return groups;
 }
 
-type ResendNavigationGlyph = "audience" | "broadcasts" | "logs" | "metrics" | "settings" | "templates" | "workflow" | "video";
-
-const resendGlyphForNiteNavigation: Record<AuthenticatedNavigationIcon, ResendNavigationGlyph> = {
-  home: "metrics",
-  activity: "logs",
-  clock: "metrics",
-  projects: "workflow",
-  calendar: "broadcasts",
-  meeting: "video",
-  team: "audience",
-  report: "metrics",
-  attendance: "logs",
-  settings: "settings",
-  academic: "templates",
-  review: "logs",
-  access: "audience",
-};
-
-const resendNavigationGlyphs: Record<ResendNavigationGlyph, ReactNode> = {
-  audience: <><path d="M18 21a8 8 0 0 0-16 0" /><circle cx="10" cy="8" r="5" /><path d="M22 20c0-3.37-2-6.5-4-7.5" /><path d="M16 3.13a5 5 0 0 1 0 9.75" /></>,
-  broadcasts: <><path d="M16.2 7a6 6 0 0 1 0 10" /><path d="M19.5 4.6a10 10 0 0 1 0 14.8" /><path d="M7.8 7a6 6 0 0 0 0 10" /><path d="M4.5 4.6a10 10 0 0 0 0 14.8" /><circle cx="12" cy="12" r="2" /><path d="M12 14v8" /></>,
-  logs: <><path d="M3 5h.01" /><path d="M3 12h.01" /><path d="M3 19h.01" /><path d="M8 5h13" /><path d="M8 12h13" /><path d="M8 19h13" /></>,
-  metrics: <><path d="M4 20V5" /><path d="M4 20h17" /><path d="M8 16v-4" /><path d="M13 16V8" /><path d="M18 16V4" /></>,
-  settings: <><circle cx="12" cy="12" r="3" /><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8.1 8.1 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8.1 8.1 0 0 1-1.8-1l-1.7.6-1.4-2.4 1.4-1.1a7.7 7.7 0 0 1 0-2.1l-1.4-1.1 1.4-2.4 1.7.6a8.1 8.1 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8.1 8.1 0 0 1 1.8 1l1.7-.6 1.4 2.4-1.4 1.1a7.7 7.7 0 0 1 0 2.1Z" /></>,
-  templates: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></>,
-  workflow: <><rect x="3" y="3" width="6" height="6" rx="1.5" /><rect x="15" y="15" width="6" height="6" rx="1.5" /><path d="M21 8V7a4 4 0 0 0-4-4h-1" /><path d="M3 9v1a5 5 0 0 0 5 5h6a5 5 0 0 1 5 5v1" /></>,
-  video: <><rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" /></>,
-};
-
-function Icon({ name }: { name: AuthenticatedNavigationIcon }) {
-  const glyph = resendGlyphForNiteNavigation[name];
-  return <svg aria-hidden="true" data-icon={glyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-[18px] shrink-0">{resendNavigationGlyphs[glyph]}</svg>;
+export function isAuthenticatedNavigationItemCurrent(href: string, currentPath: string): boolean {
+  return href === currentPath || currentPath.startsWith(`${href}/`);
 }
 
-function NavigationLink({ item, currentPath, onNavigate }: {
+function currentNavigationHref(groups: AuthenticatedNavigationGroup[], currentPath: string): string | undefined {
+  return groups
+    .flatMap(({ items }) => items.map(({ href }) => href))
+    .filter((href): href is string => href !== undefined && isAuthenticatedNavigationItemCurrent(href, currentPath))
+    .sort((left, right) => right.length - left.length)[0];
+}
+
+function NavigationLink({ item, currentHref, onNavigate }: {
   item: AuthenticatedNavigationItem;
-  currentPath: string;
+  currentHref?: string;
   onNavigate?: () => void;
 }) {
+  const iconRef = useRef<AuthenticatedNavigationIconHandle>(null);
   if (!item.href) {
-    return <span aria-disabled="true" aria-label={`${item.label}, em desenvolvimento`} title="Em desenvolvimento" className="flex min-h-8 items-center gap-2 rounded-control px-3 py-1 text-type-body-compact text-nite-text-muted">
-      <Icon name={item.icon} />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.status === "development" ? <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-nite-border-strong" /> : null}
+    return <span aria-disabled="true" aria-label={`${item.label}, em desenvolvimento`} title="Em desenvolvimento" className={`${styles.link} ${styles.disabled}`}>
+      <AuthenticatedNavigationIconView name={item.icon} disabled />
+      <span className={styles.linkLabel}>{item.label}</span>
+      {item.status === "development" ? <span aria-hidden="true" className={styles.status} /> : null}
     </span>;
   }
-  const isCurrent = item.href === currentPath || ((item.href === "/projetos" || item.href === "/meus-projetos" || item.href === "/relatorios" || item.href === "/gestao/atividades-e-entregas" || item.href === "/gestao/integrantes" || item.href === "/gestao/acessos-e-convites") && currentPath.startsWith(`${item.href}/`));
-  return <Link href={item.href} onClick={onNavigate} aria-current={isCurrent ? "page" : undefined} className={`flex min-h-8 items-center gap-2 rounded-control px-3 py-1 text-type-body-compact transition-colors motion-reduce:transition-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${isCurrent ? "bg-nite-brand-soft font-medium text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary"}`}>
-    <Icon name={item.icon} />
-    <span className="min-w-0 truncate">{item.label}</span>
+  const isCurrent = item.href === currentHref;
+  return <Link href={item.href} onClick={onNavigate}
+    onPointerEnter={(event) => { if (event.pointerType !== "touch") iconRef.current?.interact("pointer", true); }}
+    onPointerLeave={() => iconRef.current?.interact("pointer", false)}
+    onPointerCancel={() => iconRef.current?.interact("pointer", false)}
+    onBlur={() => iconRef.current?.interact("focus", false)}
+    onFocus={(event) => {
+      if (event.currentTarget.matches(":focus-visible")) iconRef.current?.interact("focus", true);
+    }} aria-current={isCurrent ? "page" : undefined} className={`${styles.link} ${isCurrent ? styles.active : ""}`}>
+    <AuthenticatedNavigationIconView ref={iconRef} name={item.icon} />
+    <span className={styles.linkLabel}>{item.label}</span>
   </Link>;
 }
 
-function NavigationGroup({ group, currentPath, onNavigate }: {
+function NavigationGroup({ group, currentHref, onNavigate }: {
   group: AuthenticatedNavigationGroup;
-  currentPath: string;
+  currentHref?: string;
   onNavigate?: () => void;
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const ready = useRef(false);
+  const containsCurrentRoute = group.items.some((item) => item.href === currentHref);
   useEffect(() => {
     const details = detailsRef.current;
     if (!details) return;
     try {
       const saved = window.sessionStorage.getItem(`nite-navigation-group:${group.label}`);
-      details.open = saved === null ? group.defaultOpen : saved === "open";
+      details.open = containsCurrentRoute || (saved === null ? group.defaultOpen : saved === "open");
     } catch {
-      details.open = group.defaultOpen;
+      details.open = containsCurrentRoute || group.defaultOpen;
     }
     ready.current = true;
-  }, [group.label, group.defaultOpen]);
+  }, [containsCurrentRoute, group.defaultOpen, group.label]);
   const rows = <>
-    {group.note ? <p className="px-3 pb-1 text-type-metadata leading-relaxed text-nite-text-muted">{group.note}</p> : null}
-    <ul className="grid gap-2">
-      {group.items.map((item) => <li key={item.label}><NavigationLink item={item} currentPath={currentPath} onNavigate={onNavigate} /></li>)}
+    {group.note ? <p className={styles.note}>{group.note}</p> : null}
+    <ul className={styles.rows}>
+      {group.items.map((item) => <li key={item.label}><NavigationLink item={item} currentHref={currentHref} onNavigate={onNavigate} /></li>)}
     </ul>
   </>;
-  if (group.collapsible === false) return <section aria-label={group.label} className="grid gap-1">
-    <p className="px-3 pb-1 text-type-metadata font-medium text-nite-text-muted">{group.label}</p>{rows}
+  if (group.collapsible === false) return <section aria-label={group.label} className={`${styles.group} ${styles.staticGroup}`}>
+    <p className={styles.heading}>{group.label}</p>{rows}
   </section>;
   return <details ref={detailsRef} open={group.defaultOpen} onToggle={(event) => {
     if (!ready.current) return;
     const next = event.currentTarget.open;
     try { window.sessionStorage.setItem(`nite-navigation-group:${group.label}`, next ? "open" : "closed"); } catch { /* A expansão continua funcional sem storage. */ }
-  }} className="group/nav-group grid gap-1">
-    <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 rounded-control px-3 py-1 text-type-metadata font-medium text-nite-text-muted transition-colors hover:bg-nite-surface-subtle hover:text-nite-text-primary motion-reduce:transition-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus [&::-webkit-details-marker]:hidden">
+  }} className={`${styles.group} group/nav-group`}>
+    <summary className={styles.summary}>
       <span>{group.label}</span>
-      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="size-4 transition-transform group-open/nav-group:rotate-180 motion-reduce:transition-none"><path d="m5 7.5 5 5 5-5" /></svg>
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={`${styles.chevron} group-open/nav-group:rotate-180`}><path d="m5 7.5 5 5 5-5" /></svg>
     </summary>
-    <div className="pt-1">{rows}</div>
+    <div className={styles.groupContent}>{rows}</div>
   </details>;
 }
 
@@ -168,7 +140,8 @@ export function AuthenticatedNavigation({ groups, onNavigate }: {
   onNavigate?: () => void;
 }) {
   const currentPath = usePathname();
-  return <nav aria-label="Navegação principal" className="grid gap-3">
-    {groups.map((group) => <NavigationGroup key={group.label} group={group} currentPath={currentPath} onNavigate={onNavigate} />)}
+  const currentHref = currentNavigationHref(groups, currentPath);
+  return <nav aria-label="Navegação principal" className={styles.navigation}>
+    {groups.map((group) => <NavigationGroup key={group.label} group={group} currentHref={currentHref} onNavigate={onNavigate} />)}
   </nav>;
 }

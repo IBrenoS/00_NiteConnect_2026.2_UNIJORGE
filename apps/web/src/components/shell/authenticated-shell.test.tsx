@@ -33,6 +33,7 @@ vi.mock("../theme-control", async () => {
 vi.mock("../../lib/auth/actions", () => ({ signOutOfNite: async () => undefined }));
 
 import { AuthenticatedShell } from "./authenticated-shell";
+import { AuthenticatedNavigation, buildAuthenticatedNavigationGroups } from "./authenticated-navigation";
 
 describe("shell autenticado", () => {
   it("identifica o gestor de projeto sem liberar navegação administrativa global", () => {
@@ -63,12 +64,13 @@ describe("shell autenticado", () => {
       </AuthenticatedShell>,
     );
 
-    expect(markup).toContain("w-[250px]");
+    expect(markup).toContain("w-64");
     expect(markup).toContain("md:flex");
-    expect(markup).toContain("md:pl-[250px]");
+    expect(markup).toContain("md:pl-64");
     expect(markup).toContain('aria-label="Abrir navegação"');
     expect(markup).toContain("md:hidden");
-    expect(markup.match(/aria-label="Fechar navegação"/g)).toHaveLength(2);
+    expect(markup).not.toContain('role="dialog"');
+    expect(markup).not.toContain("data-navigation-icon");
   });
 
   it("renderiza conteúdo composto sem carregar estrutura do dashboard", () => {
@@ -91,25 +93,18 @@ describe("shell autenticado", () => {
   });
 
   it("mantém a visão geral ativa e módulos sem rota sem ação de teclado ou mouse", () => {
-    const markup = renderToStaticMarkup(
-      <AuthenticatedShell
-        member={{ id: "member-1", name: "Pessoa de teste", institutionalEmail: "person@example.invalid", status: "ATIVO" }}
-        roles={["COORDENADOR"]}
-        projects={[{ projectId: "project-1", title: "Projeto autorizado" }]}
-        leadershipProjectsUnavailable={false}
-      >
-        <p>Conteúdo da rota.</p>
-      </AuthenticatedShell>,
-    );
+    const markup = renderToStaticMarkup(<AuthenticatedNavigation groups={buildAuthenticatedNavigationGroups({
+      projects: [], canAdminister: true, canCoordinate: true,
+    })} />);
 
     expect(markup).toContain('aria-current="page"');
-    expect(markup).toContain('data-icon="metrics"');
-    expect(markup).toContain('data-icon="logs"');
-    expect(markup).toContain('data-icon="workflow"');
-    expect(markup).toContain('data-icon="video"');
-    expect(markup).toContain('data-icon="audience"');
-    expect(markup).toContain('data-icon="templates"');
-    expect(markup).toContain('data-icon="settings"');
+    expect(markup).toContain('data-navigation-icon="dashboard"');
+    expect(markup).toContain('data-navigation-icon="checklist"');
+    expect(markup).toContain('data-navigation-icon="network"');
+    expect(markup).toContain('data-navigation-icon="video"');
+    expect(markup).toContain('data-navigation-icon="people"');
+    expect(markup).toContain('data-navigation-icon="books"');
+    expect(markup).toContain('data-navigation-icon="sliders"');
     expect(markup).toContain('href="/dashboard"');
     expect(markup).toContain('href="/atividades"');
     expect(markup).toContain('href="/projetos"');

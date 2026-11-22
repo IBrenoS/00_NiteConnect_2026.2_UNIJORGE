@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { ThemeControl } from "../theme-control";
 import { signOutOfNite } from "../../lib/auth/actions";
 import type { NiteMember } from "../../lib/auth/identity";
@@ -17,6 +17,15 @@ type AuthenticatedShellProps = {
   leadershipProjectsUnavailable: boolean;
 };
 
+const desktopQuery = "(min-width: 768px)";
+const subscribeViewport = (update: () => void) => {
+  const media = window.matchMedia(desktopQuery);
+  media.addEventListener("change", update);
+  return () => media.removeEventListener("change", update);
+};
+const desktopSnapshot = () => window.matchMedia(desktopQuery).matches;
+const serverSnapshot = () => null;
+
 function accountRole(roles: string[]): string {
   if (roles.includes("COORDENADOR")) return "Coordenação";
   if (roles.includes("GESTOR_GERAL")) return "Gestão Geral";
@@ -25,6 +34,7 @@ function accountRole(roles: string[]): string {
 }
 
 export function AuthenticatedShell({ children, member, roles, projects, leadershipProjectsUnavailable }: AuthenticatedShellProps) {
+  const desktop = useSyncExternalStore(subscribeViewport, desktopSnapshot, serverSnapshot);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const mobileNavigationRef = useRef<HTMLElement>(null);
@@ -39,7 +49,16 @@ export function AuthenticatedShell({ children, member, roles, projects, leadersh
   });
 
   useEffect(() => {
-    if (!mobileNavigationOpen) {
+    const media = window.matchMedia(desktopQuery);
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileNavigationOpen(false);
+    };
+    media.addEventListener("change", closeOnDesktop);
+    return () => media.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen || desktop) {
       previousFocusRef.current?.focus();
       return;
     }
@@ -70,7 +89,14 @@ export function AuthenticatedShell({ children, member, roles, projects, leadersh
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mobileNavigationOpen]);
+  }, [mobileNavigationOpen, desktop]);
+
+  useEffect(() => {
+    if (!mobileNavigationOpen || desktop) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [mobileNavigationOpen, desktop]);
 
   useEffect(() => {
     if (!accountMenuOpen) return;
@@ -143,18 +169,18 @@ export function AuthenticatedShell({ children, member, roles, projects, leadersh
   return (
     <div className="min-h-svh bg-nite-background text-nite-text-primary">
       <a href="#authenticated-content" className="sr-only z-50 rounded-control bg-nite-surface px-3 py-2 text-nite-text-primary focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:outline-3 focus:outline-nite-focus">Ir para o conteúdo principal</a>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col border-r border-nite-border-soft bg-nite-background md:flex" aria-label="NITE Connect">
-        {renderSidebar(false)}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-nite-border-soft bg-nite-background md:flex" aria-label="NITE Connect">
+        {desktop === true ? renderSidebar(false) : null}
       </aside>
 
-      <div className="fixed inset-0 z-50 md:hidden" hidden={!mobileNavigationOpen}>
+      {desktop === false && mobileNavigationOpen ? <div className="fixed inset-0 z-50 md:hidden">
         <button type="button" aria-label="Fechar navegação" className="absolute inset-0 bg-black/45" onClick={closeMobileNavigation} />
         <aside ref={mobileNavigationRef} id="authenticated-mobile-sidebar" role="dialog" aria-modal="true" className="relative flex h-full w-[min(19rem,calc(100vw-2.75rem))] flex-col border-r border-nite-border-soft bg-nite-background shadow-nite-modal" aria-label="Navegação principal">
           {renderSidebar(true)}
         </aside>
-      </div>
+      </div> : null}
 
-      <div className="min-w-0 md:pl-[250px]">
+      <div className="min-w-0 md:pl-64" inert={desktop === false && mobileNavigationOpen}>
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 bg-nite-background/95 px-3 backdrop-blur sm:px-5 lg:px-7">
           <button type="button" aria-label="Abrir navegação" aria-expanded={mobileNavigationOpen} aria-controls="authenticated-mobile-sidebar" className="grid size-11 shrink-0 place-items-center rounded-control border border-nite-border-soft text-nite-text-secondary transition-colors hover:bg-nite-surface-subtle motion-reduce:transition-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus md:hidden" onClick={openMobileNavigation}>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-[18px]"><path d="M4 6h16M4 12h16M4 18h16" /></svg>

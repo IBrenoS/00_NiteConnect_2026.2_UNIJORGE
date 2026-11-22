@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthenticatedNavigationGroups } from "./authenticated-navigation";
+import { buildAuthenticatedNavigationGroups, isAuthenticatedNavigationItemCurrent } from "./authenticated-navigation";
 
 const base = {
   projects: [],
@@ -47,5 +47,34 @@ describe("navegação autenticada", () => {
     expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ href }) => href).map(({ href }) => href)).toEqual(["/dashboard", "/atividades", "/meus-projetos", "/reunioes", "/frequencia", "/documentos", "/documentos/lixeira", "/projetos", "/gestao/atividades-e-entregas", "/relatorios", "/biblioteca", "/gestao/integrantes", "/gestao/acessos-e-convites"]);
     expect(groups.flatMap(({ items: groupItems }) => groupItems).find(({label})=>label==="Atividades e entregas")).toMatchObject({href:"/gestao/atividades-e-entregas"});
     expect(groups.flatMap(({ items: groupItems }) => groupItems).filter(({ label }) => label === "Frequência")).toHaveLength(1);
+  });
+
+  it("usa um ícone distinto para cada destino principal", () => {
+    const groups = buildAuthenticatedNavigationGroups({ ...base, canAdminister: true });
+    const iconByLabel = Object.fromEntries(groups.flatMap(({ items }) => items.map(({ label, icon }) => [label, icon])));
+
+    expect(iconByLabel).toMatchObject({
+      "Visão geral": "dashboard",
+      "Minhas atividades": "checklist",
+      "Meus projetos": "cards",
+      "Reuniões": "video",
+      "Frequência": "clock",
+      "Meus arquivos": "folder",
+      "Lixeira": "trash",
+      "Projetos": "network",
+      "Atividades e entregas": "inbox",
+      "Relatórios": "chart",
+      "Biblioteca do NITE": "books",
+      "Integrantes": "people",
+      "Acessos e convites": "invite",
+      "Regras e parâmetros": "sliders",
+    });
+  });
+
+  it("mantém a rota ativa nas páginas internas da seção", () => {
+    expect(isAuthenticatedNavigationItemCurrent("/meus-projetos", "/meus-projetos/projeto-1/documentos")).toBe(true);
+    expect(isAuthenticatedNavigationItemCurrent("/documentos", "/documentos/lixeira")).toBe(true);
+    expect(isAuthenticatedNavigationItemCurrent("/projetos", "/projetos/novo")).toBe(true);
+    expect(isAuthenticatedNavigationItemCurrent("/projetos", "/meus-projetos")).toBe(false);
   });
 });
