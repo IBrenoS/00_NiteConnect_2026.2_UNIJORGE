@@ -50,6 +50,7 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/contexts", "/api/v1/dashboard/personal", "/api/v1/dashboard/institutional").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/me/documents", "/api/v1/documents/*", "/api/v1/documents/*/download",
                                 "/api/v1/documents/*/versions", "/api/v1/documents/*/versions/*/download",
                                 "/api/v1/me/library", "/api/v1/me/favorites", "/api/v1/me/trash", "/api/v1/me/trash/**", "/api/v1/me/shared-with-me", "/api/v1/me/shared-by-me", "/api/v1/library/**", "/api/v1/projects/*/library", "/api/v1/projects/*/library/**", "/api/v1/projects/*/trash", "/api/v1/me/library/**").access(authenticatedJwt)
