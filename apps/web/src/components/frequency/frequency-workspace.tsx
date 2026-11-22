@@ -1,10 +1,12 @@
 "use client";
 
+import { FilterSelect, SearchField } from "../ui";
+
 import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertDialog, Button, Dialog, Select, TextField } from "../ui";
+import { AlertDialog, Button, Dialog, TextField } from "../ui";
 import { QrScanner } from "./qr-scanner";
 import { cancelFrequencyList, changeFrequencyParticipant, finalizeFrequencyList, openFrequencyList, renewFrequencyListQr } from "../../lib/frequency/actions";
 import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant, ParticipantPage, PersonalOpenList } from "../../lib/frequency/contracts";
@@ -233,7 +235,7 @@ function percentage(value: number | null, noEligibleMeetings: boolean): string {
 
 function RetryButton() {
   const router = useRouter();
-  return <Button type="button" variant="secondary" onClick={() => router.refresh()} className="w-fit">Tentar novamente</Button>;
+  return <Button size="compact" type="button" variant="secondary" onClick={() => router.refresh()} className="w-fit">Tentar novamente</Button>;
 }
 
 function personalOpenListDescription(list: PersonalOpenList): string {
@@ -257,7 +259,7 @@ function PersonalOpenLists({ props, onScan }: { props: WorkspaceProps; onScan: (
           <p className="mt-1 text-type-metadata text-nite-text-muted">{formatFrequencyDate(list.scheduledAt, { dateStyle: "medium", timeStyle: "short" })}</p>
           <p role={list.status === "PRESENCA_REGISTRADA" ? "status" : undefined} className="mt-1 text-type-body-compact text-nite-text-secondary">{personalOpenListDescription(list)}</p>
         </div>
-        {list.eligible && list.status === "AGUARDANDO_CONFIRMACAO" && list.confirmationAvailable ? <Button type="button" leadingIcon={<Icon name="scan" />} onClick={() => onScan(list)} disabled={props.synthetic} className="w-full sm:w-auto lg:hidden">Escanear QR Code</Button> : null}
+        {list.eligible && list.status === "AGUARDANDO_CONFIRMACAO" && list.confirmationAvailable ? <Button size="compact" type="button" leadingIcon={<Icon name="scan" />} onClick={() => onScan(list)} disabled={props.synthetic} className="w-full sm:w-auto lg:hidden">Escanear QR Code</Button> : null}
       </li>)}
     </ul>
   </section>;
@@ -334,9 +336,9 @@ function MemberMode({ props }: { props: WorkspaceProps }) {
             <input type="hidden" name="memberId" value="" />
             <label className="min-w-0 flex-1">
               <span className="sr-only">Buscar integrante</span>
-              <TextField type="search" name="memberSearch" value={search} maxLength={120} autoComplete="off" onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Buscar integrante" />
+              <SearchField name="memberSearch" value={search} maxLength={120} autoComplete="off" onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Buscar integrante" />
             </label>
-            <Button type="submit" variant="secondary" aria-label="Buscar integrante" disabled={searchPending || Boolean(props.synthetic && !search.trim())}><Icon name="search" /></Button>
+            <Button size="compact" type="submit" variant="secondary" aria-label="Buscar integrante" disabled={searchPending || Boolean(props.synthetic && !search.trim())}><Icon name="search" /></Button>
           </form>
         </div>
         <ul className="divide-y divide-nite-border-soft border-y border-nite-border-soft">
@@ -420,7 +422,7 @@ function ParticipantActions({ list, participant, synthetic = false }: { list: Fr
   const targetStatus = participant.status === "JUSTIFICADO" ? "AUSENTE" : "JUSTIFICADO";
   const actionLabel = targetStatus === "JUSTIFICADO" ? "Marcar como justificado" : "Corrigir para ausente";
   return <>
-    <Button type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="px-2 text-type-metadata">Ações</Button>
+    <Button size="compact" type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="px-2 text-type-metadata">Ações</Button>
     <AlertDialog
       open={open}
       onOpenChange={setOpen}
@@ -451,23 +453,23 @@ function FinalizeListAction({ list, defaultOutcome, synthetic }: { list: Frequen
   const [open, setOpen] = useState(false);
   const formId = `frequency-finalize-${list.listId}`;
   return <>
-    <Button type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Concluir</Button>
+    <Button size="compact" type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Concluir</Button>
     <Dialog
       open={open}
       onOpenChange={setOpen}
       title="Concluir lista"
       description={`Confirme o resultado de “${list.meetingName}”. A ausência só será registrada para uma reunião contabilizável.`}
-      footer={<div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Voltar</Button><Button type="submit" form={formId}>Concluir lista</Button></div>}
+      footer={<div className="flex justify-end gap-2"><Button size="compact" type="button" variant="secondary" onClick={() => setOpen(false)}>Voltar</Button><Button size="compact" type="submit" form={formId}>Concluir lista</Button></div>}
     >
       <form id={formId} action={synthetic ? undefined : finalizeFrequencyList} onSubmit={(event) => { if (synthetic) event.preventDefault(); }} className="grid gap-3">
         <input type="hidden" name="listId" value={list.listId} />
         <input type="hidden" name="expectedVersion" value={String(list.version)} />
         <label className="grid gap-1.5 text-type-metadata text-nite-text-secondary">Resultado
-          <Select name="outcome" defaultValue={defaultOutcome}>
+          <FilterSelect name="outcome" defaultValue={defaultOutcome}>
             <option value="REALIZADA_CONTABILIZAVEL">Realizada e contabilizável</option>
             {list.classification === "EXCEPTIONAL" ? <option value="REALIZADA_NAO_CONTABILIZAVEL">Realizada, não contabilizável</option> : null}
             <option value="NAO_REALIZADA">Não realizada</option>
-          </Select>
+          </FilterSelect>
         </label>
       </form>
     </Dialog>
@@ -478,7 +480,7 @@ function CancelListAction({ list, synthetic }: { list: FrequencyList; synthetic?
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   return <>
-    <Button type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Cancelar</Button>
+    <Button size="compact" type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Cancelar</Button>
     <AlertDialog
       open={open}
       onOpenChange={setOpen}
@@ -540,9 +542,9 @@ function ParticipantRoster({ props, list, now }: { props: WorkspaceProps; list: 
       <input type="hidden" name="listStatus" value={props.listStatus} />
       <label className="min-w-0">
         <span className="sr-only">Buscar integrante</span>
-        <TextField type="search" name="participantSearch" value={search} maxLength={120} autoComplete="off" onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Buscar integrante" />
+        <SearchField name="participantSearch" value={search} maxLength={120} autoComplete="off" onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Buscar integrante" />
       </label>
-      <Button type="submit" variant="secondary" aria-label="Buscar integrante" className="px-3" disabled={searchPending}><Icon name="search" /></Button>
+      <Button size="compact" type="submit" variant="secondary" aria-label="Buscar integrante" className="px-3" disabled={searchPending}><Icon name="search" /></Button>
     </form>
     <nav aria-label="Filtrar integrantes por situação" className="mt-2 flex flex-wrap gap-1 rounded-panel bg-nite-surface-subtle p-1">
       {[
@@ -612,10 +614,10 @@ function CreateList({ props, openKey, setOpenKey }: { props: WorkspaceProps; ope
       <input type="hidden" name="agendaClassification" value={selectedEvent ? regular ? "REGULAR" : "EXCEPTIONAL" : ""} />
       <div className="grid min-w-0 gap-1.5">
         <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary"><span>Vincular encontro da Agenda <span className="text-nite-text-muted">(opcional)</span></span>
-          <Select name="calendarEventId" value={selectedEventId} aria-describedby={props.eventsIssue ? "agenda-events-error" : undefined} onChange={(event) => setSelectedEventId(event.currentTarget.value)}>
+          <FilterSelect name="calendarEventId" value={selectedEventId} aria-describedby={props.eventsIssue ? "agenda-events-error" : undefined} onChange={(event) => setSelectedEventId(event.currentTarget.value)}>
             <option value="">Criar sem vínculo</option>
             {events.map((event) => <option key={event.id} value={event.id}>{event.title} · {formatFrequencyDate(event.startsAt, { hour: "2-digit", minute: "2-digit" })}</option>)}
-          </Select>
+          </FilterSelect>
         </label>
       </div>
       {props.eventsIssue ? <p id="agenda-events-error" role="alert" className="text-type-metadata text-status-warning sm:col-span-2 xl:col-span-4">{agendaIssue}</p> : null}
@@ -632,9 +634,9 @@ function CreateList({ props, openKey, setOpenKey }: { props: WorkspaceProps; ope
         </div>
       </fieldset>
       {!regular ? <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary">Contar esta reunião na frequência
-        <Select name="countsForFrequency" defaultValue="true"><option value="true">Sim, se realizada</option><option value="false">Não</option></Select>
+        <FilterSelect name="countsForFrequency" defaultValue="true"><option value="true">Sim, se realizada</option><option value="false">Não</option></FilterSelect>
       </label> : <input type="hidden" name="countsForFrequency" value="" />}
-      <div className="sm:col-span-2 xl:col-span-4"><Button type="submit" disabled={props.synthetic} className="w-full sm:w-auto">Abrir e projetar</Button></div>
+      <div className="sm:col-span-2 xl:col-span-4"><Button size="compact" type="submit" disabled={props.synthetic} className="w-full sm:w-auto">Abrir e projetar</Button></div>
     </form>
   </details>;
 }
@@ -700,7 +702,7 @@ function MeetingDetail({ props, now }: { props: WorkspaceProps; now: number | nu
         <form action={props.synthetic ? undefined : renewFrequencyListQr}>
           <input type="hidden" name="listId" value={list.listId} />
           <input type="hidden" name="expectedVersion" value={String(list.version)} />
-          <Button type="submit" variant="secondary" disabled={props.synthetic}>Projetar QR</Button>
+          <Button size="compact" type="submit" variant="secondary" disabled={props.synthetic}>Projetar QR</Button>
         </form>
         <FinalizeListAction list={list} defaultOutcome={outcomeDefault} synthetic={props.synthetic} />
         <CancelListAction list={list} synthetic={props.synthetic} />
@@ -768,7 +770,6 @@ export function FrequencyWorkspace(props: WorkspaceProps) {
     <header className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
       <div className="min-w-0">
         <h1 className="font-display text-type-page-title text-nite-text-primary">Frequência</h1>
-        <p className="mt-2 max-w-2xl text-type-body-compact text-nite-text-secondary">Consulte a frequência do período e acompanhe as reuniões registradas.</p>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <ViewNavigation props={props} view={view} />

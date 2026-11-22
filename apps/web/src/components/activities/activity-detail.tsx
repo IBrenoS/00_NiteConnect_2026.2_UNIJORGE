@@ -1,3 +1,4 @@
+import { DatePicker, FilterSelect, SearchField } from "../ui";
 import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import type { Activity, ActivityAssignee, ActivityCandidate, ActivityCapabilities, ActivityEvidence, ActivityHistoryEvent, Page } from "../../lib/activities/contracts";
@@ -158,7 +159,7 @@ function EvidenceSection({ props }: { props: Pick<ActivityDetailProps, "activity
                   <VersionAndReturn activity={activity} returnTo={returnTo} />
                   <FormReason />
                   <label className="flex min-w-0 items-start gap-3 text-type-body-compact text-nite-text-secondary"><input className="mt-0.5 size-5 shrink-0 accent-nite-brand-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" type="checkbox" name="confirmed" value="true" required />Confirmo a retirada desta evidência.</label>
-                  <div className="flex justify-end"><Button type="submit" variant="destructive">Confirmar retirada</Button></div>
+                  <div className="flex justify-end"><Button size="compact" type="submit" variant="destructive">Confirmar retirada</Button></div>
                 </form>
               </ActivityActionDialog>
             </div>
@@ -261,12 +262,12 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
         <label className={labelClass}>Título<input className={controlClass} name="title" required maxLength={200} defaultValue={activity.title} /></label>
         <label className={labelClass}>Descrição<textarea className={`${controlClass} min-h-24 resize-y`} name="description" maxLength={10_000} defaultValue={activity.description} /></label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className={labelClass}>Início<input className={controlClass} type="date" name="startOn" defaultValue={activity.startOn ?? ""} /></label>
-          <label className={labelClass}>Prazo<input className={controlClass} type="date" name="dueOn" defaultValue={activity.dueOn ?? ""} /></label>
+          <label className={labelClass}>Início<DatePicker aria-label="Início"  name="startOn" defaultValue={activity.startOn ?? ""} /></label>
+          <label className={labelClass}>Prazo<DatePicker aria-label="Prazo"  name="dueOn" defaultValue={activity.dueOn ?? ""} /></label>
         </div>
-        <label className={labelClass}>Prioridade<select className={controlClass} name="priority" defaultValue={activity.priority ?? ""}><option value="">Sem prioridade</option><option value="ALTA">Alta</option><option value="MEDIA">Média</option><option value="BAIXA">Baixa</option></select></label>
+        <label className={labelClass}>Prioridade<FilterSelect name="priority" defaultValue={activity.priority ?? ""}><option value="">Sem prioridade</option><option value="ALTA">Alta</option><option value="MEDIA">Média</option><option value="BAIXA">Baixa</option></FilterSelect></label>
         <FormReason />
-        <div className="flex justify-end"><Button type="submit" variant="secondary">Salvar alterações</Button></div>
+        <div className="flex justify-end"><Button size="compact" type="submit" variant="secondary">Salvar alterações</Button></div>
       </form>
     </ActivityActionDialog> : null}
     {capabilities.manageAssignees && !participantQueryActive ? <Link href={candidateHref(0)} className={summaryClass}>Gerenciar participantes</Link> : null}
@@ -279,9 +280,9 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
           {props.evidencePage > 0 ? <input type="hidden" name="evidencePage" value={props.evidencePage} /> : null}
           {props.historyPage > 0 ? <input type="hidden" name="historyPage" value={props.historyPage} /> : null}
           <input type="hidden" name="candidatePage" value="0" />
-          <label className={labelClass}>Buscar integrantes<input className={controlClass} type="search" name="candidateQ" required minLength={2} maxLength={160} defaultValue={candidateQuery} placeholder="Nome ou parte do nome" /></label>
+          <label className={labelClass}>Buscar integrantes<SearchField  name="candidateQ" required minLength={2} maxLength={160} defaultValue={candidateQuery} placeholder="Nome ou parte do nome" /></label>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" variant="secondary">Buscar</Button>
+            <Button size="compact" type="submit" variant="secondary">Buscar</Button>
             {candidateQuery ? <Link href={candidateHref(0, "")} className="inline-flex min-h-11 items-center rounded-control px-3 text-type-body-compact font-medium text-nite-text-secondary underline underline-offset-4 hover:text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Limpar busca</Link> : null}
           </div>
         </form>
@@ -296,17 +297,17 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
         {!candidateSearchInvalid && !candidateIssue && candidates && candidates.items.length > 0 ? <>
           <form action={assignExecutor} className="grid min-w-0 gap-4 border-b border-nite-border-soft pb-4">
             <VersionAndReturn activity={activity} returnTo={returnTo} />
-            <label className={labelClass}>Novo executor<select className={controlClass} name="memberId" required defaultValue=""><option value="" disabled>Selecione um integrante</option>{candidates.items.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
+            <label className={labelClass}>Novo executor<FilterSelect name="memberId" required defaultValue=""><option value="" disabled>Selecione um integrante</option>{candidates.items.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</FilterSelect></label>
             <FormReason />
             <p className="text-type-metadata text-nite-text-secondary">A troca encerra a atribuição vigente do executor.</p>
             <label className="flex min-w-0 items-start gap-3 text-type-body-compact text-nite-text-secondary"><input className="mt-0.5 size-5 shrink-0 accent-nite-brand-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" type="checkbox" name="confirmed" value="true" required />Confirmo a troca do executor.</label>
-            <Button type="submit" variant="secondary">Trocar executor</Button>
+            <Button size="compact" type="submit" variant="secondary">Trocar executor</Button>
           </form>
           <form action={addCollaborator} className="grid min-w-0 gap-4 border-b border-nite-border-soft pb-4">
             <VersionAndReturn activity={activity} returnTo={returnTo} />
-            <label className={labelClass}>Novo colaborador<select className={controlClass} name="memberId" required defaultValue=""><option value="" disabled>Selecione um integrante</option>{candidates.items.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</select></label>
+            <label className={labelClass}>Novo colaborador<FilterSelect name="memberId" required defaultValue=""><option value="" disabled>Selecione um integrante</option>{candidates.items.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}</FilterSelect></label>
             <FormReason />
-            <Button type="submit" variant="secondary">Adicionar colaborador</Button>
+            <Button size="compact" type="submit" variant="secondary">Adicionar colaborador</Button>
           </form>
           {candidatePages > 1 ? <nav aria-label="Paginação de integrantes" className="flex min-w-0 items-center justify-between gap-2 text-type-metadata text-nite-text-secondary">
             {candidatePage > 0 ? <PaginationLink href={candidateHref(candidatePage - 1)}>Página anterior</PaginationLink> : <span />}
@@ -320,7 +321,7 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
             <VersionAndReturn activity={activity} returnTo={returnTo} />
             <FormReason />
             <label className="flex min-w-0 items-start gap-3 text-type-body-compact text-nite-text-secondary"><input className="mt-0.5 size-5 shrink-0 accent-nite-brand-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" type="checkbox" name="confirmed" value="true" required />Confirmo o encerramento da participação.</label>
-            <Button type="submit" variant="destructive">Encerrar participação</Button>
+            <Button size="compact" type="submit" variant="destructive">Encerrar participação</Button>
           </form>
         </details>)}
       </div>
@@ -332,7 +333,7 @@ function ActivityActions({ props }: { props: Pick<ActivityDetailProps, "activity
         <input type="hidden" name="returnTo" value={returnTo} />
         <p className="text-type-body-compact text-nite-text-secondary">A exclusão é permanente e remove a atividade das listas.</p>
         <label className="flex items-start gap-2 text-type-body-compact text-nite-text-secondary"><input className="mt-1 size-4 accent-status-error" type="checkbox" name="confirmed" value="true" required />Confirmo a exclusão permanente.</label>
-        <Button type="submit" variant="destructive">Excluir permanentemente</Button>
+        <Button size="compact" type="submit" variant="destructive">Excluir permanentemente</Button>
       </form>
     </details> : null}
   </section>;

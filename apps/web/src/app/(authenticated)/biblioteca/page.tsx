@@ -17,8 +17,7 @@ export default async function LibraryPage({searchParams}:Props) {
     folderId?getAdminFolder(session.bearer,folderId):Promise.resolve(null), getArchivedItems(session.bearer),
   ]);
   return <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-7 sm:px-8">
-    <header><h1 className="font-display text-type-page-title text-nite-text-primary">Biblioteca do NITE</h1>
-      <p className="text-type-body-compact text-nite-text-secondary">Uma biblioteca institucional com os mesmos documentos que os integrantes veem em seus espaços.</p></header>
+    <header><h1 className="font-display text-type-page-title text-nite-text-primary">Biblioteca do NITE</h1></header>
     {params.saved&&<TransientFeedback messageKey={params.saved} queryParam="saved" occurrenceKey={params}><p role="status" className="text-type-body-compact text-nite-text-primary">Alteração registrada.</p></TransientFeedback>}
     {params.error&&<TransientFeedback messageKey={params.error} queryParam="error" occurrenceKey={params}><p role="alert" className="text-type-body-compact text-nite-text-primary">Não foi possível concluir a operação ({params.error}). Nenhum conteúdo foi sobrescrito.</p></TransientFeedback>}
     {folderId ? listing?.data?<>

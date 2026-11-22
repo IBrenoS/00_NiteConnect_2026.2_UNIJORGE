@@ -56,9 +56,9 @@ describe("dados demonstrativos das tarefas", () => {
     expect(html).toContain("grid-cols-2 xl:grid-cols-3");
     expect(html).not.toContain("Planejamentos acessíveis a você");
     expect(html).not.toContain("Abrir planejamento");
-    expect(html).toContain('aria-label="Filtrar por projeto: Todos os projetos"');
-    expect(html).toContain('aria-haspopup="listbox"');
-    expect(html).not.toContain("<select");
+    expect(html).toContain('aria-label="Filtrar por projeto"');
+    expect(html).toContain('data-slot="filter-select"');
+    expect(html).toContain("<select");
   });
 
   it("mostra a atividade vazia dentro do workspace e separa tasks legadas", () => {
@@ -99,9 +99,9 @@ describe("criação de atividade no preview", () => {
     expect(html).toContain('placeholder="Nova atividade"');
     expect(html).toContain('placeholder="Adicione uma descrição..."');
     expect(html).toContain('aria-label="Projeto: Independente"');
-    expect(html).toContain("<span>Projeto</span><span");
+    expect(html).toContain("<span>Projeto</span><select");
     expect(html).toContain("Independente");
-    expect(html).toContain('aria-haspopup="listbox"');
+    expect(html).toContain('data-slot="filter-select"');
     expect(html).toContain("xl:top-[53px]");
     expect(html).toContain("xl:left-full");
     expect(html).toContain("xl:mt-[clamp(18rem,42vh,28rem)]");
@@ -109,7 +109,7 @@ describe("criação de atividade no preview", () => {
     expect(html).toContain("Cancelar");
     expect(html).toContain("Criar atividade");
     expect(html).not.toContain("Minhas atividades");
-    expect(html).not.toContain("<select");
+    expect(html).toContain("<select");
     expect(html).not.toContain("Buscar projeto");
     expect(html).not.toContain("Ver prévia");
   });

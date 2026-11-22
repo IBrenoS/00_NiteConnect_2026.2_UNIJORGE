@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { ActivityStatus } from "../../lib/activities/contracts";
 import { activityStatuses } from "../../lib/activities/contracts";
-import { Button, Checkbox, Dialog, Field, Select, Textarea } from "../ui";
+import { Button, Checkbox, Dialog, Field, FilterSelect, Textarea } from "../ui";
 import { activityStatusLabel } from "./activity-list";
 
 type ActivityFormAction = (formData: FormData) => void | Promise<void>;
@@ -30,7 +30,7 @@ export function ActivityActionDialog({
   const [open, setOpen] = useState(false);
 
   return <>
-    <Button type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="justify-start px-3">
+    <Button size="compact" type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="justify-start px-3">
       {label}
     </Button>
     <Dialog open={open} onOpenChange={setOpen} title={title} description={description}>
@@ -64,7 +64,7 @@ export function ActivityStatusDialog({
   }
 
   return <>
-    <Button type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="justify-start px-3">
+    <Button size="compact" type="button" variant="quiet" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className="justify-start px-3">
       Alterar situação
     </Button>
     <Dialog open={open} onOpenChange={setOpen} title="Alterar situação" description="A mudança será registrada no histórico da atividade.">
@@ -72,14 +72,14 @@ export function ActivityStatusDialog({
         <input type="hidden" name="expectedVersion" value={expectedVersion} />
         <input type="hidden" name="returnTo" value={returnTo} />
         <Field id="activity-next-status" label="Nova situação" required>
-          <Select
+          <FilterSelect
             name="status"
             value={nextStatus}
             placeholder="Selecione uma situação"
             onChange={(event) => setNextStatus(selectStatus(event.currentTarget.value))}
           >
             {transitions.map((status) => <option key={status} value={status}>{activityStatusLabel[status]}</option>)}
-          </Select>
+          </FilterSelect>
         </Field>
         <Field id="activity-status-reason" label="Motivo (opcional)">
           <Textarea name="reason" maxLength={1_000} />
@@ -88,7 +88,7 @@ export function ActivityStatusDialog({
           <Checkbox name="confirmed" value="true" required />
         </Field> : null}
         <div className="flex justify-end">
-          <Button type="submit" variant="secondary">Atualizar situação</Button>
+          <Button size="compact" type="submit" variant="secondary">Atualizar situação</Button>
         </div>
       </form>
     </Dialog>

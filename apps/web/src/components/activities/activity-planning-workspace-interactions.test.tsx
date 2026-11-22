@@ -1,4 +1,5 @@
 import { isValidElement, type ReactNode } from "react";
+import { Button } from "../ui/button";
 import { AlertDialog } from "../ui/alert-dialog";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActivityPlanningWorkspace, type ActivityPlanningTask } from "./activity-planning-workspace";
@@ -122,7 +123,7 @@ describe("interações persistidas do planejamento", () => {
   it("carrega candidatos reais e envia responsável, colaboradores e situação do editor", async () => {
     vi.mocked(getPlanningCreationCandidatesAction).mockResolvedValue({ data: [{ id: "owner", name: "Nome" }], issue: null });
     vi.mocked(createPlanningTaskAction).mockResolvedValue({ data: { id: "new" }, issue: null });
-    const button = find(render(), (node) => isValidElement<{ children?: ReactNode }>(node) && node.type === "button" && String(node.props.children).includes("Nova tarefa"));
+    const button = find(render(), (node) => isValidElement<{ children?: ReactNode }>(node) && node.type === Button && String(node.props.children).includes("Nova tarefa"));
     if (!isValidElement<{ onClick: () => void }>(button)) throw new Error("Botão indisponível");
     button.props.onClick();
     await settle();

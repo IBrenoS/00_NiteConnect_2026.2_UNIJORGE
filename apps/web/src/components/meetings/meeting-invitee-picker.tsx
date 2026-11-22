@@ -1,10 +1,11 @@
 "use client";
 
+import { SearchField } from "../ui";
+
 import { useEffect, useState } from "react";
 import { searchMeetingInviteesAction } from "../../lib/meetings/actions";
 import type { MeetingCandidate, MeetingPage } from "../../lib/meetings/contracts";
 import { Button } from "../ui/button";
-import { TextField } from "../ui/text-field";
 
 type Props = {
   selected: MeetingCandidate[];
@@ -69,7 +70,7 @@ export function MeetingInviteePicker({ selected, onChange, excludedId, previewCa
       </li>)}
     </ul> : null}
     <label className="grid min-w-0 gap-1.5 text-type-metadata text-nite-text-secondary" htmlFor="meeting-invitee-search">Buscar integrantes ativos
-      <TextField id="meeting-invitee-search" type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} maxLength={160} placeholder="Digite ao menos 2 caracteres" autoComplete="off" />
+      <SearchField id="meeting-invitee-search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} maxLength={160} placeholder="Digite ao menos 2 caracteres" autoComplete="off" />
     </label>
     <div aria-live="polite" className="min-h-8 text-type-body-compact text-nite-text-secondary">
       {query.trim().length < 2 ? <p>A busca considera integrantes ativos do NITE Connect.</p> : loading ? <p>Buscando integrantes…</p> : issue ? <p role="alert">Não foi possível buscar agora. Tente novamente.</p> : page?.items.filter((candidate) => candidate.id !== excludedId).length ? <ul className="max-h-48 divide-y divide-nite-border-soft overflow-y-auto rounded-panel border border-nite-border-soft">
@@ -85,6 +86,6 @@ export function MeetingInviteePicker({ selected, onChange, excludedId, previewCa
         })}
       </ul> : <p>Nenhum integrante encontrado.</p>}
     </div>
-    {!previewCandidates && page && (page.page + 1) * page.size < page.total && normalizedQuery.length >= 2 ? <Button type="button" variant="quiet" onClick={() => void loadMore()} loading={pageLoading} className="justify-self-start">Ver mais integrantes</Button> : null}
+    {!previewCandidates && page && (page.page + 1) * page.size < page.total && normalizedQuery.length >= 2 ? <Button size="compact" type="button" variant="quiet" onClick={() => void loadMore()} loading={pageLoading} className="justify-self-start">Ver mais integrantes</Button> : null}
   </section>;
 }

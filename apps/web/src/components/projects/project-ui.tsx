@@ -1,5 +1,7 @@
 "use client";
 
+import { buttonClassName } from "../ui/button";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ProjectDisplay } from "../../lib/projects/presentation";
@@ -10,8 +12,8 @@ import { MemberAvatar } from "../ui/member-avatar";
 export function TemporaryNotice() {
   return <p className={styles.temporary}><span aria-hidden="true">◌</span> Dados de exemplo · As alterações ficam apenas nesta sessão da interface e não são enviadas.</p>;
 }
-export function ProjectMark({ title, large = false }: { title: string; large?: boolean }) {
-  return <span aria-hidden="true" className={`${styles.mark} ${large ? styles.markLarge : ""}`}>{title.split(" ").slice(0, 2).map(word => word[0]).join("")}</span>;
+export function ProjectMark({ title, detail = false }: { title: string; detail?: boolean }) {
+  return <span aria-hidden="true" className={`${styles.mark} ${detail ? styles.detailMark : ""}`}>{title.split(" ").slice(0, 2).map(word => word[0]).join("")}</span>;
 }
 export function Avatar({ name, memberId }: { name: string; memberId?: string | null }) {
   return <MemberAvatar name={name} memberId={memberId} className={styles.avatar}/>;
@@ -20,7 +22,7 @@ export function ProjectStatusBadge({ project }: { project: ProjectDisplay }) {
   return <span className={styles.projectStatus} data-status={project.status}>{projectStatusLabels[project.status]}</span>;
 }
 export function EmptyProjects({ title, description, reset, resetLabel = "Limpar filtros" }: { title: string; description: string; reset?: () => void; resetLabel?: string }) {
-  return <div className={styles.empty}><span aria-hidden="true">▦</span><h2>{title}</h2><p>{description}</p>{reset && <button className={styles.button} onClick={reset}>{resetLabel}</button>}</div>;
+  return <div className={styles.empty}><span aria-hidden="true">▦</span><h2>{title}</h2><p>{description}</p>{reset && <button className={buttonClassName({ size: "compact", variant: "secondary" })} onClick={reset}>{resetLabel}</button>}</div>;
 }
 export function ProjectProperties({ project }: { project: ProjectDisplay }) {
   const date = (value: string | null) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "Não definido";
@@ -39,5 +41,5 @@ export function ProjectBreadcrumb({ personal = false }: { title?: string; person
 
 export function ProjectIssue({ issue }: { issue: string }) {
   const router = useRouter();
-  return <div className={styles.contextNote}><p role="alert">{projectIssueText(issue)}</p>{issue === "unauthenticated" ? <Link href="/login" className={styles.button}>Entrar novamente</Link> : issue === "unavailable" || issue === "invalid" ? <button className={styles.button} onClick={() => router.refresh()}>Tentar novamente</button> : null}</div>;
+  return <div className={styles.contextNote}><p role="alert">{projectIssueText(issue)}</p>{issue === "unauthenticated" ? <Link href="/login" className={buttonClassName({ size: "compact", variant: "secondary" })}>Entrar novamente</Link> : issue === "unavailable" || issue === "invalid" ? <button className={buttonClassName({ size: "compact", variant: "secondary" })} onClick={() => router.refresh()}>Tentar novamente</button> : null}</div>;
 }

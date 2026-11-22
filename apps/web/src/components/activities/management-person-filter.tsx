@@ -1,7 +1,8 @@
 "use client";
 
+import { Button, SearchField } from "../ui";
+
 import { useId, useState } from "react";
-import { TextField } from "../ui/text-field";
 import { searchManagementPeople } from "../../lib/activities/management-actions";
 import type { ActivityCandidate, Page } from "../../lib/activities/contracts";
 import type { ApiResult } from "../../lib/api/contracts";
@@ -30,19 +31,19 @@ export function ManagementPersonFilter({ label, name, initialId, initialName, pr
     <input type="hidden" name={name} value={selected?.id ?? ""}/>
     <label htmlFor={inputId}>{label}</label>
     <div className="flex gap-2">
-      <TextField id={inputId} type="search" placeholder="Pesquisar pelo nome" value={term} maxLength={160} autoComplete="off" disabled={loading}
+      <SearchField id={inputId} placeholder="Pesquisar pelo nome" value={term} maxLength={160} autoComplete="off" disabled={loading}
         onChange={event => { setTerm(event.currentTarget.value); setResult(null); }}
         onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (Array.from(term.trim()).length >= 2 && !loading) void search(0); } }}/>
-      <button type="button" className="underline" disabled={loading || Array.from(term.trim()).length < 2} onClick={() => void search(0)}>Buscar</button>
+      <Button size="compact" variant="quiet" type="button" disabled={loading || Array.from(term.trim()).length < 2} onClick={() => void search(0)}>Buscar</Button>
     </div>
-    {selected && <div className="flex gap-2"><span>{selected.name}</span><button type="button" className="underline" aria-label={`Limpar seleção: ${label}`} onClick={() => setSelected(null)}>Limpar</button></div>}
+    {selected && <div className="flex gap-2"><span>{selected.name}</span><Button size="compact" variant="quiet" type="button" aria-label={`Limpar seleção: ${label}`} onClick={() => setSelected(null)}>Limpar</Button></div>}
     {loading ? <p role="status">Buscando integrantes…</p> : result?.issue ? <p role="alert">{result.issue === "access" || result.issue === "not-found" ? "Pesquisa indisponível neste contexto." : "Não foi possível buscar integrantes."}</p> : result?.data && <>
       {result.data.items.length ? <ul className="max-h-40 overflow-auto rounded-control border border-nite-border-soft">{result.data.items.map(person => <li key={person.id}>
         <button type="button" className="w-full px-2 py-1 text-left hover:bg-nite-surface-subtle" onClick={() => { setSelected(person); setTerm(""); setResult(null); }}>{person.name}</button>
       </li>)}</ul> : <p role="status">Nenhum integrante encontrado.</p>}
       <div className="flex gap-2">
-        {result.data.page > 0 && <button type="button" className="underline" onClick={() => void search(result.data.page - 1)}>Anterior</button>}
-        {(result.data.page + 1) * result.data.size < result.data.total && <button type="button" className="underline" onClick={() => void search(result.data.page + 1)}>Mais resultados</button>}
+        {result.data.page > 0 && <Button size="compact" variant="quiet" type="button" onClick={() => void search(result.data.page - 1)}>Anterior</Button>}
+        {(result.data.page + 1) * result.data.size < result.data.total && <Button size="compact" variant="quiet" type="button" onClick={() => void search(result.data.page + 1)}>Mais resultados</Button>}
       </div>
     </>}
   </div>;

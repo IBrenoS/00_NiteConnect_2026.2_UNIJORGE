@@ -1,5 +1,9 @@
 "use client";
 
+import { Button } from "../ui/button";
+
+import { FilterSelect } from "../ui";
+
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { changeMemberStatus } from "../../lib/members/actions";
@@ -25,14 +29,14 @@ export function StatusControl({ id, status, version }: { id: string; status: Mem
     });
   }} className="grid gap-3 border-t border-nite-border-soft pt-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
     <label className="grid gap-1 text-type-metadata text-nite-text-secondary">Alterar situação
-      <select value={next} onChange={event => setNext(event.target.value as MemberStatus | "")} className="min-h-10 rounded-control border border-nite-border-control bg-nite-surface px-2 text-nite-text-primary">
+      <FilterSelect value={next} onChange={event => setNext(event.target.value as MemberStatus | "")}>
         <option value="">Selecione</option>{options.map(value => <option key={value} value={value}>{statusLabel[value]}</option>)}
-      </select>
+      </FilterSelect>
     </label>
     <label className="grid gap-1 text-type-metadata text-nite-text-secondary">Motivo
       <input value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} required className="min-h-10 rounded-control border border-nite-border-control bg-nite-surface px-3 text-nite-text-primary" />
     </label>
-    <button disabled={pending} className="min-h-10 self-end rounded-control bg-nite-brand-primary px-4 text-type-body-compact font-medium text-nite-action-text disabled:opacity-50">{pending ? "Salvando…" : "Confirmar"}</button>
+    <Button size="compact" variant="primary" disabled={pending}>{pending ? "Salvando…" : "Confirmar"}</Button>
     {error && <p role="alert" className="text-type-body-compact text-status-error sm:col-span-3">{error}</p>}
   </form>;
 }

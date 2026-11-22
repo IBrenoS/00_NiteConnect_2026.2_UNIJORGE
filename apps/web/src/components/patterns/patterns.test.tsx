@@ -4,6 +4,16 @@ import { FilterToolbar } from "./filter-toolbar";
 import { EmptyState, ErrorState, LoadingState } from "./query-states";
 
 describe("padrões de consulta", () => {
+  it("mantém valores avançados no formulário recolhido e indica quando estão ativos", () => {
+    const advanced = <input name="dueFrom" defaultValue="2026-11-01" />;
+    const closed = renderToStaticMarkup(<FilterToolbar compact method="get" advanced={advanced}><input name="q" /></FilterToolbar>);
+    expect(closed).toContain('method="get"');
+    expect(closed).toContain('name="dueFrom"');
+    expect(closed).not.toContain('<details open');
+    const active = renderToStaticMarkup(<FilterToolbar compact advanced={advanced} advancedActive><input name="q" /></FilterToolbar>);
+    expect(active).toContain('<details open=""');
+    expect(active).toContain('Filtros avançados · aplicados');
+  });
   it("compõe uma toolbar de formulário e identifica filtros ativos com ação de limpeza", () => {
     const html = renderToStaticMarkup(
       <FilterToolbar

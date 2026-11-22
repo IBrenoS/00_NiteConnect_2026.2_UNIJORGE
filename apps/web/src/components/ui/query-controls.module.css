@@ -1,0 +1,50 @@
+.control{box-sizing:border-box;min-height:36px;min-width:0;max-width:100%;border:1px solid var(--nite-border-soft);border-radius:8px;background:var(--nite-surface);color:var(--nite-text-primary);font:inherit;font-size:.875rem;line-height:1.4;transition:background-color .12s,border-color .12s}
+.control:hover:not(:disabled){border-color:var(--nite-border-control);background:var(--nite-surface-subtle)}
+.control:focus-visible,.search:focus-within,.date:focus-within{outline:0;box-shadow:inset 0 0 0 2px var(--nite-focus)}
+.control:disabled,.search:has(input:disabled),.date:has(input:disabled){cursor:not-allowed;opacity:.6;background:var(--nite-surface-subtle)}
+.control[aria-invalid=true],.search:has([aria-invalid=true]),.date:has([aria-invalid=true]){border-color:var(--nite-status-error)}
+.search{display:flex;align-items:center;gap:8px;padding:0 10px;width:100%;flex:1 1 15rem}
+.search>svg{width:16px;height:16px;flex:none;color:var(--nite-text-muted)}
+.control.search>input{width:100%;min-width:0;min-height:34px;padding:6px 0;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;outline:0!important;box-shadow:none}
+.control.search>input::placeholder{color:var(--nite-text-muted)}
+.search:has(.clear) input::-webkit-search-cancel-button{display:none}
+.clear,.calendarTrigger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;min-height:28px;border:0;border-radius:5px;background:transparent;color:var(--nite-text-secondary);cursor:pointer}
+.clear:hover,.calendarTrigger:hover{background:var(--nite-surface-focus);color:var(--nite-text-primary)}
+.clear:focus-visible,.calendarTrigger:focus-visible,.calendar button:focus-visible{outline:2px solid var(--nite-focus);outline-offset:-2px}
+.clear svg,.calendarTrigger svg{width:16px;height:16px}
+.select{justify-self:start;width:auto;padding:6px 10px;cursor:pointer;text-overflow:ellipsis}
+@supports (appearance:base-select){
+ .select,.select::picker(select){appearance:base-select}
+ .select{display:inline-flex;align-items:center;justify-content:space-between;gap:16px}
+ .select::picker-icon{color:var(--nite-text-muted);transition:rotate .12s}
+ .select:open::picker-icon{rotate:180deg}
+ .select::picker(select){width:max-content;min-width:anchor-size(width);max-width:min(28rem,calc(100vw - 16px));max-height:min(320px,60dvh);overflow:auto;overscroll-behavior:contain;margin-block:5px;padding:4px;border:1px solid var(--nite-border-soft);border-radius:10px;background:linear-gradient(var(--nite-surface),var(--nite-surface)),var(--nite-background);color:var(--nite-text-primary);box-shadow:0 8px 28px #0002;font-size:.875rem}
+ .select option{color:var(--nite-text-primary);display:flex;align-items:center;gap:12px;min-height:32px;padding:6px 9px;border-radius:6px;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+ .select option:hover,.select option:focus{background:var(--nite-surface-subtle);outline:0}
+ .select option:checked{color:var(--nite-text-primary);background:var(--nite-surface-focus);font-weight:500}
+ .select option::checkmark{order:2;margin-left:auto;color:var(--nite-brand-primary)}
+ .select option:disabled{color:var(--nite-text-muted);cursor:not-allowed}
+}
+.date{display:flex;align-items:center;gap:4px;padding:0 5px 0 10px;width:100%}
+.control.date>input{width:100%;min-width:0;min-height:34px;padding:5px 0;border:0;background:transparent;color:inherit;font:inherit;outline:0!important;box-shadow:none;color-scheme:inherit}
+.control.date>input::-webkit-calendar-picker-indicator{display:none}
+.control.date>input:read-only{cursor:default}
+.calendarTrigger:disabled{cursor:not-allowed;opacity:.5}
+.calendar{position:fixed;inset:auto;margin:0;width:288px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:10px;border:1px solid var(--nite-border-soft);border-radius:10px;background:linear-gradient(var(--nite-surface),var(--nite-surface)),var(--nite-background);color:var(--nite-text-primary);box-shadow:0 8px 28px #0002;font-size:.875rem}
+.calendarHeader{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px}
+.calendar button{min-height:32px;min-width:32px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.calendar button:hover:not(:disabled){background:var(--nite-surface-subtle)}
+.calendar button:disabled{opacity:.35;cursor:not-allowed}
+.calendarGrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center}
+.weekday{padding:5px 0;font-size:.75rem;color:var(--nite-text-muted)}
+.calendarGrid button[data-outside=true]{color:var(--nite-text-muted)}
+.calendarGrid button[aria-pressed=true]{background:var(--nite-brand-primary);color:var(--nite-action-text);font-weight:600}
+.calendarFooter{display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:6px;border-top:1px solid var(--nite-border-soft)}
+.range{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+.range>div{display:grid;min-width:0;gap:4px}
+.range label{font-size:.8125rem;color:var(--nite-text-secondary)}
+.compactButton{min-height:36px;padding:6px 12px;border-radius:8px;font-size:.875rem;line-height:1.4;box-shadow:none}
+.compactSecondary{border-color:var(--nite-border-soft)}
+.compactButton svg{width:16px;height:16px}
+@media(pointer:coarse){.control,.compactButton{min-height:44px}.control.search>input,.control.date>input{min-height:42px;font-size:1rem}.select{font-size:1rem}.clear,.calendarTrigger{min-width:36px;min-height:36px}.calendar button{min-height:36px}}
+@media(prefers-reduced-motion:reduce){.control,.select::picker-icon{transition:none}}

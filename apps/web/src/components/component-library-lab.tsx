@@ -16,6 +16,7 @@ import {
 } from "./ui";
 import { TransientFeedback } from "./ui/transient-feedback";
 import { AdminDataQueryLab } from "./admin-data-query-lab";
+import { QueryControlsLab } from "./query-controls-lab";
 
 export function ComponentLibraryLab() {
   const [showError, setShowError] = useState(false);
@@ -447,6 +448,7 @@ export function ComponentLibraryLab() {
           />
         </AlertDialog>
       </section>
+      <QueryControlsLab />
       <AdminDataQueryLab />
     </div>
   );

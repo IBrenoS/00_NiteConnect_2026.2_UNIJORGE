@@ -1,3 +1,5 @@
+import { Button, SearchField, buttonClassName } from "../ui";
+import { FilterToolbar } from "../patterns/filter-toolbar";
 import Link from "next/link";
 import {DocumentDataGrid,DocumentFolderIcon} from "../documents/document-data-grid";
 import {reportFileHref,reportLocation,type ReportListing} from "../../lib/reports/contracts";
@@ -15,14 +17,13 @@ export function ReportsDirectory({members,search=""}:{members:LibraryRecipient[]
   const normalize=(value:string)=>value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR");
   const visible=members.filter(member=>normalize(member.name).includes(normalize(search.trim())));
   return <>
-    <header><h1 className="font-display text-type-page-title text-nite-text-primary">Relatórios</h1>
-      <p className="mt-2 text-type-body-compact text-nite-text-secondary">Consulte os relatórios institucionais vinculados a cada integrante.</p></header>
-    <form action="/relatorios" className="flex flex-wrap gap-2" role="search">
+    <header><h1 className="font-display text-type-page-title text-nite-text-primary">Relatórios</h1></header>
+    <FilterToolbar compact action="/relatorios" role="search">
       <label htmlFor="report-member-search" className="sr-only">Pesquisar integrante pelo nome</label>
-      <input id="report-member-search" name="search" defaultValue={search} maxLength={120} placeholder="Pesquisar integrante pelo nome" className="min-h-11 min-w-0 flex-1 rounded-control border border-nite-border-control bg-nite-surface px-3 text-nite-text-primary focus-visible:outline-2 focus-visible:outline-nite-focus"/>
-      <button className="min-h-11 rounded-control border border-nite-border-control px-4 font-medium hover:bg-nite-surface-subtle">Pesquisar</button>
+      <SearchField id="report-member-search" name="search" defaultValue={search} maxLength={120} placeholder="Pesquisar integrante pelo nome"/>
+      <Button size="compact" type="submit" variant="secondary">Pesquisar</Button>
       {search&&<Link href="/relatorios" className="self-center px-2 text-nite-brand-primary underline">Limpar</Link>}
-    </form>
+    </FilterToolbar>
     {visible.length?<ul aria-label="Integrantes" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{visible.map(member=><li key={member.id}>
       <Link href={reportLocation(member.id)} className="flex min-h-24 items-center gap-4 rounded-panel border border-nite-border-soft bg-nite-surface px-5 py-4 hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">
         <DocumentFolderIcon className="size-10"/><span className="min-w-0 break-words font-medium text-nite-text-primary">{member.name}</span>
@@ -62,8 +63,8 @@ export function ReportsDocuments({member,listing,folder}:{member:LibraryRecipien
       </div>
     </section>:<section role="status" className="rounded-panel border border-nite-border-soft bg-nite-surface p-8 text-center"><DocumentFolderIcon className="mx-auto mb-4 size-12"/><h2 className="font-medium text-nite-text-primary">Nenhum relatório nesta pasta</h2><p className="mt-2 text-type-body-compact text-nite-text-secondary">{folder?"Não há relatórios vinculados a este integrante neste local.":"Ainda não há documentos classificados como relatório e vinculados a este integrante."}</p></section>}
     {(listing.offset>0||listing.hasMore)&&<nav aria-label="Paginação dos relatórios" className="flex items-center justify-between gap-3">
-      {listing.offset>0?<Link href={reportLocation(member.id,folder,Math.max(0,listing.offset-listing.limit))} className="min-h-10 rounded-control border border-nite-border-control px-4 py-2">Anterior</Link>:<span/>}
-      {listing.hasMore&&<Link href={reportLocation(member.id,folder,listing.offset+listing.limit)} className="min-h-10 rounded-control border border-nite-border-control px-4 py-2">Próxima</Link>}
+      {listing.offset>0?<Link href={reportLocation(member.id,folder,Math.max(0,listing.offset-listing.limit))} className={buttonClassName({ size: "compact", variant: "secondary" })}>Anterior</Link>:<span/>}
+      {listing.hasMore&&<Link href={reportLocation(member.id,folder,listing.offset+listing.limit)} className={buttonClassName({ size: "compact", variant: "secondary" })}>Próxima</Link>}
     </nav>}
   </>;
 }

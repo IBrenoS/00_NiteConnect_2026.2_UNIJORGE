@@ -7,7 +7,8 @@ import type { Meeting, MeetingCandidate, MeetingMode, MeetingWriteResult } from 
 import { Button } from "../ui/button";
 import { DialogFrame } from "../ui/dialog-frame";
 import { Field } from "../ui/field";
-import { Select } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
+import { DatePicker } from "../ui/date-picker";
 import { TextField } from "../ui/text-field";
 import { MeetingInviteePicker } from "./meeting-invitee-picker";
 import { TransientFeedback } from "../ui/transient-feedback";
@@ -99,23 +100,23 @@ export function MeetingEditorDialog({ open, mode, meetingMode, meeting, viewerId
     title={mode === "edit" ? "Editar reunião" : isImmediate ? "Iniciar reunião" : "Agendar reunião"}
     description={mode === "edit" ? "Atualize o evento do calendário e os convidados." : isImmediate ? "O NITE Connect criará a reunião no calendário institucional e abrirá a entrada no Teams." : "O NITE Connect criará o evento no calendário com o link oficial do Teams."}
     className="max-w-3xl"
-    footer={<><Button type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>Voltar</Button><Button type="submit" form="meeting-editor-form" loading={pending}>{mode === "edit" ? "Salvar alterações" : isImmediate ? "Iniciar reunião" : "Agendar reunião"}</Button></>}>
+    footer={<><Button size="compact" type="button" variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>Voltar</Button><Button size="compact" type="submit" form="meeting-editor-form" loading={pending}>{mode === "edit" ? "Salvar alterações" : isImmediate ? "Iniciar reunião" : "Agendar reunião"}</Button></>}>
     <form id="meeting-editor-form" onSubmit={(event) => void submit(event)} className="grid min-w-0 gap-5">
       <Field id="meeting-title" label="Nome da reunião" required>
         <TextField value={title} onChange={(event) => setTitle(event.currentTarget.value)} maxLength={200} autoComplete="off" required placeholder="Ex.: Alinhamento do projeto" />
       </Field>
       {!isImmediate ? <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,.65fr)]">
         <Field id="meeting-date" label="Data" required>
-          <TextField type="date" value={date} onChange={(event) => setDate(event.currentTarget.value)} required />
+          <DatePicker value={date} onChange={(event) => setDate(event.currentTarget.value)} required />
         </Field>
         <Field id="meeting-time" label="Início" required>
           <TextField type="time" value={time} onChange={(event) => setTime(event.currentTarget.value)} required />
         </Field>
       </div> : <div className="border-y border-nite-border-soft py-3 text-type-body-compact text-nite-text-secondary">Início imediato · duração prevista de 60 minutos. A duração não encerra a chamada no Teams.</div>}
       {!isImmediate ? <Field id="meeting-duration" label="Duração prevista" description="Esta previsão não limita nem encerra a chamada no Teams." required>
-        <Select value={duration} onChange={(event) => setDuration(event.currentTarget.value)}>
+        <FilterSelect value={duration} onChange={(event) => setDuration(event.currentTarget.value)}>
           {Array.from(new Set([30, 45, 60, 90, 120, 180, 240, meeting?.plannedDurationMinutes].filter((minutes): minutes is number => typeof minutes === "number"))).sort((left, right) => left - right).map((minutes) => <option key={minutes} value={minutes}>{minutes < 60 || minutes % 60 !== 0 ? `${minutes} minutos` : `${minutes / 60} ${minutes === 60 ? "hora" : "horas"}`}</option>)}
-        </Select>
+        </FilterSelect>
       </Field> : null}
       <MeetingInviteePicker selected={invitees} onChange={setInvitees} excludedId={viewerId} previewCandidates={previewCandidates} />
       {mode === "create" && meetingMode === "SCHEDULED" ? <p className="border-t border-nite-border-soft pt-3 text-type-metadata leading-relaxed text-nite-text-secondary">O convite de calendário será enviado pelo Microsoft 365. As respostas internas do NITE Connect permanecem separadas das respostas no Outlook.</p> : null}

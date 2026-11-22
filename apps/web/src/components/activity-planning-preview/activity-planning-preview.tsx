@@ -1,10 +1,12 @@
 "use client";
 
+import { SearchField, FilterSelect, DatePicker, Button } from "../ui";
+
 import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import { AlertDialog } from "../ui/alert-dialog";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 
 type Screen = "plannings" | "create-planning" | "workspace" | "priority" | "status" | "table" | "task-form" | "empty" | "legacy-tasks";
 type Status = "Planejada" | "Em andamento" | "Concluída" | "Cancelada";
@@ -73,7 +75,6 @@ const subtle = "border border-nite-border-soft bg-nite-surface";
 const iconButton = "grid size-8 shrink-0 place-items-center rounded-control text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus";
 
 function Chevron({ className = "" }: { className?: string }) { return <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className={`size-4 ${className}`}><path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
-function CalendarIcon({ className = "" }: { className?: string }) { return <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className={`size-4 ${className}`}><rect x="3" y="4.5" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M6.5 2.75v3.5M13.5 2.75v3.5M3 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M6.5 11h.01M10 11h.01M13.5 11h.01M6.5 14.25h.01M10 14.25h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>; }
 function Dots() { return <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" className="size-4"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>; }
 function Plus() { return <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>; }
 
@@ -124,20 +125,18 @@ export function PageHeading({ eyebrow, title, description, action }: { eyebrow?:
 }
 
 function PrimaryButton({ children, onClick, type = "button" }: { children: ReactNode; onClick?: () => void; type?: "button" | "submit" }) {
-  return <button type={type} onClick={onClick} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-control bg-nite-brand-primary px-3.5 text-type-body-compact font-medium text-nite-action-text transition-colors hover:bg-nite-brand-primary/90 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">{children}</button>;
+  return <Button size="compact" type={type} onClick={onClick}>{children}</Button>;
 }
 
-export function Toolbar({ view, planningId, query, setQuery, statusFilter, setStatusFilter, sort, setSort, hrefForView, applyLabel = "Aplicar na prévia", showOptions = true }: { view: Screen; planningId: number | string; query: string; setQuery: (value: string) => void; statusFilter: string; setStatusFilter: (value: string) => void; sort: string; setSort: (value: string) => void; hrefForView?: (view: "priority" | "status" | "table") => string; applyLabel?: string; showOptions?: boolean }) {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
+export function Toolbar({ view, planningId, query, setQuery, statusFilter, setStatusFilter, sort, setSort, hrefForView, showOptions = true }: { view: Screen; planningId: number | string; query: string; setQuery: (value: string) => void; statusFilter: string; setStatusFilter: (value: string) => void; sort: string; setSort: (value: string) => void; hrefForView?: (view: "priority" | "status" | "table") => string; applyLabel?: string; showOptions?: boolean }) {
   return <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2">
     <nav aria-label="Visualização das tarefas" className="flex items-center gap-0.5 rounded-control border border-nite-border-soft bg-nite-surface p-0.5">
       {([ ["priority", "Quadro por prioridade"], ["status", "Quadro por situação"], ["table", "Tabela"] ] as const).map(([id, label]) => <Link key={id} href={hrefForView?.(id) ?? screenHref(id, planningId)} aria-current={view === id ? "page" : undefined} className={`inline-flex min-h-8 items-center rounded-subtle px-2.5 text-type-metadata focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus ${view === id ? "bg-nite-surface-subtle font-medium text-nite-text-primary shadow-sm" : "text-nite-text-secondary hover:text-nite-text-primary"}`}>{label}</Link>)}
     </nav>
-    <div className="flex items-center gap-1">
-      {searchOpen ? <label className="flex h-8 items-center gap-1.5 rounded-control border border-nite-border-soft bg-nite-surface px-2"><span className="sr-only">Buscar tarefas</span><span aria-hidden="true" className="text-nite-text-muted">⌕</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar tarefas" className="w-32 bg-transparent text-type-metadata text-nite-text-primary outline-none placeholder:text-nite-text-muted"/></label> : <button type="button" onClick={() => setSearchOpen(true)} className={iconButton} aria-label="Pesquisar">⌕</button>}
-      <div className="relative"><button type="button" onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen} className={iconButton} aria-label="Filtrar tarefas">≡</button>{filterOpen ? <div className="absolute right-0 top-full z-20 mt-1 grid w-44 gap-2 rounded-panel border border-nite-border-soft bg-nite-surface p-3 shadow-nite-floating"><label className="grid gap-1 text-type-metadata text-nite-text-secondary">Situação<select aria-label="Filtrar por situação" className="h-8 rounded-control border border-nite-border-soft bg-nite-surface px-2 text-type-metadata text-nite-text-primary" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option>Todas</option>{statusOrder.map((status) => <option key={status}>{status}</option>)}</select></label><button type="button" onClick={() => setFilterOpen(false)} className="min-h-8 rounded-control bg-nite-surface-subtle text-type-metadata font-medium text-nite-text-secondary">{applyLabel}</button></div> : null}</div>
-      <label className="sr-only" htmlFor="preview-sort">Ordenação</label><div className="relative"><select id="preview-sort" value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 w-64 max-w-[65vw] appearance-none rounded-control border border-nite-border-soft bg-nite-surface py-1 pl-3 pr-9 text-type-metadata font-medium text-nite-text-primary shadow-sm transition-colors hover:border-nite-border-strong hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"><option>Atualizado recentemente</option><option>Prioridade</option><option>Prazo</option><option>Título</option></select><Chevron className="pointer-events-none absolute right-3 top-1/2 size-3 -translate-y-1/2 rotate-90 text-nite-text-muted"/></div>
+    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+      <SearchField aria-label="Buscar tarefas" value={query} onChange={event => setQuery(event.target.value)} onClear={() => setQuery("")} placeholder="Buscar tarefas"/>
+      <FilterSelect aria-label="Filtrar por situação" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option>Todas</option>{statusOrder.map(status => <option key={status}>{status}</option>)}</FilterSelect>
+      <FilterSelect aria-label="Ordenação" value={sort} onChange={event => setSort(event.target.value)}><option>Atualizado recentemente</option><option>Prioridade</option><option>Prazo</option><option>Título</option></FilterSelect>
       {showOptions ? <button type="button" className={iconButton} aria-label="Opções de visualização"><Dots/></button> : null}
     </div>
   </div>;
@@ -197,7 +196,7 @@ export function KanbanColumn({ title, tone, tasks, grouping, onEdit, onAdd, onMo
       <label className="sr-only" htmlFor={inputId}>Título da nova tarefa</label>
       <input id={inputId} autoFocus value={titleInput} onChange={(event) => setTitleInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); cancel(); } }} placeholder="Nome da tarefa" className="min-h-8 w-full border-b border-nite-border-soft bg-transparent px-2 text-type-body-compact text-nite-text-primary outline-none placeholder:text-nite-text-muted focus:border-nite-brand-primary"/>
       <p className="sr-only">Pressione Enter para criar ou Esc para cancelar.</p>
-    </form> : canCreateTasks ? <button type="button" onClick={() => setCreating(true)} className="mt-1 flex min-h-8 items-center gap-2 rounded-control px-2 text-left text-type-metadata text-nite-text-muted hover:bg-nite-surface hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"><Plus/> Nova tarefa</button> : null}
+    </form> : canCreateTasks ? <Button size="compact" variant="primary" type="button" onClick={() => setCreating(true)}><Plus/> Nova tarefa</Button> : null}
   </section>;
 }
 
@@ -258,7 +257,6 @@ export function TaskTable({ tasks, onEdit, onAdd, canCreateTasks = true }: { tas
   </table>{creating || !canCreateTasks ? null : <button type="button" onClick={() => setCreating(true)} className="flex min-h-9 items-center gap-2 px-3 text-type-metadata text-nite-text-muted hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus"><Plus/> Nova tarefa</button>}</div>;
 }
 const propertySelectClass = "min-h-8 w-full max-w-sm rounded-control border border-transparent bg-transparent px-2 text-type-body-compact text-nite-text-primary outline-none hover:bg-nite-surface-subtle focus:border-nite-brand-primary focus:bg-nite-surface";
-const propertyDateClass = "h-10 w-full min-w-0 rounded-control border border-nite-border-soft bg-nite-background px-3 pr-10 text-type-body-compact text-nite-text-primary shadow-sm transition-colors hover:border-nite-border-strong hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-nite-focus disabled:cursor-not-allowed disabled:opacity-60 [&::-webkit-calendar-picker-indicator]:opacity-0";
 const demoOwners = ["Marina Costa", "Rafael Lima", "João Alves", "Bianca Reis", "Lucas Rocha"] as const;
 
 type PlanningDraft = Pick<Planning, "title" | "description" | "project">;
@@ -273,32 +271,7 @@ export function PlanningForm({ onClose, onCreate, projectOptions: realProjectOpt
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [project, setProject] = useState(fixedProject?.id ?? "");
-  const [projectOpen, setProjectOpen] = useState(false);
-  const projectPopoverId = useId();
-  const projectPickerRef = useRef<HTMLDivElement>(null);
-  const projectTriggerRef = useRef<HTMLButtonElement>(null);
-  const projectOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const projectOptions = realProjectOptions ? [null, ...realProjectOptions] : previewProjectOptions;
-  const selectedProjectIndex = projectOptions.findIndex((item) => (item ?? "") === project);
-  useEffect(() => {
-    if (!projectOpen) return;
-    const closeWhenOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !projectPickerRef.current?.contains(event.target)) setProjectOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setProjectOpen(false);
-        projectTriggerRef.current?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", closeWhenOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    projectOptionRefs.current[selectedProjectIndex]?.focus();
-    return () => {
-      document.removeEventListener("pointerdown", closeWhenOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [projectOpen, selectedProjectIndex]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedTitle = title.trim();
@@ -318,16 +291,13 @@ export function PlanningForm({ onClose, onCreate, projectOptions: realProjectOpt
         <span className="sr-only">Descrição opcional</span>
         <textarea maxLength={10000} rows={1} value={description} onChange={(event) => setDescription(event.target.value)} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`; }} placeholder="Adicione uma descrição..." className="min-h-8 w-full resize-none border-0 bg-transparent px-0 py-1 text-type-body text-nite-text-primary outline-none placeholder:text-nite-text-muted focus:ring-0"/>
       </label>
-      {fixedProject ? <p className="mt-5 text-type-body-compact text-nite-text-secondary">Projeto: {fixedProject.title}</p> : <div ref={projectPickerRef} className="relative mt-7 min-w-0 xl:absolute xl:left-full xl:top-[53px] xl:mt-0 xl:w-max">
-        <button ref={projectTriggerRef} type="button" aria-label={`Projeto: ${project ? projectLabels[project] ?? project : "Independente"}`} aria-haspopup="listbox" aria-expanded={projectOpen} aria-controls={projectPopoverId} onClick={() => setProjectOpen((open) => !open)} onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setProjectOpen(true); } }} className="inline-flex min-h-8 items-center gap-2 rounded-control px-2 text-type-body-compact text-nite-text-secondary hover:bg-nite-surface-subtle hover:text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">
-          <span>Projeto</span><span className="text-nite-text-primary">{project ? projectLabels[project] ?? project : "Independente"}</span><Chevron className={`size-3 transition-transform ${projectOpen ? "rotate-90" : ""}`} />
-        </button>
-        {projectOpen ? <div id={projectPopoverId} role="listbox" aria-label="Projetos disponíveis" className="absolute left-0 top-full z-30 mt-2 grid w-48 gap-0.5 rounded-panel border border-nite-border-soft bg-nite-surface p-1.5 shadow-lg">
-          {projectOptions.map((item, index) => <button key={item ?? "independent"} ref={(element) => { projectOptionRefs.current[index] = element; }} type="button" role="option" aria-selected={(item ?? "") === project} onClick={() => { setProject(item ?? ""); setProjectOpen(false); }} onKeyDown={(event) => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); const direction = event.key === "ArrowDown" ? 1 : -1; const nextIndex = (index + direction + projectOptions.length) % projectOptions.length; projectOptionRefs.current[nextIndex]?.focus(); } }} className={`flex min-h-9 items-center rounded-control px-2.5 text-left text-type-body-compact focus-visible:outline-2 focus-visible:outline-nite-focus ${(item ?? "") === project ? "bg-nite-surface-subtle font-medium text-nite-text-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>{item ? projectLabels[item] ?? item : "Independente"}</button>)}
-        </div> : null}
-      </div>}
+      {fixedProject ? <p className="mt-5 text-type-body-compact text-nite-text-secondary">Projeto: {fixedProject.title}</p> : <label className="relative mt-7 flex min-w-0 items-center gap-2 text-type-body-compact text-nite-text-secondary xl:absolute xl:left-full xl:top-[53px] xl:mt-0 xl:w-max">
+        <span>Projeto</span><FilterSelect aria-label={`Projeto: ${project ? projectLabels[project] ?? project : "Independente"}`} value={project} onChange={event => setProject(event.target.value)}>
+          {projectOptions.map(item => <option key={item ?? "independent"} value={item ?? ""}>{item ? projectLabels[item] ?? item : "Independente"}</option>)}
+        </FilterSelect>
+      </label>}
       <div className={fixedProject ? "mt-7 flex flex-wrap items-center gap-6" : "mt-7 flex flex-wrap items-center gap-6 xl:mt-[clamp(18rem,42vh,28rem)]"}>
-        <button type="button" disabled={submitting} onClick={onClose} className="min-h-9 rounded-control px-3 text-type-body-compact text-nite-text-secondary hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">Cancelar</button>
+        <Button size="compact" variant="secondary" type="button" disabled={submitting} onClick={onClose}>Cancelar</Button>
         <PrimaryButton type="submit">{submitting ? "Criando…" : "Criar atividade"}</PrimaryButton>
       </div>
     </form>
@@ -335,59 +305,7 @@ export function PlanningForm({ onClose, onCreate, projectOptions: realProjectOpt
 }
 
 export function ProjectFilter({ options, value, onChange, labels = {} }: { options: readonly string[]; value: string; onChange: (value: string) => void; labels?: Readonly<Record<string, string>> }) {
-  const [open, setOpen] = useState(false);
-  const listId = useId();
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const selectedIndex = options.indexOf(value);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeWhenOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !pickerRef.current?.contains(event.target)) setOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", closeWhenOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    optionRefs.current[selectedIndex]?.focus();
-    return () => {
-      document.removeEventListener("pointerdown", closeWhenOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open, selectedIndex]);
-
-  function choose(option: string) {
-    onChange(option);
-    setOpen(false);
-    triggerRef.current?.focus();
-  }
-
-  function moveFocus(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    event.preventDefault();
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    optionRefs.current[(index + step + options.length) % options.length]?.focus();
-  }
-
-  return <div className="relative inline-flex min-h-8 items-center gap-2 text-type-metadata text-nite-text-secondary">
-    <span>Projeto</span>
-    <div ref={pickerRef} className="relative">
-      <button ref={triggerRef} type="button" aria-label={`Filtrar por projeto: ${labels[value] ?? value}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((current) => !current)} onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); } }} className="inline-flex min-h-8 items-center gap-2 rounded-control border border-nite-border-soft bg-nite-surface px-2.5 text-type-metadata text-nite-text-primary transition-colors hover:border-nite-border-strong hover:bg-nite-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus">
-        <span>{labels[value] ?? value}</span><Chevron className={`size-3 text-nite-text-muted transition-transform ${open ? "rotate-90" : ""}`} />
-      </button>
-      {open ? <div id={listId} role="listbox" aria-label="Projetos para filtrar atividades" className="absolute right-0 top-full z-30 mt-2 grid w-56 gap-0.5 rounded-panel border border-nite-border-soft bg-nite-surface p-1.5 shadow-lg">
-        {options.map((option, index) => <button key={option} ref={(element) => { optionRefs.current[index] = element; }} type="button" role="option" aria-selected={option === value} onClick={() => choose(option)} onKeyDown={(event) => moveFocus(event, index)} className={`flex min-h-9 items-center justify-between rounded-control px-2.5 text-left text-type-body-compact focus-visible:outline-2 focus-visible:outline-nite-focus ${option === value ? "bg-nite-surface-subtle font-medium text-nite-text-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>
-          <span>{labels[option] ?? option}</span>{option === value ? <span aria-hidden="true" className="text-nite-brand-primary">✓</span> : null}
-        </button>)}
-      </div> : null}
-    </div>
-  </div>;
+  return <label className="inline-flex min-w-0 items-center gap-2 text-type-metadata text-nite-text-secondary">Projeto<FilterSelect aria-label="Filtrar por projeto" value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option} value={option}>{labels[option] ?? option}</option>)}</FilterSelect></label>;
 }
 
 type TaskEditorValues = { title: string; description: string; status: Status; priority: Priority; ownerId: string; collaboratorIds: string[]; startOn: string | null; dueOn: string | null };
@@ -486,8 +404,8 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
           <input id={titleId} autoFocus required maxLength={200} disabled={Boolean(task) && !canEdit} value={title} onChange={(event) => { const value = event.target.value; setTitle(value); if (!onSave) commit({ title: value }); }} placeholder="Título da tarefa" className="w-full border-0 border-b border-transparent bg-transparent px-0 py-2 font-display text-type-page-title font-semibold text-nite-text-primary outline-none placeholder:text-nite-text-muted/70 focus:border-nite-brand-primary disabled:opacity-70"/>
         </label>
         <div className="mt-6 divide-y divide-nite-border-soft border-y border-nite-border-soft">
-          <label htmlFor={statusId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Situação</span><select id={statusId} value={status} onChange={(event) => { const next = statusOrder.find((item) => item === event.target.value); if (next) { setStatus(next); if (!onSave) commit({ status: next }); } }} className={propertySelectClass}>{(task && allowedStatuses ? Array.from(new Set([status, ...allowedStatuses])) : statusOrder).map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label htmlFor={priorityId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prioridade</span><select id={priorityId} disabled={Boolean(task) && !canEdit} value={priority} onChange={(event) => { const next = priorityOrder.find((item) => item === event.target.value); if (next) { setPriority(next); if (!onSave) commit({ priority: next }); } }} className={propertySelectClass}>{priorityOrder.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label htmlFor={statusId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Situação</span><FilterSelect id={statusId} value={status} onChange={(event) => { const next = statusOrder.find((item) => item === event.target.value); if (next) { setStatus(next); if (!onSave) commit({ status: next }); } }}>{(task && allowedStatuses ? Array.from(new Set([status, ...allowedStatuses])) : statusOrder).map((item) => <option key={item}>{item}</option>)}</FilterSelect></label>
+          <label htmlFor={priorityId} className="grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prioridade</span><FilterSelect id={priorityId} disabled={Boolean(task) && !canEdit} value={priority} onChange={(event) => { const next = priorityOrder.find((item) => item === event.target.value); if (next) { setPriority(next); if (!onSave) commit({ priority: next }); } }}>{priorityOrder.map((item) => <option key={item}>{item}</option>)}</FilterSelect></label>
           <div className="relative grid min-h-11 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact">
             <label htmlFor={ownerInputId} className="text-nite-text-muted">Responsável</label>
             <input id={ownerInputId} disabled={Boolean(task) && !canManageAssignees} role="combobox" aria-autocomplete="list" aria-expanded={ownerSearchOpen} aria-controls={ownerListId} value={ownerSearchOpen ? ownerSearch : owner} onFocus={() => { setOwnerSearch(""); setOwnerSearchOpen(true); }} onChange={(event) => {
@@ -511,8 +429,8 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
               }) : <p className="px-2 py-2 text-type-metadata text-nite-text-muted">{ownerOptions ? "Nenhum integrante autorizado disponível." : "Nenhum resultado local."}</p>}
             </div> : null}
           </div>
-          <label htmlFor={startId} className="grid min-h-14 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Início</span><span className="relative block min-w-0"><input id={startId} disabled={Boolean(task) && !canEdit} type="date" value={startDate} onChange={(event) => { const value = event.target.value; setStartDate(value); if (!onSave) commit({ start: value || "Sem data" }); }} className={propertyDateClass}/><CalendarIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-nite-brand-primary"/></span></label>
-          <label htmlFor={dueId} className="grid min-h-14 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prazo</span><span className="relative block min-w-0"><input id={dueId} disabled={Boolean(task) && !canEdit} type="date" value={dueDate} onChange={(event) => { const value = event.target.value; setDueDate(value); if (!onSave) commit({ due: value || "Sem prazo" }); }} className={propertyDateClass}/><CalendarIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-nite-brand-primary"/></span></label>
+          <label htmlFor={startId} className="grid min-h-14 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Início</span><span className="relative block min-w-0"><DatePicker aria-label="Início" id={startId} disabled={Boolean(task) && !canEdit}  value={startDate} onChange={(event) => { const value = event.target.value; setStartDate(value); if (!onSave) commit({ start: value || "Sem data" }); }}/></span></label>
+          <label htmlFor={dueId} className="grid min-h-14 grid-cols-[7rem_minmax(0,1fr)] items-center gap-3 text-type-body-compact"><span className="text-nite-text-muted">Prazo</span><span className="relative block min-w-0"><DatePicker aria-label="Prazo" id={dueId} disabled={Boolean(task) && !canEdit}  value={dueDate} onChange={(event) => { const value = event.target.value; setDueDate(value); if (!onSave) commit({ due: value || "Sem prazo" }); }}/></span></label>
         </div>
         {canManageAssignees && (task || onCreateServer) ? <fieldset className="mt-4 grid gap-2">
           <legend className="text-type-metadata font-medium text-nite-text-secondary">Colaboradores</legend>
@@ -526,7 +444,7 @@ export function TaskEditor({ task, onClose, onUpdate, onCreate, ownerOptions, in
         {error && !deleteOpen ? <TransientFeedback messageKey={error} onDismiss={() => setError(null)}><p role="alert" className="mt-4 text-type-body-compact text-status-error">{error}</p></TransientFeedback> : null}
         <div className="mt-auto flex justify-end border-t border-nite-border-soft pt-5">
           {canDelete && onDelete ? <button type="button" disabled={deleting || saving} aria-haspopup="dialog" onClick={() => { setError(null); setDeleteOpen(true); }} className="mr-auto min-h-9 rounded-control px-3 text-type-body-compact font-medium text-status-error">{deleting ? "Excluindo…" : "Excluir tarefa"}</button> : null}
-          {task ? <button type="submit" disabled={saving || deleting} className="min-h-9 rounded-control bg-nite-brand-primary px-3 text-type-body-compact font-medium text-nite-action-text">{saving ? "Salvando…" : onSave ? "Salvar alterações" : "Fechar"}</button> : <PrimaryButton type="submit">{saving ? "Criando…" : "Criar tarefa"}</PrimaryButton>}
+          {task ? <Button size="compact" variant="primary" type="submit" disabled={saving || deleting}>{saving ? "Salvando…" : onSave ? "Salvar alterações" : "Fechar"}</Button> : <PrimaryButton type="submit">{saving ? "Criando…" : "Criar tarefa"}</PrimaryButton>}
         </div>
       </form>
     </section>
@@ -624,7 +542,7 @@ export function ActivityPlanningPreview({ screen, planningId }: { screen: Screen
     <main className="mx-auto w-full max-w-[1600px] min-w-0 space-y-5 px-4 py-5 sm:px-7 sm:py-7 lg:px-9">
       {screen === "plannings" ? <>
         <PageHeading title="Minhas atividades" action={<Link href={screenHref("create-planning")} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control bg-nite-brand-primary px-3.5 text-type-body-compact font-medium text-nite-action-text hover:bg-nite-brand-primary/90"><Plus/> Nova atividade</Link>}/>
-        <div className="flex flex-wrap items-center justify-between gap-3"><label className="flex min-h-9 w-full max-w-sm items-center gap-2 rounded-control border border-nite-border-soft bg-nite-surface px-3 text-type-body-compact text-nite-text-muted"><span aria-hidden="true">⌕</span><span className="sr-only">Buscar atividades</span><input value={planningQuery} onChange={(event) => setPlanningQuery(event.target.value)} placeholder="Buscar atividades" className="min-w-0 flex-1 bg-transparent text-type-body-compact text-nite-text-primary outline-none placeholder:text-nite-text-muted"/></label><ProjectFilter options={projectFilterOptions} value={projectFilter} onChange={setProjectFilter}/></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><SearchField aria-label="Buscar atividades" value={planningQuery} onChange={event => setPlanningQuery(event.target.value)} onClear={() => setPlanningQuery("")} placeholder="Buscar atividades"/><ProjectFilter options={projectFilterOptions} value={projectFilter} onChange={setProjectFilter}/></div>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visiblePlannings.map((planning) => <PlanningCard key={planning.id} planning={planning} href={screenHref("workspace", planning.id)}/>)}</div>
         {visiblePlannings.length ? null : <p className="border-y border-nite-border-soft py-10 text-center text-type-body-compact text-nite-text-secondary">Nenhuma atividade corresponde à busca.</p>}
         <div className="border-t border-nite-border-soft pt-4"><Link href={screenHref("legacy-tasks", planningId)} className="text-type-metadata text-nite-text-muted underline underline-offset-4">Tarefas sem atividade</Link></div>
@@ -636,7 +554,7 @@ export function ActivityPlanningPreview({ screen, planningId }: { screen: Screen
 
       {showWorkspace ? <>
         {screen === "empty" ? null : <div className="flex items-center gap-1 text-type-metadata text-nite-text-muted"><Link href={screenHref("plannings", planningId)} className="hover:text-nite-brand-primary">Minhas atividades</Link><Chevron className="size-3"/><span>{active.title}</span></div>}
-        <PageHeading eyebrow={active.project ?? "Independente"} title={active.title} description={active.description || undefined} action={<button type="button" onClick={() => openTaskEditor()} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-control border border-nite-border-soft bg-nite-surface px-3 text-type-body-compact font-medium text-nite-text-primary hover:bg-nite-surface-subtle"><Plus/> Nova tarefa</button>}/>
+        <PageHeading eyebrow={active.project ?? "Independente"} title={active.title} description={active.description || undefined} action={<Button size="compact" variant="primary" type="button" onClick={() => openTaskEditor()}><Plus/> Nova tarefa</Button>}/>
         <Toolbar view={workspaceView} planningId={planningId} query={query} setQuery={setQuery} statusFilter={statusFilter} setStatusFilter={setStatusFilter} sort={sort} setSort={setSort}/>
         <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_225px]">
           <div className="min-w-0">

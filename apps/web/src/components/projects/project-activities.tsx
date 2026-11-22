@@ -9,6 +9,8 @@ import { createPlanningAction } from "../../lib/activities/planning-actions";
 import type { ActivityPlanning, ActivityStatistics } from "../../lib/activities/contracts";
 import { Dialog } from "../ui/dialog";
 import { EmptyProjects } from "./project-ui";
+import { SearchField, Button } from "../ui";
+import { FilterToolbar } from "../patterns/filter-toolbar";
 import styles from "./projects.module.css";
 
 export type ProjectActivitiesProps = {
@@ -33,8 +35,8 @@ export function ProjectActivities({ projectId, projectTitle, canCreatePlanning, 
   const pageHref = (next: number) => `${base}?${new URLSearchParams({ page: String(next), ...(query ? { q: query } : {}) })}`;
   if (selected) return <ActivityPlanningWorkspace key={`${selected.planning.id}:${selected.view}:${selected.tasks.map(({ activity }) => `${activity.id}:${activity.version}`).join(",")}`} {...selected} projectContext={{ id: projectId, title: projectTitle, basePath: base }}/>;
   return <section className={styles.sectionPage}>
-    <header className={styles.sectionHeader}><div><h2>Atividades e planejamento</h2><p>Organize o trabalho em planejamentos, com tarefas vinculadas a este projeto.</p></div>{canCreatePlanning ? <button type="button" className={styles.primaryButton} onClick={() => setNewPlanning(true)}>+ Novo planejamento</button> : null}</header>
-    <form className={styles.toolbar} action={base}><label className={styles.search}><span aria-hidden="true">⌕</span><input name="q" aria-label="Pesquisar planejamentos do projeto" placeholder="Pesquisar planejamentos…" defaultValue={query}/></label><button className={styles.button} type="submit">Pesquisar</button></form>
+    <header className={styles.sectionHeader}><div><h2>Atividades e planejamento</h2></div>{canCreatePlanning ? <Button size="compact" variant="primary" type="button"  onClick={() => setNewPlanning(true)}>+ Novo planejamento</Button> : null}</header>
+    <FilterToolbar compact action={base}><SearchField name="q" aria-label="Pesquisar planejamentos do projeto" placeholder="Pesquisar planejamentos…" defaultValue={query}/><Button size="compact" variant="secondary"  type="submit">Pesquisar</Button></FilterToolbar>
     {plannings.length ? <div className={styles.planningGrid}>{plannings.map(planning => <PlanningCard key={planning.id} href={`${base}?planejamento=${encodeURIComponent(planning.id)}`} planning={{ ...planning, project: projectTitle, tasks: [], updated: new Date(planning.updatedAt).toLocaleDateString("pt-BR", { timeZone: "America/Bahia" }) }} stats={statistics[planning.id] ?? null}/>)}</div> : <EmptyProjects title="Nenhum planejamento encontrado" description="Os planejamentos deste projeto aparecerão aqui."/>}
     {total > size ? <nav aria-label="Paginação" className={styles.toolbar}>{page > 0 ? <Link className={styles.textLink} href={pageHref(page - 1)}>Anterior</Link> : null}<span>Página {page + 1} de {Math.ceil(total / size)}</span>{(page + 1) * size < total ? <Link className={styles.textLink} href={pageHref(page + 1)}>Próxima</Link> : null}</nav> : null}
     <Link className={styles.textLink} href="/atividades?view=legacy">Tarefas sem planejamento em Minhas tarefas</Link>

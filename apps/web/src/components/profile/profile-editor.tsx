@@ -1,5 +1,9 @@
 "use client";
 
+import { Button } from "../ui/button";
+
+import { DatePicker } from "../ui";
+
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { MemberAvatar } from "../ui/member-avatar";
@@ -21,7 +25,6 @@ export function ProfileEditor({ initial }: { initial: MemberProfile }) {
   const [pending, setPending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-
 
   const complete = (result: { data: MemberProfile | null; error: string | null }, success: string, photo = false) => {
     setPending(false);
@@ -75,10 +78,8 @@ export function ProfileEditor({ initial }: { initial: MemberProfile }) {
             className="block w-full max-w-sm text-type-body-compact text-nite-text-secondary file:mr-3 file:rounded-control file:border-0 file:bg-nite-brand-soft file:px-3 file:py-2 file:text-nite-brand-accent"/>
           <p className="text-type-metadata text-nite-text-muted">JPEG ou PNG, até 2 MiB.</p></div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={upload} disabled={pending}
-        className="min-h-10 rounded-control bg-nite-brand-primary px-4 text-nite-action-text disabled:opacity-50">{profile.hasPhoto ? "Substituir foto" : "Adicionar foto"}</button>
-        {profile.hasPhoto && <button type="button" onClick={remove} disabled={pending}
-          className="min-h-10 rounded-control border border-nite-border-soft px-4 text-nite-text-secondary disabled:opacity-50">Remover foto</button>}</div>
+      <div className="mt-4 flex flex-wrap gap-2"><Button size="compact" variant="primary" type="button" onClick={upload} disabled={pending}>{profile.hasPhoto ? "Substituir foto" : "Adicionar foto"}</Button>
+        {profile.hasPhoto && <Button size="compact" variant="secondary" type="button" onClick={remove} disabled={pending}>Remover foto</Button>}</div>
     </section>
     <form onSubmit={save} className="rounded-panel border border-nite-border-soft bg-nite-surface p-5 sm:p-6">
       <h2 className="font-display text-xl font-semibold">Dados cadastrais</h2>
@@ -96,14 +97,12 @@ export function ProfileEditor({ initial }: { initial: MemberProfile }) {
           <input id="profile-area" value={area} maxLength={160} onChange={event => setArea(event.target.value)} disabled={pending}
             className="mt-2 w-full rounded-control border border-nite-border-soft bg-nite-background px-3 py-2 focus-visible:outline-3 focus-visible:outline-nite-focus"/></div>
         <div><label htmlFor="profile-birth" className="block text-type-body-compact font-medium">Data de nascimento</label>
-          <input id="profile-birth" type="date" min="1900-01-01" max={todayLocal()} value={birthDate}
-            onChange={event => setBirthDate(event.target.value)} disabled={pending}
-            className="mt-2 w-full rounded-control border border-nite-border-soft bg-nite-background px-3 py-2 focus-visible:outline-3 focus-visible:outline-nite-focus"/>
+          <DatePicker id="profile-birth"  min="1900-01-01" max={todayLocal()} value={birthDate}
+            onChange={event => setBirthDate(event.target.value)} disabled={pending}/>
           <p className="mt-1 text-type-metadata text-nite-text-muted">Visível apenas no seu perfil.</p></div>
       </div>
-      <div className="mt-6 flex flex-wrap items-center gap-3"><button type="submit" disabled={pending}
-        className="min-h-10 rounded-control bg-nite-brand-primary px-5 font-medium text-nite-action-text disabled:opacity-50">{pending ? "Salvando…" : "Salvar alterações"}</button>
-        {error && <button type="button" onClick={() => router.refresh()} className="min-h-10 rounded-control border border-nite-border-soft px-4">Recarregar perfil</button>}</div>
+      <div className="mt-6 flex flex-wrap items-center gap-3"><Button size="compact" variant="primary" type="submit" disabled={pending}>{pending ? "Salvando…" : "Salvar alterações"}</Button>
+        {error && <Button size="compact" variant="secondary" type="button" onClick={() => router.refresh()}>Recarregar perfil</Button>}</div>
       <div aria-live="polite" className="mt-3">{message && <p role="status" className="text-status-success">{message}</p>}
         {error && <p role="alert" className="text-status-error">{error}</p>}</div>
     </form>

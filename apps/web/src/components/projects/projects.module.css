@@ -40,7 +40,7 @@
 .projectCard:hover{border-color:var(--nite-border-strong);box-shadow:0 3px 12px #00000008}
 .cardTop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:24px 22px 18px;min-height:100px}
 .mark{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border:1px solid var(--nite-border-soft);border-radius:8px;color:var(--nite-brand-accent);background:var(--nite-brand-soft);font-size:.9375rem;font-weight:600;flex-shrink:0}
-.markLarge{width:80px;height:80px;border-radius:14px;font-size:26px}
+.detailMark{width:42px;height:42px;border-radius:8px;font-size:.875rem}
 .projectCard h2{font-size:.9375rem;padding:0 22px;margin:5px 0 9px}
 .projectCard>p{font-size:.875rem;line-height:1.5;padding:0 22px;min-height:64px;max-width:430px}
 .cardProperties{display:grid;grid-template-columns:72px 1fr;gap:8px;font-size:.8125rem;padding:20px 22px 22px;margin-top:auto}
@@ -75,32 +75,32 @@
 .summary strong{font-weight:500}
 .summary>p{font-size:.8125rem;line-height:1.6;margin-top:20px}
 
-.presentationLayout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:40px;margin:40px 0}
-.presentation{min-width:0;padding:10px 0 0 12px}
-.presentation h1{font-size:30px;margin:20px 0 12px}
+.detailLayout{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start;gap:24px}
+.presentationLayout{margin:24px 0 40px}
+.presentation{min-width:0}
+.presentation h1,.workspaceHeader h1{font-size:1.375rem;overflow-wrap:anywhere}
+.presentation h1{margin:16px 0 6px}
 .presentationActions{display:flex;align-items:center;gap:14px}
 .presentationActions .iconButton{margin-left:auto}
-.lead{font-size:1.25rem;line-height:1.8;max-width:780px}
+.lead,.editorial>p{font-size:.875rem;line-height:1.6;max-width:70ch}
 .inlineProperties{display:flex;flex-wrap:wrap;gap:20px;align-items:center;margin:26px 0;font-size:.875rem;color:var(--nite-text-secondary)}
-.participationPanel{border:1px solid var(--nite-border-soft);border-radius:8px;padding:22px;margin:30px 0 45px}
-.participationPanel>p{font-size:.875rem;line-height:1.8;margin:10px 0 18px}
+.participationPanel{border:1px solid var(--nite-border-soft);border-radius:8px;padding:20px;margin:24px 0 32px}
+.participationPanel>p{font-size:.875rem;line-height:1.6;margin:10px 0 16px}
 .participationPanel>a,.participationPanel>button{margin-right:10px;margin-bottom:6px}
 .requestTracking{margin:18px 0 0}
 .requestTracking strong{font-weight:500;font-size:.875rem}
 .requestTracking p{margin:10px 0 16px}
-.editorial{margin:36px 0}
+.editorial{margin:24px 0}
 .overviewMain>.editorial:first-child{margin-top:0}
-.editorial>p{line-height:1.6;margin:12px 0;font-size:.875rem;max-width:70ch}
+.editorial>p{margin:12px 0}
 .editorial h3{margin:26px 0 10px}
-.privacyNote{display:flex;align-items:flex-start;gap:12px;padding:18px;background:var(--nite-surface-subtle);border-radius:6px;margin-top:30px}
-.privacyNote p{font-size:.8125rem;line-height:1.8}
-.propertyPanel{border:1px solid var(--nite-border-soft);border-radius:10px;padding:20px;height:fit-content}
-.propertyPanel h2{font-size:.9375rem;margin-bottom:22px}
+.propertyPanel,.overviewAside{border:1px solid var(--nite-border-soft);border-radius:10px;padding:20px;height:fit-content}
+.propertyPanel h2,.overviewAside>h2{font-size:1rem;margin-bottom:16px}
 .properties{font-size:.875rem;display:grid;gap:14px}
 .properties>div{display:grid;grid-template-columns:105px 1fr;gap:12px;align-items:start}
 .properties dt{color:var(--nite-text-secondary)}
 .properties dd{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
-.propertyPanel .properties>div{grid-template-columns:1fr;gap:6px}
+.propertyPanel .properties>div,.overviewAside .properties>div{grid-template-columns:1fr;gap:6px}
 .propertyPanel .textLink{display:block;border-top:1px solid var(--nite-border-soft);margin-top:26px;padding-top:18px}
 .avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:44px;height:44px;border-radius:50%;background:var(--nite-brand-soft);color:var(--nite-brand-accent);font-size:.8125rem;font-weight:500}
 .properties .avatar{width:32px;height:32px;font-size:.75rem}
@@ -120,18 +120,16 @@
 .workspaceTop{padding:18px 30px 0}
 .workspaceTop .temporary{margin-bottom:20px}
 .workspaceHeader{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.workspaceHeader h1{font-size:1.375rem;overflow-wrap:anywhere;flex:1;min-width:180px}
+.workspaceHeader h1{flex:1;min-width:180px}
 .workspaceHeader>a{margin-left:auto}
 .workspaceTabs{display:flex;gap:28px;border-bottom:1px solid var(--nite-border-soft);margin-top:18px;overflow-x:auto}
 .workspaceTabs a{white-space:nowrap;font-size:.875rem;padding:12px 0 14px;color:var(--nite-text-secondary);border-bottom:2px solid transparent}
 .workspaceTabs a[aria-current=page]{border-color:var(--nite-brand-primary);color:var(--nite-text-primary);font-weight:500}
 
-.overviewLayout{display:grid;grid-template-columns:minmax(0,1fr) 320px;align-items:start;gap:24px;padding:24px 30px 40px}
+.overviewLayout{padding:24px 30px 40px}
 .overviewMain{min-width:0}
-.overviewAside{position:sticky;top:24px;align-self:start;height:fit-content;max-height:calc(100dvh - 48px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;background:var(--nite-surface);padding:20px;border:1px solid var(--nite-border-soft);border-radius:10px}
-.overviewAside>h2{font-size:1rem;margin-bottom:16px}
+.overviewAside{position:sticky;top:24px;max-height:calc(100dvh - 48px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;background:var(--nite-surface)}
 .overviewAside>.properties{margin-top:12px}
-.overviewAside .properties>div{grid-template-columns:1fr;gap:5px}
 .overviewPanel{padding:20px;border:1px solid var(--nite-border-soft);border-radius:8px}
 .overviewPanel>header{display:flex;gap:10px;justify-content:space-between;align-items:center}
 .overviewPanel h2{font-size:1rem}
@@ -198,24 +196,21 @@
 @media(max-width:1200px){.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
 .personalLayout{grid-template-columns:minmax(0,1fr)}
 .summary{min-height:0;max-width:500px}
-.presentationLayout{gap:28px;grid-template-columns:minmax(0,1fr) 260px}
-.overviewLayout{grid-template-columns:minmax(0,1fr) 300px}
+.detailLayout{grid-template-columns:minmax(0,1fr) 300px}
 .overviewMain{padding:0}
 .taskLayout{grid-template-columns:minmax(0,1fr)}
 .planningGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 @media(max-width:800px){.page{padding:18px 22px 40px}
-.presentationLayout{grid-template-columns:1fr}
+.detailLayout{grid-template-columns:1fr}
 .presentation{padding:0}
 .propertyPanel{max-width:none}
-.overviewLayout{grid-template-columns:1fr}
 .overviewAside{position:static;max-height:none;overflow:visible}
-.overviewAside .properties>div{grid-template-columns:140px 1fr}
 .workspaceTop{padding:16px 22px 0}
 .sectionPage{padding:24px 22px}
 .overviewLayout{padding:24px 22px}
-.workspaceHeader h1{font-size:1.25rem}
+.presentation h1,.workspaceHeader h1{font-size:1.25rem}
 .workspaceTabs{gap:22px}
 .rowActions{flex-wrap:wrap}
 .requestRow{flex-wrap:wrap}
@@ -235,10 +230,8 @@
 .temporary{font-size:.8125rem!important}
 .tabs{gap:18px}
 .tabs button{font-size:.875rem}
-.presentation h1{font-size:27px}
-.lead{font-size:1rem}
 .workspaceHeader>a{margin-left:0}
-.workspaceHeader h1{font-size:1.125rem}
+.presentation h1,.workspaceHeader h1{font-size:1.125rem}
 .workspaceTop{padding:14px 16px 0}
 .workspaceHeader .projectStatus{margin-left:0}
 .sectionPage{padding:22px 16px}
@@ -278,8 +271,9 @@
 .documentSection :global(.document-explorer){height:calc(100dvh - 18.75rem);min-height:22rem;margin-bottom:0}
 .documentSection :global(.document-project-trash){height:calc(100dvh - 18.75rem);min-height:22rem}
 .projectMenu summary{min-width:42px;min-height:42px;display:grid;place-items:center}
-@media(max-width:1050px) and (min-width:801px){.overviewLayout{grid-template-columns:minmax(0,1fr)}.overviewAside{position:static;max-height:none;overflow:visible}.overviewAside .properties{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:520px){.workspaceHeader h1{min-width:0;flex-basis:calc(100% - 80px)}.workspaceHeader>.projectStatus{margin-right:auto}.overviewAside{padding:20px 16px}.overviewAside .properties>div{grid-template-columns:1fr;gap:6px}.toolbar>label{max-width:100%}.toolbar select,.toolbar input,.search input,.field input,.field textarea{font-size:1rem}.personRow>.avatar{width:48px;height:48px}.rowActions{margin-left:58px}.projectCard footer{align-items:flex-start}}
+@media(max-width:1050px) and (min-width:801px){.detailLayout{grid-template-columns:minmax(0,1fr)}.overviewAside{position:static;max-height:none;overflow:visible}.propertyPanel .properties,.overviewAside .properties{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.propertyPanel .properties,.overviewAside .properties{grid-template-columns:1fr}}
+@media(max-width:520px){.workspaceHeader h1{min-width:0;flex-basis:calc(100% - 80px)}.workspaceHeader>.projectStatus{margin-right:auto}.overviewAside{padding:20px 16px}.toolbar>label{max-width:100%}.toolbar select,.toolbar input,.search input,.field input,.field textarea{font-size:1rem}.personRow>.avatar{width:48px;height:48px}.rowActions{margin-left:58px}.projectCard footer{align-items:flex-start}}
 @media(max-height:650px){.documentSection :global(.document-explorer),.documentSection :global(.document-project-trash){min-height:0}}
 
 .overviewAside:focus-visible{outline:2px solid var(--nite-focus);outline-offset:-3px}

@@ -1,3 +1,5 @@
+import { FilterToolbar } from "../patterns/filter-toolbar";
+import { DatePicker, SearchField } from "../ui";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button, Surface } from "../ui";
@@ -290,13 +292,13 @@ export function DashboardView({ viewSelector, result, historyResult, scope, scop
         <h1 className="font-display text-type-page-title text-nite-text-primary">{title}</h1>
         <p className="mt-2 text-type-body-compact text-nite-text-secondary">{description}</p>
         <div className="mt-4">{viewSelector}</div>
-        {!accessDenied ? <form action="/dashboard" method="get" className="mt-5">
+        {!accessDenied ? <FilterToolbar compact action="/dashboard" method="get" className="border-b border-nite-border-soft pb-4">
           <input type="hidden" name="scope" value={contextValue} />
           <input type="hidden" name="from" value={from} />
           <input type="hidden" name="to" value={to} />
           {search ? <input type="hidden" name="q" value={search} /> : null}
-          <Button type="submit" variant="secondary">Tentar novamente</Button>
-        </form> : null}
+          <Button size="compact" type="submit" variant="secondary">Tentar novamente</Button>
+        </FilterToolbar> : null}
       </div>
     </section>;
   }
@@ -310,19 +312,19 @@ export function DashboardView({ viewSelector, result, historyResult, scope, scop
     <section id="overview" aria-labelledby="dashboard-heading" className="min-w-0 scroll-mt-24 border-b border-nite-border-soft pb-5">
       <div className="flex flex-wrap items-end justify-between gap-3"><h1 id="dashboard-heading" className="font-display text-type-page-title text-nite-text-primary">{title}</h1>{viewSelector}</div>
       {scope === "project" ? <p className="mt-1 text-type-body-compact text-nite-text-secondary">{scopeLabel}</p> : null}
-      <form action="/dashboard" method="get" aria-label="Filtros do painel" className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
+      <FilterToolbar compact action="/dashboard" method="get" aria-label="Filtros do painel" className="border-b border-nite-border-soft pb-4">
         <input type="hidden" name="scope" value={contextValue} />
         <label className="grid min-w-0 gap-1 text-type-metadata font-medium text-nite-text-secondary">De
-          <input type="date" name="from" defaultValue={from} className="h-11 min-w-0 w-full rounded-control border border-nite-border-control bg-nite-surface px-2 text-type-body-compact text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus sm:w-36 sm:px-3" />
+          <DatePicker aria-label="De"  name="from" defaultValue={from} />
         </label>
         <label className="grid min-w-0 gap-1 text-type-metadata font-medium text-nite-text-secondary">Até
-          <input type="date" name="to" defaultValue={to} className="h-11 min-w-0 w-full rounded-control border border-nite-border-control bg-nite-surface px-2 text-type-body-compact text-nite-text-primary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus sm:w-36 sm:px-3" />
+          <DatePicker aria-label="Até"  name="to" defaultValue={to} />
         </label>
         <label className="col-span-2 grid min-w-0 gap-1 text-type-metadata font-medium text-nite-text-secondary sm:col-span-1 sm:min-w-56 sm:max-w-[24rem] sm:flex-1">Buscar nos registros exibidos
-          <input name="q" type="search" maxLength={120} defaultValue={search} placeholder="Atividade ou projeto" className="h-11 min-w-0 w-full rounded-control border border-nite-border-control bg-nite-surface px-3 text-type-body-compact text-nite-text-primary placeholder:text-nite-text-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-nite-focus" />
+          <SearchField name="q"  maxLength={120} defaultValue={search} placeholder="Atividade ou projeto" />
         </label>
-        <Button type="submit" variant="secondary" className="col-span-2 sm:col-span-1">Aplicar filtros</Button>
-      </form>
+        <Button size="compact" type="submit" variant="secondary" className="col-span-2 sm:col-span-1">Aplicar filtros</Button>
+      </FilterToolbar>
     </section>
 
     <PriorityPanel data={data} scope={scope} />

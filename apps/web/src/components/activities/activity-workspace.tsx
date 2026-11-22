@@ -1,5 +1,7 @@
 "use client";
 
+import { FilterSelect } from "../ui";
+
 import { TransientFeedback } from "../ui/transient-feedback";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -140,9 +142,8 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
       ? Boolean(permission?.transitions.some((status) => status !== "CANCELADA") && activity.status !== "CANCELADA" && activity.status !== "CONCLUIDA")
       : Boolean(permission?.changePriority && activity.status !== "CANCELADA" && activity.status !== "CONCLUIDA");
     if (!enabled) return field === "status" ? statusLabels[activity.status] : priorityLabel(activity.priority);
-    return <select
+    return <FilterSelect
       aria-label={`${field === "status" ? "Alterar situação" : "Alterar prioridade"} de ${activity.title}`}
-      className="min-h-8 max-w-40 rounded-control border border-nite-border-soft bg-nite-surface px-2 text-type-metadata text-nite-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nite-focus disabled:opacity-60"
       disabled={pendingId === activity.id}
       value={field === "status" ? activity.status : activity.priority ?? ""}
       onChange={(event) => {
@@ -163,7 +164,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
         <option value="">Sem prioridade</option>
         {activityPriorities.map((priority) => <option key={priority} value={priority}>{priorityLabels[priority]}</option>)}
       </>}
-    </select>;
+    </FilterSelect>;
   }
 
   function card(activity: Activity) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Dialog, Field, Select, TextField, Textarea } from "../ui";
+import { Button, Dialog, Field, FilterSelect, TextField, Textarea } from "../ui";
 import { isActivityEvidenceFileTooLarge } from "../../lib/activities/limits";
 
 type ActivityFormAction = (formData: FormData) => void | Promise<void>;
@@ -44,7 +44,7 @@ export function ActivityEvidenceDialog({
   }
 
   return <>
-    <Button type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+    <Button size="compact" type="button" variant="secondary" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
       Adicionar evidência
     </Button>
     <Dialog open={open} onOpenChange={setOpen} title="Adicionar evidência" description="Escolha o formato e preencha apenas os campos necessários.">
@@ -53,9 +53,9 @@ export function ActivityEvidenceDialog({
         <input type="hidden" name="returnTo" value={returnTo} />
         {type !== "FILE" ? <input type="hidden" name="type" value={type} /> : null}
         {inputTypes.length > 1 ? <Field id="activity-evidence-type" label="Tipo de evidência" required>
-          <Select name="evidenceType" value={type} onChange={(event) => { setType(selectType(event.currentTarget.value)); setFileTooLarge(false); }}>
+          <FilterSelect name="evidenceType" value={type} onChange={(event) => { setType(selectType(event.currentTarget.value)); setFileTooLarge(false); }}>
             {inputTypes.map((option) => <option key={option} value={option}>{typeLabel[option]}</option>)}
-          </Select>
+          </FilterSelect>
         </Field> : null}
         {type === "TEXT" || type === "TECHNICAL" ? <Field id="activity-evidence-content" label={type === "TEXT" ? "Registro" : "Registro técnico"} required>
           <Textarea name="content" required maxLength={10_000} />
@@ -78,16 +78,16 @@ export function ActivityEvidenceDialog({
           {fileTooLarge ? <p id="activity-evidence-file-error" role="alert" className="text-type-body-compact text-status-error">O arquivo excede o limite de 10 MiB. Escolha um arquivo menor.</p> : null}
         </> : null}
         {corrections.length ? <Field id="activity-evidence-correction" label="Corrige um registro desta página" optional>
-          <Select name="correctsEvidenceId" defaultValue="">
+          <FilterSelect name="correctsEvidenceId" defaultValue="">
             <option value="">Não se aplica</option>
             {corrections.map((correction) => <option key={correction.id} value={correction.id}>{correction.label}</option>)}
-          </Select>
+          </FilterSelect>
         </Field> : null}
         <Field id="activity-evidence-reason" label="Motivo do registro" required>
           <Textarea name="reason" required maxLength={1_000} />
         </Field>
         <div className="flex justify-end">
-          <Button type="submit" variant="secondary" disabled={type === "FILE" && fileTooLarge}>{type === "FILE" ? "Enviar arquivo" : "Salvar evidência"}</Button>
+          <Button size="compact" type="submit" variant="secondary" disabled={type === "FILE" && fileTooLarge}>{type === "FILE" ? "Enviar arquivo" : "Salvar evidência"}</Button>
         </div>
       </form>
     </Dialog>

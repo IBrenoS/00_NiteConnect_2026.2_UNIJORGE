@@ -1,7 +1,8 @@
 import { isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
-import { TextField } from "../ui/text-field";
+import { Button } from "../ui/button";
+import { SearchField } from "../ui/search-field";
 import { ManagementPersonFilter } from "./management-person-filter";
 import { searchManagementPeople } from "../../lib/activities/management-actions";
 
@@ -32,11 +33,11 @@ beforeEach(() => { state.values = []; state.cursor = 0; vi.clearAllMocks(); });
 
 it("pesquisa pelo nome, envia o ID da opção selecionada e limpa a seleção", async () => {
   vi.mocked(searchManagementPeople).mockResolvedValue({ data: { items: [{ id: "member-id", name: "Ana Costa" }], page: 0, size: 20, total: 1 }, issue: null });
-  const field = find(render(), node => isValidElement(node) && node.type === TextField);
+  const field = find(render(), node => isValidElement(node) && node.type === SearchField);
   if (!isValidElement<{ onChange: (event: { currentTarget: { value: string } }) => void }>(field)) throw new Error("Campo de pesquisa ausente");
   field.props.onChange({ currentTarget: { value: "Ana" } });
   const button = (label: string) => {
-    const node = find(render(), node => isValidElement<{ children?: ReactNode; "aria-label"?: string }>(node) && node.type === "button" && (node.props.children === label || node.props["aria-label"] === label));
+    const node = find(render(), node => isValidElement<{ children?: ReactNode; "aria-label"?: string }>(node) && (node.type === "button" || node.type === Button) && (node.props.children === label || node.props["aria-label"] === label));
     if (!isValidElement<{ onClick: () => void }>(node)) throw new Error(`Botão ausente: ${label}`);
     return node;
   };
@@ -53,11 +54,11 @@ it("pesquisa pelo nome, envia o ID da opção selecionada e limpa a seleção", 
 
 it("pagina os resultados da pesquisa pelo nome", async () => {
   vi.mocked(searchManagementPeople).mockResolvedValue({ data: { items: [{ id: "member-id", name: "Ana Costa" }], page: 0, size: 20, total: 21 }, issue: null });
-  const field = find(render(), node => isValidElement(node) && node.type === TextField);
+  const field = find(render(), node => isValidElement(node) && node.type === SearchField);
   if (!isValidElement<{ onChange: (event: { currentTarget: { value: string } }) => void }>(field)) throw new Error("Campo de pesquisa ausente");
   field.props.onChange({ currentTarget: { value: "Ana" } });
   const findButton = (label: string) => {
-    const node = find(render(), child => isValidElement<{ children?: ReactNode }>(child) && child.type === "button" && child.props.children === label);
+    const node = find(render(), child => isValidElement<{ children?: ReactNode }>(child) && (child.type === "button" || child.type === Button) && child.props.children === label);
     if (!isValidElement<{ onClick: () => void }>(node)) throw new Error(`Botão ausente: ${label}`);
     return node;
   };
