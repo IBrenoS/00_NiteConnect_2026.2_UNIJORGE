@@ -1,82 +1,82 @@
 import type { Metadata } from "next";
-import { ViewSelector } from "../../../components/dashboard/view-selector";
-import { DashboardView } from "../../../components/dashboard/dashboard-view";
+import { DashboardOverviewView } from "../../../components/dashboard/dashboard-overview";
 import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
-import { getDashboard, getDashboardHistory } from "../../../lib/dashboard/data";
-import { getLeadershipProjects } from "../../../lib/projects/data";
+import { getDashboardContexts, getDashboardOverview } from "../../../lib/dashboard/overview-data";
+import type { ApiResult } from "../../../lib/api/contracts";
+import type { DashboardContext, DashboardOverview } from "../../../lib/dashboard/overview-contracts";
 
-export const metadata: Metadata = { title: "Painel" };
+export const metadata: Metadata = { title: "Visão Geral" };
 export const dynamic = "force-dynamic";
 
+type Period = "7" | "30" | "90";
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-type DashboardPageProps = { searchParams: SearchParams };
 
-function one(value: string | string[] | undefined): string | undefined {
+function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isoDay(date: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(date);
+function dayInBahia(now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bahia", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: "year" | "month" | "day") => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function dateWindow(fromValue?: string, toValue?: string): { from: string; to: string } {
-  const today = new Date();
-  const defaultTo = isoDay(today);
-  const defaultFrom = isoDay(new Date(today.getTime() - 6 * 86_400_000));
-  const validDate = (value: string | undefined) => Boolean(
-    value && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-    !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
-    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value,
-  );
-  if (!validDate(fromValue) || !validDate(toValue) || fromValue! > toValue!) return { from: defaultFrom, to: defaultTo };
-  const days = (Date.parse(`${toValue}T00:00:00Z`) - Date.parse(`${fromValue}T00:00:00Z`)) / 86_400_000;
-  return days > 365 ? { from: defaultFrom, to: defaultTo } : { from: fromValue!, to: toValue! };
+function periodWindow(period: Period, now = new Date()): { from: string; to: string } {
+  const to = dayInBahia(now);
+  const end = Date.parse(`${to}T12:00:00Z`);
+  const offset = Number(period) - 1;
+  const from = new Date(end - offset * 86_400_000).toISOString().slice(0, 10);
+  return { from, to };
 }
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+function isPeriod(value: string | undefined): value is Period {
+  return value === "7" || value === "30" || value === "90";
+}
+
+function matchesWindow(data: DashboardOverview, context: DashboardContext, from: string, to: string): boolean {
+  return data.context === context && data.from === from && data.to === to;
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const identity = await requireAuthenticatedNiteSession();
+  const requestedPeriod = first(params.period);
+  const period: Period = isPeriod(requestedPeriod) ? requestedPeriod : "30";
+  const { from, to } = periodWindow(period);
+  const institutionalRole = identity.roles.some((role) => role === "GESTOR_GERAL" || role === "COORDENADOR");
+  const contextsResult = await getDashboardContexts(identity.bearer);
+  const allowedContexts = contextsResult.data?.filter((context) => context === "PERSONAL" || (context === "INSTITUTIONAL" && institutionalRole)) ?? [];
+  const requestedInstitutional = first(params.context) === "institutional";
+  let context: "personal" | "institutional" = requestedInstitutional && allowedContexts.includes("INSTITUTIONAL") ? "institutional" : "personal";
+  let result: ApiResult<DashboardOverview> | null = null;
+  const contextIssue = contextsResult.issue;
 
-  const canAdminister = identity.roles.some((role) => role === "GESTOR_GERAL" || role === "COORDENADOR");
-  const leadershipResult = await getLeadershipProjects(identity.bearer);
-  const leadershipProjects = leadershipResult.data ?? [];
-  const scopeValue = one(params.scope) ?? "personal";
-  const projectId = scopeValue.startsWith("project:") ? scopeValue.slice("project:".length) : undefined;
-  const isPersonal = scopeValue === "personal";
-  const isInstitutional = scopeValue === "institutional" && canAdminister;
-  const selectedProject = projectId ? leadershipProjects.find((project) => project.projectId === projectId) : undefined;
-  const allowedScope = isPersonal || isInstitutional || Boolean(selectedProject);
-  const range = dateWindow(one(params.from), one(params.to));
-  const search = one(params.q)?.slice(0, 120) ?? "";
-  const query = allowedScope
-      ? await getDashboard(
-        identity.bearer,
-        isPersonal ? "personal" : isInstitutional ? "institutional" : "project",
-        range.from,
-        range.to,
-        selectedProject?.projectId,
-      )
-    : { data: null, issue: "access" as const };
-  const [historyResult] = await Promise.all([
-    !isPersonal && allowedScope
-      ? getDashboardHistory(identity.bearer, isInstitutional ? "institutional" : "project", range.from, range.to, selectedProject?.projectId)
-      : Promise.resolve(null),
-  ]);
-  const scope = isPersonal ? "personal" : isInstitutional ? "institutional" : selectedProject ? "project" : "personal";
-  const contextLabel = isPersonal ? "Meu espaço" : isInstitutional ? "Visão geral do NITE" : selectedProject?.title ?? "Meu espaço";
-  const contextValue = isPersonal ? "personal" : isInstitutional ? "institutional" : selectedProject ? `project:${selectedProject.projectId}` : "personal";
+  if (!contextIssue && allowedContexts.includes("PERSONAL")) {
+    let apiContext: DashboardContext = context === "institutional" ? "INSTITUTIONAL" : "PERSONAL";
+    result = await getDashboardOverview(identity.bearer, apiContext, from, to);
 
-  return (
-    <DashboardView
-      viewSelector={<ViewSelector id="dashboard-view" projects={leadershipProjects} canAdminister={canAdminister} />}
-      result={query}
-      scope={scope}
-      scopeLabel={contextLabel}
-      from={range.from}
-      to={range.to}
-      search={search}
-      contextValue={contextValue}
-      historyResult={historyResult}
-    />
-  );
+    if (context === "institutional" && result.issue === "access") {
+      context = "personal";
+      allowedContexts.splice(allowedContexts.indexOf("INSTITUTIONAL"), 1);
+      apiContext = "PERSONAL";
+      result = await getDashboardOverview(identity.bearer, apiContext, from, to);
+    }
+
+    if (result.data && !matchesWindow(result.data, apiContext, from, to)) result = { data: null, issue: "invalid" };
+  } else if (!contextIssue) {
+    result = { data: null, issue: "access" };
+  }
+
+  return <DashboardOverviewView
+    context={context}
+    allowedContexts={allowedContexts}
+    period={period}
+    from={from}
+    to={to}
+    result={result}
+    contextIssue={contextIssue}
+    showLeadership={identity.roles.includes("GESTOR_PROJETO")}
+  />;
 }

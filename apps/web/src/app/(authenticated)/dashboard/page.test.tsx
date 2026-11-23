@@ -1,84 +1,104 @@
 import { isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  requireSession: vi.fn(),
-  getLeadershipProjects: vi.fn(),
-  getDashboard: vi.fn(),
-  getDashboardHistory: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ requireSession: vi.fn(), getContexts: vi.fn(), getOverview: vi.fn() }));
 
 vi.mock("../../../lib/auth/server-session", () => ({ requireAuthenticatedNiteSession: mocks.requireSession }));
-vi.mock("../../../lib/projects/data", () => ({ getLeadershipProjects: mocks.getLeadershipProjects }));
-vi.mock("../../../lib/dashboard/data", () => ({
-  getDashboard: mocks.getDashboard,
-  getDashboardHistory: mocks.getDashboardHistory,
+vi.mock("../../../lib/dashboard/overview-data", () => ({
+  getDashboardContexts: mocks.getContexts,
+  getDashboardOverview: mocks.getOverview,
 }));
 
 import DashboardPage from "./page";
 
-describe("rota do painel autenticado", () => {
+const overview = (context: "PERSONAL" | "INSTITUTIONAL", from: string, to: string) => ({
+  context, generatedAt: "2026-10-31T15:00:00Z", asOfDate: to, timeZone: "America/Bahia", from, to,
+  current: {
+    activities: { total: 0, planned: 0, inProgress: 0, completed: 0, cancelled: 0, overdue: 0, attentionRequired: 0, dueSoon: 0 },
+    projects: [], projectHealth: [],
+  },
+  risks: { total: 0, items: [] }, evolution: [], actions: { total: 0, items: [] },
+  projects: { total: 0, items: [] }, commitments: { total: 0, items: [] },
+  administrative: context === "INSTITUTIONAL" ? { pendingProposals: 0, pendingInvitations: 0, failedInvitations: 0, openAttendanceLists: 0 } : null,
+  unavailable: [],
+});
+
+function viewProps(page: unknown): Record<string, unknown> {
+  if (!isValidElement<Record<string, unknown>>(page)) throw new Error("A rota não retornou DashboardOverviewView.");
+  return page.props;
+}
+
+describe("rota autenticada da Visão Geral", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-31T15:00:00Z"));
     mocks.requireSession.mockResolvedValue({
       member: { id: "member-1", name: "Pessoa", institutionalEmail: "person@example.invalid", status: "ATIVO" },
-      roles: ["INTEGRANTE"],
-      bearer: "server-only-bearer",
+      roles: ["INTEGRANTE"], bearer: "server-only-bearer",
     });
-    mocks.getLeadershipProjects.mockResolvedValue({ data: [], issue: null });
-    mocks.getDashboard.mockResolvedValue({ data: null, issue: "unavailable" });
-    mocks.getDashboardHistory.mockResolvedValue({ data: null, issue: "unavailable" });
+    mocks.getContexts.mockResolvedValue({ data: ["PERSONAL"], issue: null });
+    mocks.getOverview.mockImplementation((_bearer: string, context: "PERSONAL" | "INSTITUTIONAL", from: string, to: string) => ({ data: overview(context, from, to), issue: null }));
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.clearAllMocks();
+  afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); });
+
+  it("inicia no contexto pessoal e não consulta institucional para integrante", async () => {
+    const page = await DashboardPage({ searchParams: Promise.resolve({ context: "institutional", period: "7" }) });
+    const props = viewProps(page);
+    expect(props.context).toBe("personal");
+    expect(props.allowedContexts).toEqual(["PERSONAL"]);
+    expect(mocks.getOverview).toHaveBeenCalledExactlyOnceWith("server-only-bearer", "PERSONAL", "2026-10-25", "2026-10-31");
   });
 
-  it("usa o intervalo válido e limita a busca recebida pela URL", async () => {
-    const page = await DashboardPage({ searchParams: Promise.resolve({
-      scope: "personal",
-      from: "2026-10-25",
-      to: "2026-10-31",
-      q: `${"x".repeat(120)}extra`,
-    }) });
-
-    expect(mocks.getDashboard).toHaveBeenCalledWith("server-only-bearer", "personal", "2026-10-25", "2026-10-31", undefined);
-    expect(isValidElement(page)).toBe(true);
-    if (!isValidElement<Record<string, unknown>>(page)) throw new Error("A rota não retornou DashboardView.");
-    expect(page.props.from).toBe("2026-10-25");
-    expect(page.props.to).toBe("2026-10-31");
-    expect(page.props.search).toBe("x".repeat(120));
+  it.each(["GESTOR_GERAL", "COORDENADOR"])("permite contexto institucional a %s somente quando a API o autoriza", async (role) => {
+    mocks.requireSession.mockResolvedValue({ member: {}, roles: [role], bearer: "server-only-bearer" });
+    mocks.getContexts.mockResolvedValue({ data: ["PERSONAL", "INSTITUTIONAL"], issue: null });
+    const page = await DashboardPage({ searchParams: Promise.resolve({ context: "institutional", period: "90" }) });
+    const props = viewProps(page);
+    expect(props.context).toBe("institutional");
+    expect(mocks.getOverview).toHaveBeenCalledExactlyOnceWith("server-only-bearer", "INSTITUTIONAL", "2026-08-03", "2026-10-31");
   });
 
-  it("substitui datas impossíveis, invertidas ou acima de 365 dias pelo período padrão", async () => {
-    for (const range of [
-      { from: "2026-02-30", to: "2026-03-02" },
-      { from: "2026-10-31", to: "2026-10-25" },
-      { from: "2025-01-01", to: "2026-10-31" },
-    ]) {
-      mocks.getDashboard.mockClear();
-      const page = await DashboardPage({ searchParams: Promise.resolve({ scope: "personal", ...range }) });
-
-      expect(mocks.getDashboard).toHaveBeenCalledWith("server-only-bearer", "personal", "2026-10-25", "2026-10-31", undefined);
-      if (!isValidElement<Record<string, unknown>>(page)) throw new Error("A rota não retornou DashboardView.");
-      expect(page.props.from).toBe("2026-10-25");
-      expect(page.props.to).toBe("2026-10-31");
-    }
+  it("mantém gestor de projeto e URL inválida no contexto pessoal", async () => {
+    mocks.requireSession.mockResolvedValue({ member: {}, roles: ["GESTOR_PROJETO"], bearer: "server-only-bearer" });
+    mocks.getContexts.mockResolvedValue({ data: ["PERSONAL"], issue: null });
+    const page = await DashboardPage({ searchParams: Promise.resolve({ context: "project:expired-id", period: "custom" }) });
+    const props = viewProps(page);
+    expect(props.context).toBe("personal");
+    expect(props.period).toBe("30");
+    expect(mocks.getOverview).toHaveBeenCalledExactlyOnceWith("server-only-bearer", "PERSONAL", "2026-10-02", "2026-10-31");
   });
 
-  it("nega contextos institucionais e projetos fora da liderança atual vindos por URL", async () => {
-    const unauthorizedInstitution = await DashboardPage({ searchParams: Promise.resolve({ scope: "institutional" }) });
-    expect(mocks.getDashboard).not.toHaveBeenCalled();
-    if (!isValidElement<Record<string, unknown>>(unauthorizedInstitution)) throw new Error("A rota não retornou DashboardView.");
-    expect(unauthorizedInstitution.props.contextValue).toBe("personal");
-    expect(unauthorizedInstitution.props.result).toEqual({ data: null, issue: "access" });
+  it("respeita contextos negados pela API mesmo quando a sessão conserva papel administrativo", async () => {
+    mocks.requireSession.mockResolvedValue({ member: {}, roles: ["GESTOR_GERAL"], bearer: "server-only-bearer" });
+    mocks.getContexts.mockResolvedValue({ data: ["PERSONAL"], issue: null });
+    const page = await DashboardPage({ searchParams: Promise.resolve({ context: "institutional" }) });
+    expect(viewProps(page).context).toBe("personal");
+    expect(mocks.getOverview).toHaveBeenCalledExactlyOnceWith("server-only-bearer", "PERSONAL", "2026-10-02", "2026-10-31");
+  });
 
-    const unauthorizedProject = await DashboardPage({ searchParams: Promise.resolve({ scope: "project:expired-project" }) });
-    expect(mocks.getDashboard).not.toHaveBeenCalled();
-    if (!isValidElement<Record<string, unknown>>(unauthorizedProject)) throw new Error("A rota não retornou DashboardView.");
-    expect(unauthorizedProject.props.contextValue).toBe("personal");
-    expect(unauthorizedProject.props.result).toEqual({ data: null, issue: "access" });
+  it("cai para pessoal sem renderizar dados institucionais se o endpoint negar acesso", async () => {
+    mocks.requireSession.mockResolvedValue({ member: {}, roles: ["GESTOR_GERAL"], bearer: "server-only-bearer" });
+    mocks.getContexts.mockResolvedValue({ data: ["PERSONAL", "INSTITUTIONAL"], issue: null });
+    mocks.getOverview.mockResolvedValueOnce({ data: null, issue: "access" });
+    const page = await DashboardPage({ searchParams: Promise.resolve({ context: "institutional" }) });
+    const props = viewProps(page);
+    expect(props.context).toBe("personal");
+    expect(props.allowedContexts).toEqual(["PERSONAL"]);
+    expect(mocks.getOverview).toHaveBeenNthCalledWith(2, "server-only-bearer", "PERSONAL", "2026-10-02", "2026-10-31");
+  });
+
+  it("não consulta indicadores se não conseguir confirmar contextos autorizados", async () => {
+    mocks.getContexts.mockResolvedValue({ data: null, issue: "unavailable" });
+    const page = await DashboardPage({ searchParams: Promise.resolve({}) });
+    const props = viewProps(page);
+    expect(props.contextIssue).toBe("unavailable");
+    expect(mocks.getOverview).not.toHaveBeenCalled();
+  });
+
+  it("rejeita resposta com período ou contexto diferente do solicitado", async () => {
+    mocks.getOverview.mockResolvedValue({ data: overview("INSTITUTIONAL", "2026-10-02", "2026-10-31"), issue: null });
+    const page = await DashboardPage({ searchParams: Promise.resolve({ context: "personal" }) });
+    expect(viewProps(page).result).toEqual({ data: null, issue: "invalid" });
   });
 });
