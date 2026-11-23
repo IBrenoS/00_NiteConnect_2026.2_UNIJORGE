@@ -8,6 +8,7 @@ vi.mock("../../../../lib/access-management/data", () => ({
   invitationStatus: () => "Pendente",
 }));
 vi.mock("../../../../components/access-management/controls", () => ({ InvitationControls: () => null, RoleControls: () => null }));
+vi.mock("../../../../lib/auth/actions", () => ({ requestInvitationDirectoryConsent: vi.fn() }));
 import Page from "./page";
 
 beforeEach(() => {

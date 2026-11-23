@@ -27,6 +27,12 @@ export function meetingsGraphConsentScope(apiScope: string | undefined): string 
   return `${apiScope.slice(0, finalSlash)}/.default`;
 }
 
+export function invitationDirectoryConsentRequest(apiScope: string | undefined): { clientId: string; scope: string } | null {
+  if (typeof apiScope !== "string") return null;
+  const match = /^api:\/\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/[A-Za-z0-9._-]+$/i.exec(apiScope);
+  return match ? { clientId: match[1], scope: "https://graph.microsoft.com/User.ReadBasic.All" } : null;
+}
+
 export function isAuthConfigured(): boolean {
   const tenantId = process.env.ENTRA_TENANT_ID;
   const clientId = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;

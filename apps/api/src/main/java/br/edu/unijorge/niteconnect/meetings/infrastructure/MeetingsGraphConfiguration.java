@@ -3,6 +3,7 @@ package br.edu.unijorge.niteconnect.meetings.infrastructure;
 import br.edu.unijorge.niteconnect.meetings.application.MeetingProvider;
 import com.microsoft.aad.msal4j.ClientCredentialFactory;
 import com.microsoft.aad.msal4j.ConfidentialClientApplication;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,6 +18,16 @@ public class MeetingsGraphConfiguration {
     GraphTokenAcquirer graphTokenAcquirer(MeetingsGraphProperties properties) {
         if (!properties.isEnabled()) return new UnavailableGraphTokenAcquirer("GRAPH_INTEGRATION_DISABLED");
         if (!properties.hasConfidentialClient()) return new UnavailableGraphTokenAcquirer();
+        return createTokenAcquirer(properties);
+    }
+
+    @Bean("invitationDirectoryGraphTokenAcquirer")
+    GraphTokenAcquirer invitationDirectoryGraphTokenAcquirer(MeetingsGraphProperties properties) {
+        if (!properties.hasConfidentialClient()) return new UnavailableGraphTokenAcquirer("INVITATION_DIRECTORY_OBO_NOT_CONFIGURED");
+        return createTokenAcquirer(properties);
+    }
+
+    private GraphTokenAcquirer createTokenAcquirer(MeetingsGraphProperties properties) {
         try {
             var credential = ClientCredentialFactory.createFromSecret(properties.getClientSecret());
             var application = ConfidentialClientApplication.builder(properties.getClientId(), credential)
@@ -29,7 +40,8 @@ public class MeetingsGraphConfiguration {
     }
 
     @Bean
-    MeetingProvider meetingProvider(MeetingsGraphProperties properties, GraphTokenAcquirer tokens) {
+    MeetingProvider meetingProvider(MeetingsGraphProperties properties,
+            @Qualifier("graphTokenAcquirer") GraphTokenAcquirer tokens) {
         HttpClient client = HttpClient.newBuilder().connectTimeout(properties.getConnectTimeout()).build();
         return new GraphCalendarProvider(properties.getBaseUrl(), tokens, client, properties.getRequestTimeout());
     }

@@ -60,13 +60,14 @@ public class InvitationService {
     }
 
     @Transactional
-    public Invitation create(UUID actor, String name, String email, InitialRole role, Instant expiresAt, String message) {
+    public Invitation create(UUID actor, String name, String email, InitialRole role, Instant expiresAt, String message,
+            String apiAccessToken) {
         access.requireAdministrator(actor);
         MemberDirectory.validate(name, email);
         if (role == null || expiresAt == null || !expiresAt.isAfter(Instant.now()))
             throw ApiException.invalid("Papel e expiração futura são obrigatórios");
         String normalized = MemberDirectory.normalizeEmail(email);
-        UUID object = recipientDirectory.resolve(normalized);
+        UUID object = recipientDirectory.resolve(normalized, apiAccessToken);
         transactions.lock(); access.requireAdministrator(actor);
         if (!expiresAt.isAfter(Instant.now())) throw ApiException.invalid("Expiração deve ser futura");
         if (identities.identityExists(entra.tenantId(), object)) throw ApiException.conflict("Identidade já vinculada");

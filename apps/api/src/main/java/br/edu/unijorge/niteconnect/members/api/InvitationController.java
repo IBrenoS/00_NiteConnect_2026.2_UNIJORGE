@@ -25,7 +25,7 @@ public class InvitationController {
     InvitationService.Invitation create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Create input) {
         UUID actor = identities.member(jwt);
         InvitationService.Invitation created = invitations.create(actor, input.name(), input.institutionalEmail(),
-                input.initialRole(), input.expiresAt(), input.message());
+                input.initialRole(), input.expiresAt(), input.message(), jwt.getTokenValue());
         return invitations.dispatch(actor, created.id());
     }
     @GetMapping

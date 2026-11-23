@@ -162,7 +162,7 @@ class IdentityBoundaryTest {
     }
 
     UUID invite(UUID target, UUID oid) throws Exception {
-        org.mockito.Mockito.when(recipientDirectory.resolve("invite-test@unijorge.com.br")).thenReturn(oid);
+        org.mockito.Mockito.when(recipientDirectory.resolve(org.mockito.ArgumentMatchers.eq("invite-test@unijorge.com.br"), org.mockito.ArgumentMatchers.anyString())).thenReturn(oid);
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Convidado de teste\",\"institutionalEmail\":\"invite-test@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\"}"))
                 .andExpect(status().isCreated());
@@ -194,7 +194,7 @@ class IdentityBoundaryTest {
     @Test
     void identityAlreadyLinkedCannotBeInvitedForAnotherMember() throws Exception {
         UUID target = pending();
-        org.mockito.Mockito.when(recipientDirectory.resolve("member-test@unijorge.com.br")).thenReturn(MEMBER_OID);
+        org.mockito.Mockito.when(recipientDirectory.resolve(org.mockito.ArgumentMatchers.eq("member-test@unijorge.com.br"), org.mockito.ArgumentMatchers.anyString())).thenReturn(MEMBER_OID);
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Pessoa de teste\",\"institutionalEmail\":\"member-test@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\"}"))
                 .andExpect(status().isConflict());

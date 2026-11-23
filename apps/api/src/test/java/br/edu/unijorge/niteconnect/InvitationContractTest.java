@@ -31,7 +31,7 @@ class InvitationContractTest extends ProjectTestSupport {
     private UUID create(String email, String role) throws Exception {
         UUID oid=UUID.randomUUID();
         resolved.put(email,oid);
-        when(recipientDirectory.resolve(email)).thenReturn(oid);
+        when(recipientDirectory.resolve(eq(email), anyString())).thenReturn(oid);
         when(mail.send(any(), anyString(), anyString(), anyString(), nullable(String.class), any()))
                 .thenReturn(new InvitationMailSender.SendResult("resend-test-id", null));
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
@@ -78,7 +78,7 @@ class InvitationContractTest extends ProjectTestSupport {
 
     @Test void failedSendCanRetryWithoutCreatingAnotherInvitation() throws Exception {
         String email="retry@unijorge.com.br";
-        when(recipientDirectory.resolve(email)).thenReturn(UUID.randomUUID());
+        when(recipientDirectory.resolve(eq(email), anyString())).thenReturn(UUID.randomUUID());
         when(mail.send(any(), anyString(), anyString(), anyString(), nullable(String.class), any()))
                 .thenReturn(new InvitationMailSender.SendResult(null,"HTTP_503"))
                 .thenReturn(new InvitationMailSender.SendResult("resend-recovered",null));
