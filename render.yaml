@@ -2,7 +2,7 @@ services:
   - type: web
     name: nite-connect-api
     runtime: docker
-    repo: https://github.com/IasminLuise/00_NiteConnect_2026.2_UNIJORGE
+    repo: https://github.com/IBrenoS/00_NiteConnect_2026.2_UNIJORGE
     branch: main
     region: virginia
     plan: free
