@@ -2,6 +2,7 @@ package br.edu.unijorge.niteconnect.identity.application;
 
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import br.edu.unijorge.niteconnect.meetings.infrastructure.GraphTokenAcquirer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,7 @@ public class EntraRecipientDirectory {
     private final ObjectMapper json;
     private final URI usersEndpoint;
 
+    @Autowired
     public EntraRecipientDirectory(ObjectMapper json,
             @Qualifier("invitationDirectoryGraphTokenAcquirer") GraphTokenAcquirer tokens) {
         this(json, tokens, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build(), USERS_ENDPOINT);
