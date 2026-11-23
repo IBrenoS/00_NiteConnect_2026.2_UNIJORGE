@@ -32,6 +32,13 @@ describe("perspectivas administrativas", () => {
     html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ tab: "acessos" }) }));
     expect(html).toContain("Não foi possível consultar os integrantes");
   });
+  it("mostra confirmação de entrega sem confundir com aceite do convite", async () => {
+    const result = await mocks.invitations();
+    mocks.invitations.mockResolvedValueOnce({ data: { ...result.data, items: [{ ...result.data.items[0], sendState: "DELIVERED" }] }, issue: null });
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ tab: "convites" }) }));
+    expect(html).toContain("Entregue ao servidor de e-mail do destinatário");
+    expect(html).toContain("Pendente");
+  });
   it("não consulta dados para papel sem administração global", async () => {
     mocks.session.mockResolvedValue({ bearer: "private-bearer", roles: ["GESTOR_PROJETO"] });
     const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));

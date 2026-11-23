@@ -35,5 +35,6 @@ export function invitationStatus(invitation: Invitation): string {
   if (invitation.acceptedAt) return "Aceito";
   if (new Date(invitation.expiresAt).getTime() <= Date.now()) return "Expirado";
   if (invitation.sendState === "FAILED") return "Falha no envio";
+  if (["BOUNCED", "SUPPRESSED", "PROVIDER_FAILED"].includes(invitation.sendState)) return "Falha na entrega";
   return "Pendente";
 }

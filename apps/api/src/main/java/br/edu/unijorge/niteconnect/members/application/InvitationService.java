@@ -22,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
+import tools.jackson.databind.ObjectMapper;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @Service
 @ConditionalOnProperty(name="nite.entra.enabled", havingValue="true")
@@ -36,6 +39,7 @@ public class InvitationService {
     private final AdministrativeTransactions transactions;
     private final ObjectProvider<DocumentLibraryService> documentLibrary;
     private final InvitationMailSender mail;
+    private final ObjectMapper json;
 
     private static final RowMapper<Invitation> MAPPER = (rs, row) -> new Invitation(
             rs.getObject("id", UUID.class), rs.getObject("member_id", UUID.class), rs.getString("name"),
@@ -51,10 +55,10 @@ public class InvitationService {
     public InvitationService(JdbcTemplate jdbc, MemberDirectory members, MemberAdministration administration,
             AccessService access, IdentityDirectory identities, EntraProperties entra, AuditTrail audit,
             AdministrativeTransactions transactions, ObjectProvider<DocumentLibraryService> documentLibrary,
-            InvitationMailSender mail) {
+            InvitationMailSender mail, ObjectMapper json) {
         this.jdbc=jdbc; this.members=members; this.administration=administration; this.access=access;
         this.identities=identities; this.entra=entra; this.audit=audit; this.transactions=transactions;
-        this.documentLibrary=documentLibrary; this.mail=mail;
+        this.documentLibrary=documentLibrary; this.mail=mail; this.json=json;
     }
 
     @Transactional
@@ -92,11 +96,11 @@ public class InvitationService {
         access.requireAdministrator(actor); PageResult.validate(page,size);
         String filter = switch (state == null ? "ALL" : state) {
             case "ALL" -> "";
-            case "PENDING" -> " and i.accepted_at is null and i.revoked_at is null and i.expires_at>current_timestamp and i.send_state<>'FAILED'";
+            case "PENDING" -> " and i.accepted_at is null and i.revoked_at is null and i.expires_at>current_timestamp and i.send_state not in ('FAILED','BOUNCED','SUPPRESSED','PROVIDER_FAILED')";
             case "ACCEPTED" -> " and i.accepted_at is not null";
             case "EXPIRED" -> " and i.accepted_at is null and i.revoked_at is null and i.expires_at<=current_timestamp";
             case "REVOKED" -> " and i.revoked_at is not null";
-            case "SEND_FAILED" -> " and i.send_state='FAILED' and i.accepted_at is null and i.revoked_at is null and i.expires_at>current_timestamp";
+            case "SEND_FAILED" -> " and i.send_state in ('FAILED','BOUNCED','SUPPRESSED','PROVIDER_FAILED') and i.accepted_at is null and i.revoked_at is null and i.expires_at>current_timestamp";
             default -> throw ApiException.invalid("Situação de convite inválida");
         };
         String term = query == null ? "" : query.strip();
@@ -114,7 +118,7 @@ public class InvitationService {
         Invitation invitation = require(id);
         if (invitation.acceptedAt() != null || invitation.revokedAt() != null || !invitation.expiresAt().isAfter(Instant.now()))
             throw ApiException.conflict("Convite não está disponível para envio");
-        if ("ACCEPTED_BY_PROVIDER".equals(invitation.sendState())) return invitation;
+        if (invitation.providerMessageId() != null) return invitation;
         if (invitation.lastSendAt() != null && invitation.lastSendAt().isBefore(Instant.now().minusSeconds(23 * 3600L))
                 && ("TRANSPORT_ERROR".equals(invitation.sendErrorCode()) || "INTERRUPTED".equals(invitation.sendErrorCode())
                     || invitation.sendErrorCode() != null && invitation.sendErrorCode().matches("HTTP_5\\d\\d")))
@@ -126,6 +130,46 @@ public class InvitationService {
         audit.record(actor, invitation.memberId(), result.errorCode() == null ? "INVITATION_SEND_ACCEPTED" : "INVITATION_SEND_FAILED",
                 null, id.toString(), "Tentativa de envio do convite");
         return require(id);
+    }
+
+    @Transactional
+    public void recordDeliveryEvent(byte[] body) {
+        String state;
+        String messageId;
+        String recipient;
+        Instant occurredAt;
+        String type;
+        try {
+            var event = json.readTree(body);
+            type = event.path("type").asText("");
+            state = switch (type) {
+                case "email.delivery_delayed" -> "DELIVERY_DELAYED";
+                case "email.delivered" -> "DELIVERED";
+                case "email.bounced" -> "BOUNCED";
+                case "email.suppressed" -> "SUPPRESSED";
+                case "email.failed" -> "PROVIDER_FAILED";
+                default -> null;
+            };
+            if (state == null) return;
+            var data = event.path("data");
+            messageId = data.path("email_id").asText("");
+            var recipients = data.path("to");
+            if (messageId.isBlank() || messageId.length() > 128 || !recipients.isArray() || recipients.size() != 1) return;
+            recipient = recipients.get(0).asText("");
+            if (recipient.isBlank()) return;
+            occurredAt = Instant.parse(event.path("created_at").asText());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Evento inválido");
+        }
+        jdbc.update("""
+                update nite_connect.invitations i set send_state=?,send_error_code=?,last_delivery_event_at=?
+                from nite_connect.members m
+                where i.member_id=m.id and i.provider_message_id=? and lower(m.institutional_email)=lower(?)
+                  and i.send_state<>? and (i.last_delivery_event_at is null or i.last_delivery_event_at<=?)
+                """, state, switch (state) {
+                    case "BOUNCED", "SUPPRESSED", "PROVIDER_FAILED" -> type.toUpperCase().replace('.', '_');
+                    default -> null;
+                }, Timestamp.from(occurredAt), messageId, recipient, state, Timestamp.from(occurredAt));
     }
 
     @Transactional

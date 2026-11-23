@@ -37,7 +37,7 @@ export function InvitationControls({ invitation, active = false }: { invitation?
     if (outcome.ok) { setConfirm(false); router.refresh(); }
   }
   return <div className="flex flex-wrap items-center gap-2">
-    {invitation ? <>{active && invitation.sendState !== "ACCEPTED_BY_PROVIDER" ? <Button size="compact" type="button" variant="secondary" disabled={busy} onClick={() => void resend()}>Reenviar</Button> : null}
+    {invitation ? <>{active && (invitation.sendState === "FAILED" || invitation.sendState === "NOT_SENT") ? <Button size="compact" type="button" variant="secondary" disabled={busy} onClick={() => void resend()}>Reenviar</Button> : null}
       {!invitation.acceptedAt && !invitation.revokedAt ? <Button size="compact" type="button" variant="destructive" disabled={busy} onClick={() => setConfirm(true)}>Revogar</Button> : null}</>
       : <Button size="compact" type="button" onClick={() => setOpen(true)}>Novo convite</Button>}
     {feedback && <span role="status" className="max-w-72 text-type-metadata text-nite-text-secondary">{feedback}</span>}

@@ -11,6 +11,14 @@ type Params = Record<string, string | string[] | undefined>;
 const one = (value: string | string[] | undefined) => typeof value === "string" ? value : "";
 const date = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bahia" }).format(new Date(value)) : "Sem registro";
 const tabs = [{ id: "convites", label: "Convites" }, { id: "permissoes", label: "Permissões" }, { id: "acessos", label: "Acessos" }] as const;
+const deliveryStatus: Record<string, string> = {
+  ACCEPTED_BY_PROVIDER: "Aceito pelo provedor; entrega não confirmada",
+  DELIVERY_DELAYED: "Entrega atrasada",
+  DELIVERED: "Entregue ao servidor de e-mail do destinatário",
+  BOUNCED: "E-mail devolvido",
+  SUPPRESSED: "Envio bloqueado pela Resend",
+  PROVIDER_FAILED: "Falha de entrega na Resend",
+};
 
 export default async function AccessManagementPage({ searchParams }: { searchParams: Promise<Params> }) {
   const [session, params] = await Promise.all([requireAuthenticatedNiteSession(), searchParams]);
@@ -33,11 +41,11 @@ export default async function AccessManagementPage({ searchParams }: { searchPar
       <div className="flex flex-wrap items-end justify-between gap-4"><FilterToolbar compact action="/gestao/acessos-e-convites" method="get" className="border-b border-nite-border-soft pb-4"><input type="hidden" name="tab" value="convites" />
         <label className="grid gap-1 text-type-metadata text-nite-text-secondary">Nome ou e-mail<SearchField name="q" defaultValue={q} maxLength={160} /></label>
         <label className="grid gap-1 text-type-metadata text-nite-text-secondary">Situação<FilterSelect name="state" defaultValue={state}>
-          {([ ["ALL","Todas"], ["PENDING","Pendentes"], ["ACCEPTED","Aceitos"], ["EXPIRED","Expirados"], ["REVOKED","Revogados"], ["SEND_FAILED","Falha no envio"] ] as [InvitationState,string][]).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</FilterSelect></label>
+          {([ ["ALL","Todas"], ["PENDING","Pendentes"], ["ACCEPTED","Aceitos"], ["EXPIRED","Expirados"], ["REVOKED","Revogados"], ["SEND_FAILED","Falha no envio ou entrega"] ] as [InvitationState,string][]).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</FilterSelect></label>
         <Button size="compact" type="submit">Pesquisar</Button></FilterToolbar><InvitationControls /></div>
       {!invitations?.data ? <p role="alert" className="py-6 text-status-error">{invitations?.issue === "access" ? "A API negou acesso aos convites." : "Não foi possível consultar os convites. Tente novamente."}</p>
         : <>
-          {filteredInvitations.length ? <div className="overflow-x-auto border-y border-nite-border-soft"><table className="w-full min-w-[850px] text-left text-type-body-compact"><thead className="text-type-metadata text-nite-text-muted"><tr>{["Destinatário", "Papel inicial", "Situação", "Enviado em", "Validade", "Ações"].map(label => <th key={label} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead><tbody>{filteredInvitations.map(item => <tr key={item.id} className="border-t border-nite-border-soft"><td className="px-3 py-3"><strong className="block font-medium">{item.name}</strong><span className="break-all text-type-metadata text-nite-text-secondary">{item.email}</span></td><td className="px-3 py-3">{roleLabel[item.initialRole]}</td><td className="px-3 py-3">{invitationStatus(item)}{item.sendState === "ACCEPTED_BY_PROVIDER" && !item.acceptedAt ? <span className="block text-type-metadata text-nite-text-muted">Aceito pelo provedor; entrega não confirmada</span> : null}</td><td className="px-3 py-3">{date(item.lastSendAt)}</td><td className="px-3 py-3">{date(item.expiresAt)}</td><td className="px-3 py-3"><InvitationControls invitation={item} active={invitationStatus(item) === "Pendente" || invitationStatus(item) === "Falha no envio"} /></td></tr>)}</tbody></table></div>
+          {filteredInvitations.length ? <div className="overflow-x-auto border-y border-nite-border-soft"><table className="w-full min-w-[850px] text-left text-type-body-compact"><thead className="text-type-metadata text-nite-text-muted"><tr>{["Destinatário", "Papel inicial", "Situação", "Enviado em", "Validade", "Ações"].map(label => <th key={label} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead><tbody>{filteredInvitations.map(item => <tr key={item.id} className="border-t border-nite-border-soft"><td className="px-3 py-3"><strong className="block font-medium">{item.name}</strong><span className="break-all text-type-metadata text-nite-text-secondary">{item.email}</span></td><td className="px-3 py-3">{roleLabel[item.initialRole]}</td><td className="px-3 py-3">{invitationStatus(item)}{deliveryStatus[item.sendState] && !item.acceptedAt ? <span className="block text-type-metadata text-nite-text-muted">{deliveryStatus[item.sendState]}</span> : null}</td><td className="px-3 py-3">{date(item.lastSendAt)}</td><td className="px-3 py-3">{date(item.expiresAt)}</td><td className="px-3 py-3"><InvitationControls invitation={item} active={["Pendente", "Falha no envio", "Falha na entrega"].includes(invitationStatus(item))} /></td></tr>)}</tbody></table></div>
             : <p className="py-8 text-center text-nite-text-secondary">Nenhum convite encontrado nesta página.</p>}</>}
     </> : <>
       <FilterToolbar compact action="/gestao/acessos-e-convites" method="get" className="border-b border-nite-border-soft pb-4"><input type="hidden" name="tab" value={tab} /><label className="grid gap-1 text-type-metadata text-nite-text-secondary">Nome do integrante<SearchField name="q" defaultValue={q} maxLength={160} /></label><Button size="compact" type="submit">Pesquisar</Button></FilterToolbar>
