@@ -43,7 +43,10 @@ class InvitationMailSenderTest {
             assertThat(second.errorCode()).isNull();
             assertThat(key.get()).isEqualTo("nite-invitation/" + id);
             assertThat(authorization.get()).isEqualTo("Bearer test-only-key");
-            assertThat(body.get()).contains("pessoa@unijorge.com.br", "/convites/aceitar?id=" + id);
+            assertThat(body.get()).contains("pessoa@unijorge.com.br", "/convites/aceitar?id=" + id,
+                    "Olá, Pessoa!", "É com muita alegria que convidamos você", "Seu acesso inicial será como Integrante.",
+                    "entre com sua conta Microsoft institucional", "Seja bem-vindo(a)!")
+                    .doesNotContain("Mensagem opcional", "INTEGRANTE", "2030-01-01T00:00:00Z");
             assertThat(calls.get()).isEqualTo(2);
         } finally {
             server.stop(0);

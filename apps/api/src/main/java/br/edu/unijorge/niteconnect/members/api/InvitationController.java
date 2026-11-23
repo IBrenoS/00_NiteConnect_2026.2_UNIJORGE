@@ -11,7 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import java.time.Instant;
 import java.util.UUID;
 
 @RestController
@@ -25,7 +24,7 @@ public class InvitationController {
     InvitationService.Invitation create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Create input) {
         UUID actor = identities.member(jwt);
         InvitationService.Invitation created = invitations.create(actor, input.name(), input.institutionalEmail(),
-                input.initialRole(), input.expiresAt(), input.message());
+                input.initialRole());
         return invitations.dispatch(actor, created.id());
     }
     @GetMapping
@@ -48,8 +47,6 @@ public class InvitationController {
     }
     public record Create(@NotBlank @Size(max=160) String name,
                          @NotBlank @Email @Size(max=254) String institutionalEmail,
-                         @NotNull InvitationService.InitialRole initialRole,
-                         @NotNull @Future Instant expiresAt,
-                         @Size(max=1000) String message) {}
+                         @NotNull InvitationService.InitialRole initialRole) {}
     public record Revoke(@Size(max=1000) String reason) {}
 }

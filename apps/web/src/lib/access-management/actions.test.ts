@@ -14,15 +14,14 @@ beforeEach(() => {
   vi.stubGlobal("fetch", mocks.fetch);
 });
 describe("mutações administrativas", () => {
-  it("cria convite com quatro papéis, validade e sem identificador Entra nem projeto", async () => {
+  it("cria convite com quatro papéis sem identificador Entra, projeto ou validade enviada pelo cliente", async () => {
     for (const role of ["INTEGRANTE", "GESTOR_PROJETO", "GESTOR_GERAL", "COORDENADOR"] as const) {
-      const result = await createInvitation({ name: "Ana", email: "Ana@unijorge.com.br", role, message: "Bem-vinda" });
+      const result = await createInvitation({ name: "Ana", email: "Ana@unijorge.com.br", role });
       expect(result.ok).toBe(true);
       const request = mocks.fetch.mock.lastCall;
       expect(request?.[0].toString()).toBe("https://api.example.test/api/v1/invitations");
       const body = JSON.parse(request?.[1].body as string);
-      expect(body).toMatchObject({ name: "Ana", institutionalEmail: "ana@unijorge.com.br", initialRole: role, message: "Bem-vinda" });
-      expect(body.expiresAt).toEqual(expect.any(String));
+      expect(body).toEqual({ name: "Ana", institutionalEmail: "ana@unijorge.com.br", initialRole: role });
       expect(body).not.toHaveProperty("objectId");
       expect(body).not.toHaveProperty("projectId");
     }

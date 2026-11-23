@@ -19,12 +19,12 @@ export function InvitationControls({ invitation, active = false }: { invitation?
   const router = useRouter();
   const [open, setOpen] = useState(false), [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false), [feedback, setFeedback] = useState("");
-  const [name, setName] = useState(""), [email, setEmail] = useState(""), [role, setRole] = useState<Role>("INTEGRANTE"), [message, setMessage] = useState(""), [reason, setReason] = useState("");
+  const [name, setName] = useState(""), [email, setEmail] = useState(""), [role, setRole] = useState<Role>("INTEGRANTE"), [reason, setReason] = useState("");
   async function create() {
     setBusy(true);
-    const outcome = await createInvitation({ name, email, role, message });
+    const outcome = await createInvitation({ name, email, role });
     setBusy(false); setFeedback(outcome.message);
-    if (outcome.ok) { setOpen(false); setName(""); setEmail(""); setMessage(""); router.refresh(); }
+    if (outcome.ok) { setOpen(false); setName(""); setEmail(""); router.refresh(); }
   }
   async function resend() {
     if (!invitation) return;
@@ -41,12 +41,11 @@ export function InvitationControls({ invitation, active = false }: { invitation?
       {!invitation.acceptedAt && !invitation.revokedAt ? <Button size="compact" type="button" variant="destructive" disabled={busy} onClick={() => setConfirm(true)}>Revogar</Button> : null}</>
       : <Button size="compact" type="button" onClick={() => setOpen(true)}>Novo convite</Button>}
     {feedback && <span role="status" className="max-w-72 text-type-metadata text-nite-text-secondary">{feedback}</span>}
-    <DialogFrame open={open} onOpenChange={setOpen} title="Novo convite" description="O destinatário receberá um link para entrar com o e-mail institucional. A validade é de sete dias."
+    <DialogFrame open={open} onOpenChange={setOpen} title="Novo convite" description="O destinatário receberá um convite personalizado com link para entrar usando a conta Microsoft institucional. A validade é de três dias."
       footer={<><Button size="compact" type="button" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button><Button size="compact" type="button" loading={busy} onClick={() => void create()}>Criar e enviar</Button></>}>
-      <div className="grid gap-4"><label className="grid gap-1 text-type-metadata">Nome<input className={field} value={name} onChange={event => setName(event.target.value)} maxLength={160} required /></label>
+      <div className="grid gap-4"><label className="grid gap-1 text-type-metadata">Nome completo (usado na saudação)<input className={field} value={name} onChange={event => setName(event.target.value)} maxLength={160} required /></label>
         <label className="grid gap-1 text-type-metadata">E-mail institucional<input className={field} type="email" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} required /></label>
         <label className="grid gap-1 text-type-metadata">Papel inicial<FilterSelect value={role} onChange={event => setRole(event.target.value as Role)}>{roles.map(value => <option key={value} value={value}>{roleLabel[value]}</option>)}</FilterSelect></label>
-        <label className="grid gap-1 text-type-metadata">Mensagem opcional<textarea className={field} value={message} onChange={event => setMessage(event.target.value)} maxLength={1000} rows={3} /></label>
         {feedback && <p role="status" className="text-type-metadata">{feedback}</p>}</div>
     </DialogFrame>
     <AlertDialog open={confirm} onOpenChange={setConfirm} title="Revogar convite" description={`O convite de ${invitation?.name ?? ""} deixará de permitir ingresso.`} confirmLabel="Revogar convite" pending={busy} onConfirm={() => void revoke()}>

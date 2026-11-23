@@ -33,7 +33,7 @@ class InvitationContractTest extends ProjectTestSupport {
                 .thenReturn(new InvitationMailSender.SendResult("resend-test-id", null));
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Pessoa Convidada\",\"institutionalEmail\":\"" + email
-                        + "\",\"initialRole\":\"" + role + "\",\"expiresAt\":\"" + Instant.now().plusSeconds(3600) + "\"}"))
+                        + "\",\"initialRole\":\"" + role + "\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.sendState").value("ACCEPTED_BY_PROVIDER"));
         return jdbc.queryForObject("select id from nite_connect.invitations where member_id=(select id from nite_connect.members where institutional_email=?)", UUID.class, email);
     }
@@ -44,6 +44,7 @@ class InvitationContractTest extends ProjectTestSupport {
         String email = "invite-" + role.toLowerCase() + "@unijorge.com.br";
         UUID id = create(email, role), oid = resolved.get(email);
         assertThat(jdbc.queryForObject("select object_id from nite_connect.invitations where id=?", UUID.class, id)).isNull();
+        assertThat(jdbc.queryForObject("select expires_at > current_timestamp + interval '71 hours' from nite_connect.invitations where id=?", Boolean.class, id)).isTrue();
         mvc.perform(post("/api/v1/invitations/" + id + "/accept").with(recipient(oid, email)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ATIVO"));
         assertThat(jdbc.queryForObject("select object_id from nite_connect.invitations where id=?", UUID.class, id)).isEqualTo(oid);
@@ -97,7 +98,7 @@ class InvitationContractTest extends ProjectTestSupport {
                 .thenReturn(new InvitationMailSender.SendResult(null,"HTTP_503"))
                 .thenReturn(new InvitationMailSender.SendResult("resend-recovered",null));
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Pessoa Convidada\",\"institutionalEmail\":\""+email+"\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\""+Instant.now().plusSeconds(3600)+"\"}"))
+                .content("{\"name\":\"Pessoa Convidada\",\"institutionalEmail\":\""+email+"\",\"initialRole\":\"INTEGRANTE\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.sendState").value("FAILED"));
         UUID id=jdbc.queryForObject("select id from nite_connect.invitations",UUID.class);
         mvc.perform(post("/api/v1/invitations/"+id+"/send").with(token(ADMIN))).andExpect(status().isOk())

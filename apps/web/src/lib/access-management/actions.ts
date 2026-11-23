@@ -39,12 +39,11 @@ async function mutate(path: string, method: "POST" | "DELETE", body?: object): P
   } catch { return { ok: false, message: "Serviço de acessos indisponível. Tente novamente." }; }
 }
 
-export async function createInvitation(input: { name: string; email: string; role: InitialRole; message: string }): Promise<Outcome> {
-  const name = input.name.trim(), email = input.email.trim().toLowerCase(), message = input.message.trim();
+export async function createInvitation(input: { name: string; email: string; role: InitialRole }): Promise<Outcome> {
+  const name = input.name.trim(), email = input.email.trim().toLowerCase();
   if (!name || name.length > 160 || !/^[^\s@]+@unijorge\.com\.br$/i.test(email) || email.length > 254
-    || !initialRoles.includes(input.role) || message.length > 1000) return invalid;
-  const result = await mutate("/api/v1/invitations", "POST", { name, institutionalEmail: email, initialRole: input.role,
-    expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(), ...(message ? { message } : {}) });
+    || !initialRoles.includes(input.role)) return invalid;
+  const result = await mutate("/api/v1/invitations", "POST", { name, institutionalEmail: email, initialRole: input.role });
   return result.ok ? { ok: true, message: "Convite criado. Confira a situação do envio na lista; aceite pelo provedor não confirma entrega." } : result;
 }
 export async function resendInvitation(id: string): Promise<Outcome> {

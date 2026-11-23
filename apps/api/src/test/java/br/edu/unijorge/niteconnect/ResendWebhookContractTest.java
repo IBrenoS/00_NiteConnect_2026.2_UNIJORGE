@@ -29,8 +29,7 @@ class ResendWebhookContractTest extends ProjectTestSupport {
         when(mail.send(any(), anyString(), anyString(), anyString(), nullable(String.class), any()))
                 .thenReturn(new InvitationMailSender.SendResult("resend-delivery-test", null));
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Pessoa Convidada\",\"institutionalEmail\":\"delivery@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\""
-                        + Instant.now().plusSeconds(3600) + "\"}")).andExpect(status().isCreated());
+                .content("{\"name\":\"Pessoa Convidada\",\"institutionalEmail\":\"delivery@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\"}")).andExpect(status().isCreated());
         UUID invitation = jdbc.queryForObject("select id from nite_connect.invitations where provider_message_id='resend-delivery-test'", UUID.class);
         String delivered = event("email.delivered", "resend-delivery-test", "delivery@unijorge.com.br", Instant.now());
         mvc.perform(post(ENDPOINT).contentType(MediaType.APPLICATION_JSON).content(delivered)).andExpect(status().isUnauthorized());

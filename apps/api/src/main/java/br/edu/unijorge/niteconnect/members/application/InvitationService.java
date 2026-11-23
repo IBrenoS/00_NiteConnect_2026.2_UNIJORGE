@@ -62,11 +62,12 @@ public class InvitationService {
     }
 
     @Transactional
-    public Invitation create(UUID actor, String name, String email, InitialRole role, Instant expiresAt, String message) {
+    public Invitation create(UUID actor, String name, String email, InitialRole role) {
         access.requireAdministrator(actor);
         MemberDirectory.validate(name, email);
-        if (role == null || expiresAt == null || !expiresAt.isAfter(Instant.now()))
-            throw ApiException.invalid("Papel e expiração futura são obrigatórios");
+        if (role == null) throw ApiException.invalid("Papel inicial é obrigatório");
+        Instant issuedAt = Instant.now();
+        Instant expiresAt = issuedAt.plusSeconds(3 * 24 * 3600L);
         String normalized = MemberDirectory.normalizeEmail(email);
         transactions.lock(); access.requireAdministrator(actor);
         if (!expiresAt.isAfter(Instant.now())) throw ApiException.invalid("Expiração deve ser futura");
@@ -85,8 +86,8 @@ public class InvitationService {
             throw ApiException.conflict("Já existe convite pendente para este e-mail");
         jdbc.update("update nite_connect.invitations set revoked_at=current_timestamp where member_id=? and accepted_at is null and revoked_at is null and expires_at<=current_timestamp", member.id());
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into nite_connect.invitations(id,member_id,tenant_id,object_id,created_by,expires_at,initial_role,message) values (?,?,?,?,?,?,?,?)",
-                id, member.id(), entra.tenantId(), null, actor, Timestamp.from(expiresAt), role.name(), message);
+        jdbc.update("insert into nite_connect.invitations(id,member_id,tenant_id,object_id,created_by,expires_at,initial_role) values (?,?,?,?,?,?,?)",
+                id, member.id(), entra.tenantId(), null, actor, Timestamp.from(expiresAt), role.name());
         audit.record(actor, member.id(), "INVITATION_CREATED", null, id.toString(), "Convite institucional criado");
         return require(id);
     }
@@ -124,7 +125,7 @@ public class InvitationService {
                     || invitation.sendErrorCode() != null && invitation.sendErrorCode().matches("HTTP_5\\d\\d")))
             throw ApiException.conflict("Resultado do envio incerto fora da janela de repetição segura; revogue e crie novo convite");
         InvitationMailSender.SendResult result = mail.send(id, invitation.name(), invitation.email(),
-                invitation.initialRole().name(), invitation.message(), invitation.expiresAt());
+                invitation.initialRole().name(), null, invitation.expiresAt());
         jdbc.update("update nite_connect.invitations set send_state=?,provider_message_id=?,send_error_code=?,send_attempts=send_attempts+1,last_send_at=current_timestamp where id=?",
                 result.errorCode() == null ? "ACCEPTED_BY_PROVIDER" : "FAILED", result.providerId(), result.errorCode(), id);
         audit.record(actor, invitation.memberId(), result.errorCode() == null ? "INVITATION_SEND_ACCEPTED" : "INVITATION_SEND_FAILED",

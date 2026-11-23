@@ -10,6 +10,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,6 +23,8 @@ public class InvitationMailSender {
     private final String invitationBaseUrl;
     private final URI endpoint;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private static final DateTimeFormatter EXPIRY_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm ' (horário de Brasília)'")
+            .withZone(ZoneId.of("America/Bahia"));
 
     public InvitationMailSender(ObjectMapper json, @Value("${nite.resend.api-key:}") String apiKey,
             @Value("${nite.resend.from:}") String sender,
@@ -42,10 +46,19 @@ public class InvitationMailSender {
             if (!"https".equals(base.getScheme()) && !"localhost".equals(base.getHost()) && !"127.0.0.1".equals(base.getHost()))
                 return new SendResult(null, "INVALID_ACCEPT_URL");
             String link = invitationBaseUrl + (invitationBaseUrl.contains("?") ? "&" : "?") + "id=" + id;
-            String body = "Olá, " + name + ".\n\nVocê foi convidado ao NITE Connect como " + role + ".\n"
-                    + (message == null || message.isBlank() ? "" : message + "\n\n")
-                    + "Acesse com sua conta Microsoft institucional: " + link + "\n"
-                    + "Convite válido até " + expiresAt + ".";
+            String roleName = switch (role) {
+                case "INTEGRANTE" -> "Integrante";
+                case "GESTOR_PROJETO" -> "Gestor de projeto";
+                case "GESTOR_GERAL" -> "Gestor geral";
+                case "COORDENADOR" -> "Coordenador";
+                default -> throw new IllegalArgumentException("Invalid invitation role");
+            };
+            String body = "Olá, " + name + "!\n\n"
+                    + "É com muita alegria que convidamos você para conhecer e testar as primeiras versões do NITE Connect, a nova plataforma do NITE.\n\n"
+                    + "Seu acesso inicial será como " + roleName + ".\n\n"
+                    + "Para começar, acesse o link abaixo e entre com sua conta Microsoft institucional:\n" + link + "\n\n"
+                    + "Este convite é válido até " + EXPIRY_FORMAT.format(expiresAt) + ".\n\n"
+                    + "Estamos animados para ter você com a gente nessa primeira etapa. Seja bem-vindo(a)!";
             String payload = json.writeValueAsString(Map.of("from", sender, "to", new String[]{email},
                     "subject", "Convite para o NITE Connect", "text", body));
             HttpRequest request = HttpRequest.newBuilder(endpoint)
