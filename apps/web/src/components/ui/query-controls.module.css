@@ -19,11 +19,12 @@
  .select::picker-icon{color:var(--nite-text-muted);transition:rotate .12s}
  .select:open::picker-icon{rotate:180deg}
  .select::picker(select){width:max-content;min-width:anchor-size(width);max-width:min(28rem,calc(100vw - 16px));max-height:min(320px,60dvh);overflow:auto;overscroll-behavior:contain;margin-block:5px;padding:4px;border:1px solid var(--nite-border-soft);border-radius:10px;background:linear-gradient(var(--nite-surface),var(--nite-surface)),var(--nite-background);color:var(--nite-text-primary);box-shadow:0 8px 28px #0002;font-size:.875rem}
- .select option{color:var(--nite-text-primary);display:flex;align-items:center;gap:12px;min-height:32px;padding:6px 9px;border-radius:6px;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
- .select option:hover,.select option:focus{background:var(--nite-surface-subtle);outline:0}
- .select option:checked{color:var(--nite-text-primary);background:var(--nite-surface-focus);font-weight:500}
+ .select option{color:var(--nite-text-primary);display:flex;align-items:center;gap:12px;min-height:32px;margin:0;padding:6px 9px;border:0;border-radius:0;background:transparent;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+ .select option:checked{color:var(--nite-text-primary);background:transparent;font-weight:600}
+ .select option:hover:not(:disabled),.select option:focus{background-color:var(--nite-surface-subtle)}
+ .select option:focus{color:var(--nite-brand-primary);background-color:var(--nite-surface-subtle);font-weight:600;outline:0}
  .select option::checkmark{order:2;margin-left:auto;color:var(--nite-brand-primary)}
- .select option:disabled{color:var(--nite-text-muted);cursor:not-allowed}
+ .select option:disabled{color:var(--nite-text-muted);background:transparent;cursor:not-allowed}
 }
 .date{display:flex;align-items:center;gap:4px;padding:0 5px 0 10px;width:100%}
 .control.date>input{width:100%;min-width:0;min-height:34px;padding:5px 0;border:0;background:transparent;color:inherit;font:inherit;outline:0!important;box-shadow:none;color-scheme:inherit}
