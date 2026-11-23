@@ -14,7 +14,7 @@ vi.mock("../../lib/documents/library-actions", () => ({ archiveLibraryFile: vi.f
 vi.mock("../documents/library-upload-form", () => ({ LibraryUploadForm: () => null }));
 
 const caps = { canViewPresentation: true, canRequestMembership: false, canExpressInterest: false, canDecideRequests: false, canAccessWorkspace: true, canViewActivities: true, canViewDocuments: true, canManageMembers: false, canManageAvailability: false };
-const project = { id: "p1", name: "Projeto persistido", summary: "Resumo autorizado", status: "ATIVO" as const, image: null, leaderName: "Liderança real", leadershipVacant: false, memberCount: 2, acceptingMembers: true, startsOn: null, endsOn: null, capabilities: caps };
+const project = { id: "p1", name: "Projeto persistido", summary: "Resumo autorizado", status: "ATIVO" as const, image: null, leaderName: "Liderança real", leadershipVacant: false, memberCount: 2, acceptingMembers: true, startsOn: null, endsOn: null, membershipRequestState: null, capabilities: caps };
 const workspace = { projectId: "p1", name: project.name, description: "Descrição privada autorizada", status: project.status, startsOn: null, endsOn: null, leaderId: "leader", leaderName: project.leaderName, leadershipVacant: false, memberCount: 2, activityCount: 7, version: 3, acceptingMembers: true, capabilities: { canAccessWorkspace: true, canManageMembers: false, canViewActivities: true, canViewDocuments: true, canManageAvailability: false, canDecideRequests: false, canCreatePlanning: false, canTransferLeadership: false } };
 const members = [{ id: "membership", memberId: "leader", memberName: "Liderança real", responsibility: "Responsabilidade persistida", startedAt: "2026-11-18T12:00:00Z" }];
 
@@ -34,7 +34,7 @@ describe("interfaces integradas de projetos", () => {
   });
   it("usa capacidades públicas para ações e nunca inclui conteúdo privado na apresentação", () => {
     const html = renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canAccessWorkspace: false, canRequestMembership: true } }} requests={[]} interests={[]}/>);
-    expect(html).toContain("Solicitar participação");
+    expect(html).toContain("Solicitar acesso");
     expect(html).not.toContain("Abrir workspace");
     expect(html).not.toContain(workspace.description);
     expect(html).not.toContain("Dados de exemplo");
@@ -60,12 +60,12 @@ describe("interfaces integradas de projetos", () => {
   it("não anuncia solicitações quando a configuração está ativa mas o projeto não pode recebê-las", () => {
     const paused = { ...workspace, status: "PAUSADO" as const, acceptingMembers: true, capabilities: { ...workspace.capabilities, canManageAvailability: true } };
     const html = renderToStaticMarkup(<ProjectOverview workspace={paused} members={members}/>);
-    expect(html).toContain("Solicitações habilitadas, mas indisponíveis no estado atual do projeto.");
-    expect(html).not.toContain("Recebendo solicitações");
+    expect(html).toContain("Projeto pausado, mas recebendo pedidos para formar ou recompor a equipe.");
+    expect(html).toContain("Desativar solicitações");
   });
   it("diferencia interesse futuro de solicitações na apresentação do projeto", () => {
     const html = renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canExpressInterest: true } }} requests={[]} interests={[]}/>);
-    expect(html).toContain("Aberto a manifestações de interesse");
+    expect(html).toContain("Aceita manifestações futuras");
     expect(html).not.toContain("Recebendo solicitações");
   });
   it("não oferece limpar filtros quando a lista de projetos está realmente vazia", () => {

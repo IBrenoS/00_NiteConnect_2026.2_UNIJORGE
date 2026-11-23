@@ -43,6 +43,12 @@ export async function requestProjectMembershipAction(projectId: string, message?
   return mutate(projectId, session.bearer, "membership-requests", "POST", { message: message?.trim() || null }, parseMembershipRequest);
 }
 
+export async function withdrawProjectMembershipAction(projectId: string, requestId: string, expectedVersion: number): Promise<ProjectActionResult<MembershipRequest>> {
+  const session = await requireAuthenticatedNiteSession();
+  if (!projectIdPattern.test(projectId) || !projectIdPattern.test(requestId) || !version(expectedVersion)) return failure("invalid");
+  return mutate(projectId, session.bearer, `membership-requests/${encodeURIComponent(requestId)}/withdraw`, "POST", { expectedVersion }, parseMembershipRequest);
+}
+
 export async function expressProjectInterestAction(projectId: string, message?: string | null): Promise<ProjectActionResult<InterestSignal>> {
   const session = await requireAuthenticatedNiteSession();
   if (!projectIdPattern.test(projectId) || !validMessage(message)) return failure("invalid");

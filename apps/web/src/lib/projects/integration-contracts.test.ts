@@ -3,7 +3,7 @@ import { parseCatalogProject, parseMembershipRequest, parseWorkspaceOverview } f
 
 export const catalog = {
   id: "11111111-1111-4111-8111-111111111111", name: "Projeto", summary: "Resumo", status: "ATIVO",
-  image: null, leaderName: "Ana", leadershipVacant: false, memberCount: 2, acceptingMembers: true, startsOn: null, endsOn: null,
+  image: null, leaderName: "Ana", leadershipVacant: false, memberCount: 2, acceptingMembers: true, startsOn: null, endsOn: null, membershipRequestState: null,
   capabilities: { canViewPresentation: true, canRequestMembership: true, canExpressInterest: false, canDecideRequests: false, canAccessWorkspace: false, canViewActivities: false, canViewDocuments: false, canManageMembers: false, canManageAvailability: false },
 };
 describe("contratos reais de projetos", () => {

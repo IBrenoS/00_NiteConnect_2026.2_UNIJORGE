@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("../auth/server-session", () => ({ requireAuthenticatedNiteSession: mocks.session }));
 vi.mock("./data", () => ({ getCatalogProject: mocks.catalog, getProjectWorkspace: mocks.workspace }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
-import { requestProjectMembershipAction, expressProjectInterestAction, decideProjectMembershipAction, setProjectAvailabilityAction } from "./actions";
+import { requestProjectMembershipAction, withdrawProjectMembershipAction, expressProjectInterestAction, decideProjectMembershipAction, setProjectAvailabilityAction } from "./actions";
 const id = "11111111-1111-4111-8111-111111111111";
 const request = { id, projectId: id, memberId: id, message: null, state: "PENDENTE", requestedAt: "2026-11-18T12:00:00Z", decidedAt: null, decidedBy: null, decisionMessage: null, version: 0 };
 beforeEach(() => {
@@ -23,6 +23,13 @@ it("envia mensagem normalizada e revalida somente após persistência confirmada
   expect(mocks.revalidate).toHaveBeenCalledWith("/projetos");
   expect(mocks.revalidate).toHaveBeenCalledWith("/meus-projetos");
   expect(mocks.revalidate).toHaveBeenCalledWith(`/meus-projetos/${id}`, "layout");
+});
+it("permite desistir de pedido pendente com controle de versão", async () => {
+  mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ ...request, state: "ENCERRADA", version: 1 }), { status: 200 }));
+  const result = await withdrawProjectMembershipAction(id, id, 0);
+  expect(result.issue).toBeNull();
+  expect(mocks.fetch.mock.calls[0][0].pathname).toBe(`/api/v1/projects/${id}/membership-requests/${id}/withdraw`);
+  expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toEqual({ expectedVersion: 0 });
 });
 it("propaga exigência de autenticação sem enviar mutação", async () => {
   mocks.session.mockRejectedValue(new Error("redirect:/login"));

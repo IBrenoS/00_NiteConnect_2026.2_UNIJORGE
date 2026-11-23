@@ -127,8 +127,9 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities/*/evidence", "/api/v1/activities/*/evidence/uploads",
                                 "/api/v1/activities/*/evidence/*/withdraw").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/projects", "/api/v1/projects/*", "/api/v1/me/projects",
-                                "/api/v1/project-catalog", "/api/v1/project-catalog/*", "/api/v1/me/project-interest-signals", "/api/v1/projects/*/workspace", "/api/v1/me/project-membership-requests",
+                                "/api/v1/project-catalog", "/api/v1/project-catalog/*", "/api/v1/project-catalog/*/image", "/api/v1/me/project-interest-signals", "/api/v1/projects/*/workspace", "/api/v1/me/project-membership-requests",
                                 "/api/v1/projects/*/membership-requests", "/api/v1/projects/*/interest-signals",
+                                "/api/v1/projects/*/membership-requests/*/history",
                                 "/api/v1/me/project-participation-notifications",
                                 "/api/v1/me/projects/history", "/api/v1/me/projects/leadership/history", "/api/v1/projects/*/history", "/api/v1/projects/*/members",
                                 "/api/v1/projects/*/members/history", "/api/v1/projects/*/leadership", "/api/v1/projects/*/leadership/history",
@@ -138,12 +139,15 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/v1/projects", "/api/v1/projects/*/members",
                                 "/api/v1/projects/*/membership-requests", "/api/v1/projects/*/membership-requests/*/decision",
                                 "/api/v1/projects/*/membership-requests/*/close",
+                                "/api/v1/projects/*/membership-requests/*/withdraw",
                                 "/api/v1/projects/*/interest-signals", "/api/v1/me/project-participation-notifications/*/read",
                                 "/api/v1/projects/*/leadership-transfers", "/api/v1/proposals",
                                 "/api/v1/projects/*/health-policy", "/api/v1/projects/*/health-evaluations",
                                 "/api/v1/proposals/*/decisions", "/api/v1/proposals/*/convert").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/projects/*", "/api/v1/projects/*/status", "/api/v1/projects/*/availability",
                                 "/api/v1/proposals/*").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/projects/*/cover-image").access(authenticatedJwt)
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/projects/*/cover-image").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/projects/*/members/*").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.GET, "/api/v1/administrative/members", "/api/v1/administrative/members/*", "/api/v1/administrative/members/*/history",
                                 "/api/v1/me", "/api/v1/me/profile", "/api/v1/members/*/photo", "/api/v1/members/*/profile", "/api/v1/members", "/api/v1/members/*",

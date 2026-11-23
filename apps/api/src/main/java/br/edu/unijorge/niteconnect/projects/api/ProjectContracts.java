@@ -8,7 +8,8 @@ import java.util.UUID;
 public final class ProjectContracts {
     private ProjectContracts() {}
     public record Create(@NotBlank @Size(max=200) String title, @NotBlank @Size(max=10000) String description,
-                         LocalDate startsOn, LocalDate endsOn, @NotBlank @Size(max=1000) String reason) {}
+                         LocalDate startsOn, LocalDate endsOn, ProjectStatus initialStatus,
+                         @Size(max=1000) @Pattern(regexp="(?s).*\\S.*") String reason) {}
     public record Update(@NotBlank @Size(max=200) String title, @NotBlank @Size(max=10000) String description,
                          LocalDate startsOn, LocalDate endsOn, @NotNull @PositiveOrZero Long expectedVersion,
                          @NotBlank @Size(max=1000) String reason) {}
@@ -26,4 +27,5 @@ public final class ProjectContracts {
     public record Availability(@NotNull Boolean acceptingMembers, @NotNull @PositiveOrZero Long expectedVersion) {}
     public record Interest(@Size(max=2000) String message) {}
     public record RequestClosure(@NotNull @PositiveOrZero Long expectedVersion) {}
+    public record CoverImage(@NotNull @PositiveOrZero Long expectedVersion) {}
 }

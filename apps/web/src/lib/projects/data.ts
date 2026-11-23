@@ -8,7 +8,7 @@ import { parseLeadershipProjects, type LeadershipProject } from "./contracts";
 import { parsePage, type Page } from "../activities/contracts";
 import { getAllMyProjects } from "../activities/data";
 import type { ApiResult } from "../api/contracts";
-import { parseCatalogProject, parseInterestSignal, parseMembershipRequest, parseProjectTeamMember, parseWorkspaceOverview, projectIdPattern } from "./integration-contracts";
+import { parseCatalogProject, parseInterestSignal, parseMembershipRequest, parseProjectRequestEvent, parseProjectTeamMember, parseWorkspaceOverview, projectIdPattern } from "./integration-contracts";
 
 export const getLeadershipProjects = cache(async (bearer: string) => getApiJson(
   "/api/v1/me/projects/leadership/history?page=0&size=100",
@@ -61,6 +61,10 @@ export function getMyProjectRequests(bearer: string) {
 export function getProjectRequests(bearer: string, id: string) {
   if (!projectIdPattern.test(id)) return Promise.resolve({ data: null, issue: "invalid" } as const);
   return allPages(bearer, `/api/v1/projects/${encodeURIComponent(id)}/membership-requests`, parseMembershipRequest);
+}
+export function getProjectRequestHistory(bearer: string, projectId: string, requestId: string) {
+  if (!projectIdPattern.test(projectId) || !projectIdPattern.test(requestId)) return Promise.resolve({ data: null, issue: "invalid" } as const);
+  return allPages(bearer, `/api/v1/projects/${encodeURIComponent(projectId)}/membership-requests/${encodeURIComponent(requestId)}/history`, parseProjectRequestEvent);
 }
 export function getMyProjectInterests(bearer: string) {
   return allPages(bearer, "/api/v1/me/project-interest-signals", parseInterestSignal);

@@ -8,6 +8,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ProjectAdministrationIntegrationTest extends ProjectTestSupport {
+    @Test void createsDirectlyInEachPermittedInitialStateWithoutManualReason() throws Exception {
+        for (String initial : java.util.List.of("PLANEJAMENTO", "ATIVO", "PAUSADO")) {
+            mvc.perform(post("/api/v1/projects").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"title\":\"Projeto "+initial+"\",\"description\":\"Descrição\",\"startsOn\":null,\"endsOn\":null,\"initialStatus\":\""+initial+"\"}"))
+                    .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value(initial));
+        }
+        mvc.perform(post("/api/v1/projects").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Inválido\",\"description\":\"Descrição\",\"initialStatus\":\"CONCLUIDO\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/v1/projects").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Período inválido\",\"description\":\"Descrição\",\"startsOn\":\"2026-12-01\",\"endsOn\":\"2026-11-30\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.projects",Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_status_history where reason='Criação institucional de projeto'",Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships",Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history",Integer.class)).isZero();
+    }
     @Test void bothActiveGlobalRolesCreateWithoutImplicitMembershipOrLeadership() throws Exception {
         for (String role : java.util.List.of("COORDENADOR", "GESTOR_GERAL")) {
             jdbc.update("update nite_connect.role_assignments set role=? where member_id=?", role, ADMIN);
@@ -39,7 +56,7 @@ class ProjectAdministrationIntegrationTest extends ProjectTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state));
         }
         mvc.perform(patch("/api/v1/projects/"+id+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
-            .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}")).andExpect(status().isConflict());
+            .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}")).andExpect(status().isOk());
         join(id, LEADER); transfer(id, LEADER);
         mvc.perform(patch("/api/v1/projects/"+id+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
             .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}")).andExpect(status().isOk());

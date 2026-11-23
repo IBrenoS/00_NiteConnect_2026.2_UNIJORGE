@@ -10,9 +10,12 @@ import br.edu.unijorge.niteconnect.projects.domain.ProjectStatus;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.UUID;
 
 @RestController
@@ -63,7 +66,32 @@ public class ProjectController {
     }
     @PostMapping("/api/v1/projects") @ResponseStatus(HttpStatus.CREATED)
     Project create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ProjectContracts.Create input) {
-        return projects.create(identities.member(jwt), input.title(), input.description(), input.startsOn(), input.endsOn(), input.reason());
+        return projects.create(identities.member(jwt), input.title(), input.description(), input.startsOn(), input.endsOn(),
+                input.initialStatus()==null?ProjectStatus.PLANEJAMENTO:input.initialStatus(), input.reason());
+    }
+    @PostMapping(path="/api/v1/projects",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @ResponseStatus(HttpStatus.CREATED)
+    Project createWithImage(@AuthenticationPrincipal Jwt jwt,@Valid @RequestPart("project") ProjectContracts.Create input,
+                            @RequestPart(value="image",required=false) MultipartFile image) throws java.io.IOException {
+        byte[] bytes=image==null||image.isEmpty()?null:image.getBytes();
+        if(bytes==null) return projects.create(identities.member(jwt),input.title(),input.description(),input.startsOn(),input.endsOn(),
+                input.initialStatus()==null?ProjectStatus.PLANEJAMENTO:input.initialStatus(),input.reason());
+        return projects.createWithCover(identities.member(jwt),input.title(),input.description(),input.startsOn(),input.endsOn(),
+                input.initialStatus()==null?ProjectStatus.PLANEJAMENTO:input.initialStatus(),bytes,image.getContentType());
+    }
+    @GetMapping("/api/v1/project-catalog/{id}/image")
+    ResponseEntity<byte[]> coverImage(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        ProjectService.CoverImage image=projects.image(identities.member(jwt),id);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType()))
+                .cacheControl(org.springframework.http.CacheControl.noCache()).body(image.bytes());
+    }
+    @PutMapping(path="/api/v1/projects/{id}/cover-image",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
+    Project replaceCover(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestPart("image") MultipartFile image,
+                         @RequestParam @jakarta.validation.constraints.PositiveOrZero long expectedVersion) throws java.io.IOException {
+        return projects.replaceCover(identities.member(jwt),id,image.getBytes(),image.getContentType(),expectedVersion);
+    }
+    @DeleteMapping("/api/v1/projects/{id}/cover-image")
+    Project removeCover(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@Valid @RequestBody ProjectContracts.CoverImage input) {
+        return projects.removeCover(identities.member(jwt),id,input.expectedVersion());
     }
     @PatchMapping("/api/v1/projects/{id}")
     Project update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody ProjectContracts.Update input) {
@@ -126,6 +154,12 @@ public class ProjectController {
     @PostMapping("/api/v1/projects/{id}/membership-requests/{requestId}/close")
     ProjectParticipationService.MembershipRequest closeMembershipRequest(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID requestId,
             @Valid @RequestBody ProjectContracts.RequestClosure input) { return participation.closeRequest(identities.member(jwt),id,requestId,input.expectedVersion()); }
+    @PostMapping("/api/v1/projects/{id}/membership-requests/{requestId}/withdraw")
+    ProjectParticipationService.MembershipRequest withdrawMembershipRequest(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID requestId,
+            @Valid @RequestBody ProjectContracts.RequestClosure input) { return participation.withdrawRequest(identities.member(jwt),id,requestId,input.expectedVersion()); }
+    @GetMapping("/api/v1/projects/{id}/membership-requests/{requestId}/history")
+    PageResult<ProjectParticipationService.RequestEvent> membershipRequestHistory(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID requestId,
+            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) { return participation.requestHistory(identities.member(jwt),id,requestId,page,size); }
     @PostMapping("/api/v1/projects/{id}/interest-signals") @ResponseStatus(HttpStatus.CREATED)
     ProjectParticipationService.InterestSignal interest(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@Valid @RequestBody ProjectContracts.Interest input) {
         return participation.interest(identities.member(jwt),id,input.message());

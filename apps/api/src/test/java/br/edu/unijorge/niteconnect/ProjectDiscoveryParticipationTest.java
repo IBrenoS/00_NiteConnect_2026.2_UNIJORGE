@@ -7,6 +7,50 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
+    @Test void pausedOrLeaderlessProjectsUseFormalRequestsAndGlobalAdministration() throws Exception {
+        UUID paused=project();
+        mvc.perform(patch("/api/v1/projects/"+paused+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ATIVO\",\"expectedVersion\":"+version(paused)+",\"reason\":\"Início\"}" )).andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/projects/"+paused+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"PAUSADO\",\"expectedVersion\":"+version(paused)+",\"reason\":\"Pausa\"}" )).andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/projects/"+paused+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(paused)+"}" )).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/project-catalog/"+paused).with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.capabilities.canRequestMembership").value(true))
+                .andExpect(jsonPath("$.capabilities.canExpressInterest").value(false));
+        mvc.perform(post("/api/v1/projects/"+paused+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.state").value("PENDENTE"));
+        UUID pausedRequest=jdbc.queryForObject("select id from nite_connect.project_membership_requests where project_id=?",UUID.class,paused);
+        mvc.perform(get("/api/v1/me/project-participation-notifications").with(token(ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
+        mvc.perform(post("/api/v1/projects/"+paused+"/membership-requests/"+pausedRequest+"/withdraw").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedVersion\":0}" )).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("ENCERRADA"));
+        mvc.perform(get("/api/v1/projects/"+paused+"/membership-requests/"+pausedRequest+"/history").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2)).andExpect(jsonPath("$.items[1].type").value("DESISTIDA"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select status from nite_connect.projects where id=?",String.class,paused)).isEqualTo("PAUSADO");
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=?",Integer.class,paused)).isZero();
+        mvc.perform(post("/api/v1/projects/"+paused+"/membership-requests").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isCreated());
+        UUID pausedApproval=jdbc.queryForObject("select id from nite_connect.project_membership_requests where project_id=? and member_id=?",UUID.class,paused,MEMBER);
+        mvc.perform(post("/api/v1/projects/"+paused+"/membership-requests/"+pausedApproval+"/decision").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approve\":true,\"expectedVersion\":0}" )).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("APROVADA"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select status from nite_connect.projects where id=?",String.class,paused)).isEqualTo("PAUSADO");
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=? and ended_at is null",Integer.class,paused,MEMBER)).isEqualTo(1);
+
+        UUID vacant=project();
+        mvc.perform(patch("/api/v1/projects/"+vacant+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(vacant)+"}" )).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/projects/"+vacant+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isCreated());
+        UUID request=jdbc.queryForObject("select id from nite_connect.project_membership_requests where project_id=?",UUID.class,vacant);
+        mvc.perform(post("/api/v1/projects/"+vacant+"/membership-requests/"+request+"/decision").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approve\":true,\"expectedVersion\":0}" )).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("APROVADA"));
+        mvc.perform(get("/api/v1/project-catalog/"+vacant).with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PLANEJAMENTO"))
+                .andExpect(jsonPath("$.leadershipVacant").value(true)).andExpect(jsonPath("$.membershipRequestState").value("APROVADA"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=? and ended_at is null",Integer.class,vacant,OTHER)).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?",Integer.class,vacant)).isZero();
+    }
     @Test void activeMemberCanDiscoverButCannotReadWorkspaceBeforeApproval() throws Exception {
         UUID id=project(); join(id,LEADER); transfer(id,LEADER);
         mvc.perform(get("/api/v1/project-catalog").with(token(OTHER)).param("q","Projeto").param("sort","name"))
@@ -103,7 +147,7 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
         jdbc.update("update nite_connect.project_interest_signals set withdrawn_at=clock_timestamp() where member_id=?",OTHER);
         mvc.perform(get("/api/v1/me/project-interest-signals").with(token(OTHER)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].withdrawnAt").isNotEmpty());
         mvc.perform(get("/api/v1/me/project-interest-signals").with(token(OTHER)).param("size","101"))
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/v1/me/project-interest-signals")).andExpect(status().isUnauthorized());

@@ -1,13 +1,13 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks=vi.hoisted(() => ({ session:vi.fn(), workspace:vi.fn(), authority:vi.fn(), team:vi.fn(), candidates:vi.fn(), statuses:vi.fn(), participations:vi.fn(), leadership:vi.fn() }));
+const mocks=vi.hoisted(() => ({ session:vi.fn(), workspace:vi.fn(), authority:vi.fn(), catalog:vi.fn(), team:vi.fn(), candidates:vi.fn(), statuses:vi.fn(), participations:vi.fn(), leadership:vi.fn() }));
 vi.mock("../../../../../lib/auth/server-session", () => ({requireAuthenticatedNiteSession:mocks.session}));
-vi.mock("../../../../../lib/projects/data", () => ({getProjectWorkspace:mocks.workspace,getProjectAuthority:mocks.authority,getProjectTeam:mocks.team,getProjectCandidates:mocks.candidates,getProjectStatusHistory:mocks.statuses,getProjectParticipationHistory:mocks.participations,getProjectLeadershipHistory:mocks.leadership}));
+vi.mock("../../../../../lib/projects/data", () => ({getProjectWorkspace:mocks.workspace,getProjectAuthority:mocks.authority,getCatalogProject:mocks.catalog,getProjectTeam:mocks.team,getProjectCandidates:mocks.candidates,getProjectStatusHistory:mocks.statuses,getProjectParticipationHistory:mocks.participations,getProjectLeadershipHistory:mocks.leadership}));
 vi.mock("../../../../../components/projects/project-administration", () => ({ProjectAdministration: () => null}));
 vi.mock("../../../../../components/projects/project-ui", () => ({ProjectIssue: () => null}));
 vi.mock("next/navigation", () => ({notFound: () => {throw new Error("NOT_FOUND");}}));
 import AdministerProjectPage from "./page";
 const params=Promise.resolve({id:"11111111-1111-4111-8111-111111111111"});
-beforeEach(() => {vi.resetAllMocks();mocks.session.mockResolvedValue({bearer:"private",roles:["GESTOR_GERAL"]});});
+beforeEach(() => {vi.resetAllMocks();mocks.session.mockResolvedValue({bearer:"private",roles:["GESTOR_GERAL"]});mocks.catalog.mockResolvedValue({data:{image:null},issue:null});});
 it("integrante sem gestão não consulta candidatos nem históricos privados",async () => {
  mocks.workspace.mockResolvedValue({data:{capabilities:{canManageMembers:false}},issue:null}); await AdministerProjectPage({params});
  expect(mocks.candidates).not.toHaveBeenCalled(); expect(mocks.statuses).not.toHaveBeenCalled(); expect(mocks.authority).not.toHaveBeenCalled();

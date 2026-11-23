@@ -1,6 +1,6 @@
 .control{box-sizing:border-box;min-height:36px;min-width:0;max-width:100%;border:1px solid var(--nite-border-soft);border-radius:8px;background:var(--nite-surface);color:var(--nite-text-primary);font:inherit;font-size:.875rem;line-height:1.4;transition:background-color .12s,border-color .12s}
 .control:hover:not(:disabled){border-color:var(--nite-border-control);background:var(--nite-surface-subtle)}
-.control:focus-visible,.search:focus-within,.date:focus-within{outline:0;box-shadow:inset 0 0 0 2px var(--nite-focus)}
+.control:focus-visible,.search:focus-within,.date:focus-within{outline:0;border-color:var(--nite-border-control);border-radius:8px;box-shadow:none}
 .control:disabled,.search:has(input:disabled),.date:has(input:disabled){cursor:not-allowed;opacity:.6;background:var(--nite-surface-subtle)}
 .control[aria-invalid=true],.search:has([aria-invalid=true]),.date:has([aria-invalid=true]){border-color:var(--nite-status-error)}
 .search{display:flex;align-items:center;gap:8px;padding:0 10px;width:100%;flex:1 1 15rem}
@@ -21,8 +21,8 @@
  .select::picker(select){width:max-content;min-width:anchor-size(width);max-width:min(28rem,calc(100vw - 16px));max-height:min(320px,60dvh);overflow:auto;overscroll-behavior:contain;margin-block:5px;padding:4px;border:1px solid var(--nite-border-soft);border-radius:10px;background:linear-gradient(var(--nite-surface),var(--nite-surface)),var(--nite-background);color:var(--nite-text-primary);box-shadow:0 8px 28px #0002;font-size:.875rem}
  .select option{color:var(--nite-text-primary);display:flex;align-items:center;gap:12px;min-height:32px;margin:0;padding:6px 9px;border:0;border-radius:0;background:transparent;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
  .select option:checked{color:var(--nite-text-primary);background:transparent;font-weight:600}
- .select option:hover:not(:disabled),.select option:focus{background-color:var(--nite-surface-subtle)}
- .select option:focus{color:var(--nite-brand-primary);background-color:var(--nite-surface-subtle);font-weight:600;outline:0}
+ .select option:hover:not(:disabled),.select option:focus{background-color:var(--nite-surface-subtle);border-radius:5px}
+ .select option:focus{color:var(--nite-text-primary);background-color:var(--nite-surface-subtle);font-weight:600;outline:0}
  .select option::checkmark{order:2;margin-left:auto;color:var(--nite-brand-primary)}
  .select option:disabled{color:var(--nite-text-muted);background:transparent;cursor:not-allowed}
 }

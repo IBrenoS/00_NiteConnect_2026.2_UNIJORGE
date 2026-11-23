@@ -55,6 +55,7 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V48 | [`V48__member_profile.sql`](V48__member_profile.sql) | B08.6A: atributos opcionais do cadastro de integrantes e referência à foto privada. |
 | V49 | [`V49__optional_institutional_role_reason.sql`](V49__optional_institutional_role_reason.sql) | B08.6B: motivo opcional em atribuições de papel e eventos MEMBER de concessão/revogação; os demais eventos continuam exigindo motivo. |
 | V50 | [`V50__invitations_and_last_access.sql`](V50__invitations_and_last_access.sql) | B08.7A: papel inicial, estado de envio Resend, vínculo Entra no aceite e último acesso efetivo. |
+| V51 | [`V51__project_creation_covers_and_request_history.sql`](V51__project_creation_covers_and_request_history.sql) | B09.1A: associação de capas ao armazenamento documental e histórico imutável de solicitações de participação, preservando estados e manifestações existentes. |
 
 ## Aplicação
 

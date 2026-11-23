@@ -21,7 +21,8 @@ public class ProjectDirectory {
             rs.getString("title"), rs.getString("description"), ProjectStatus.valueOf(rs.getString("status")),
             rs.getObject("starts_on", LocalDate.class), rs.getObject("ends_on", LocalDate.class),
             rs.getObject("proposal_id", UUID.class), rs.getObject("created_by", UUID.class), rs.getLong("version"),
-            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
+            rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
+            rs.getObject("cover_object_id", UUID.class) == null ? null : "/api/v1/project-catalog/" + rs.getObject("id", UUID.class) + "/image");
     private static final RowMapper<Participation> PARTICIPATION = (rs, row) -> new Participation(
             rs.getObject("id", UUID.class), rs.getObject("project_id", UUID.class), rs.getObject("member_id", UUID.class),
             rs.getString("responsibility"), rs.getTimestamp("started_at").toInstant(), rs.getObject("started_by", UUID.class),
@@ -64,11 +65,32 @@ public class ProjectDirectory {
                 PROJECT, args.toArray()), page, size, total);
     }
     public Project create(UUID actor, String title, String description, LocalDate startsOn, LocalDate endsOn, UUID proposal) {
+        return create(actor, title, description, startsOn, endsOn, proposal, ProjectStatus.PLANEJAMENTO);
+    }
+    public Project create(UUID actor, String title, String description, LocalDate startsOn, LocalDate endsOn, UUID proposal, ProjectStatus status) {
         validateData(title, description, startsOn, endsOn);
         UUID id = UUID.randomUUID();
-        jdbc.update("insert into nite_connect.projects(id,title,description,starts_on,ends_on,proposal_id,created_by) values (?,?,?,?,?,?,?)",
-                id, title.trim(), description.trim(), startsOn, endsOn, proposal, actor);
+        jdbc.update("insert into nite_connect.projects(id,title,description,starts_on,ends_on,proposal_id,created_by,status) values (?,?,?,?,?,?,?,?)",
+                id, title.trim(), description.trim(), startsOn, endsOn, proposal, actor, status.name());
         return require(id);
+    }
+    public UUID coverObject(UUID project) {
+        return jdbc.queryForObject("select cover_object_id from nite_connect.projects where id=?", UUID.class, project);
+    }
+    public String coverContentType(UUID project) {
+        return jdbc.queryForObject("select cover_content_type from nite_connect.projects where id=?", String.class, project);
+    }
+    public UUID replaceCover(UUID project, UUID objectId, String contentType, long version) {
+        UUID old = coverObject(project);
+        changed(jdbc.update("update nite_connect.projects set cover_object_id=?,cover_content_type=?,version=version+1,updated_at=clock_timestamp() where id=? and version=?",
+                objectId, contentType, project, version));
+        return old;
+    }
+    public UUID removeCover(UUID project, long version) {
+        UUID old = coverObject(project);
+        changed(jdbc.update("update nite_connect.projects set cover_object_id=null,cover_content_type=null,version=version+1,updated_at=clock_timestamp() where id=? and version=?",
+                project, version));
+        return old;
     }
     public Project update(UUID id, String title, String description, LocalDate startsOn, LocalDate endsOn, long version) {
         validateData(title, description, startsOn, endsOn);

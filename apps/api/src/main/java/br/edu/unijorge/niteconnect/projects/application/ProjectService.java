@@ -10,6 +10,14 @@ import br.edu.unijorge.niteconnect.projects.domain.ProjectStatus;
 import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
 import br.edu.unijorge.niteconnect.shared.security.AdministrativeTransactions;
+import br.edu.unijorge.niteconnect.documents.application.DocumentObjectStore;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import javax.imageio.ImageIO;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
@@ -26,10 +34,11 @@ public class ProjectService {
     private final MemberDirectory members;
     private final AuditTrail audit;
     private final AdministrativeTransactions transactions;
+    private final ObjectProvider<DocumentObjectStore> objectStores;
     public ProjectService(ProjectDirectory projects, AccessService access, ProjectAccess permissions, MemberDirectory members,
-                          AuditTrail audit, AdministrativeTransactions transactions) {
+                          AuditTrail audit, AdministrativeTransactions transactions, ObjectProvider<DocumentObjectStore> objectStores) {
         this.projects = projects; this.access = access; this.permissions = permissions; this.members = members;
-        this.audit = audit; this.transactions = transactions;
+        this.audit = audit; this.transactions = transactions; this.objectStores = objectStores;
     }
     @Transactional(readOnly=true)
     public PageResult<Project> list(UUID actor, boolean ownOnly, ProjectStatus status, int page, int size) {
@@ -40,20 +49,89 @@ public class ProjectService {
     public Project read(UUID actor, UUID id) { permissions.requireRead(actor, id); return projects.require(id); }
     @Transactional
     public Project create(UUID actor, String title, String description, LocalDate start, LocalDate end, String reason) {
+        return create(actor,title,description,start,end,ProjectStatus.PLANEJAMENTO,reason);
+    }
+    @Transactional
+    public Project create(UUID actor, String title, String description, LocalDate start, LocalDate end, ProjectStatus initialStatus, String reason) {
         transactions.lock(); access.requireAdministrator(actor);
-        return createRecorded(actor, title, description, start, end, null, reason);
+        if (initialStatus == null || initialStatus == ProjectStatus.CONCLUIDO) throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("Situação inicial inválida");
+        return createRecorded(actor, title, description, start, end, null, initialStatus, reason);
     }
     /** Explicit proposal-module integration contract; joins the caller's transaction and lock. */
     @Transactional(propagation=Propagation.MANDATORY)
     public Project fromProposal(UUID actor, UUID proposal, String title, String description, String reason) {
         transactions.lock(); access.requireAdministrator(actor);
-        return createRecorded(actor, title, description, null, null, proposal, reason);
+        return createRecorded(actor, title, description, null, null, proposal, ProjectStatus.PLANEJAMENTO, reason);
     }
-    private Project createRecorded(UUID actor, String title, String description, LocalDate start, LocalDate end, UUID proposal, String reason) {
-        Project result = projects.create(actor, title, description, start, end, proposal);
-        projects.recordStatus(actor, result.id(), null, result.status(), reason);
-        audit.recordEntity(actor, "PROJECT", result.id(), "PROJECT_CREATED", null, result.toString(), reason);
+    private Project createRecorded(UUID actor, String title, String description, LocalDate start, LocalDate end, UUID proposal, ProjectStatus status, String reason) {
+        Project result = projects.create(actor, title, description, start, end, proposal, status);
+        String recordedReason = reason == null || reason.isBlank() ? "Criação institucional de projeto" : reason;
+        projects.recordStatus(actor, result.id(), null, result.status(), recordedReason);
+        audit.recordEntity(actor, "PROJECT", result.id(), "PROJECT_CREATED", null, result.toString(), recordedReason);
         return result;
+    }
+
+    @Transactional
+    public Project createWithCover(UUID actor, String title, String description, LocalDate start, LocalDate end,
+                                   ProjectStatus initialStatus, byte[] image, String declaredType) {
+        Project created = create(actor,title,description,start,end,initialStatus,null);
+        return replaceCover(actor,created.id(),image,declaredType,created.version());
+    }
+
+    @Transactional
+    public Project replaceCover(UUID actor, UUID id, byte[] image, String declaredType, long version) {
+        transactions.lock(); permissions.requireManage(actor,id); Project project=projects.require(id); projects.checkVersion(project,version);
+        String type=imageType(image);
+        if(!type.equals(declaredType)) throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("O formato da imagem não corresponde ao arquivo");
+        validateImage(image);
+        DocumentObjectStore store=objectStore(); UUID fresh=UUID.randomUUID();
+        try { store.putAsset(fresh,image,type); }
+        catch(RuntimeException ex){store.deleteAssetOrphan(fresh);throw ex;}
+        UUID old;
+        try { old=projects.replaceCover(id,fresh,type,version); }
+        catch(RuntimeException ex){store.deleteAssetOrphan(fresh);throw ex;}
+        afterCoverCompletion(store,fresh,old);
+        audit.recordEntity(actor,"PROJECT",id,"PROJECT_COVER_REPLACED",old==null?null:old.toString(),fresh.toString(),"Imagem de capa atualizada");
+        return projects.require(id);
+    }
+
+    @Transactional
+    public Project removeCover(UUID actor,UUID id,long version) {
+        transactions.lock();permissions.requireManage(actor,id);Project project=projects.require(id);projects.checkVersion(project,version);
+        UUID old=projects.removeCover(id,version); if(old!=null) afterCoverCompletion(objectStore(),null,old);
+        audit.recordEntity(actor,"PROJECT",id,"PROJECT_COVER_REMOVED",old==null?null:old.toString(),null,"Imagem de capa removida");
+        return projects.require(id);
+    }
+
+    @Transactional(readOnly=true)
+    public CoverImage image(UUID actor,UUID id) {
+        access.requireActive(actor); projects.require(id); UUID object=projects.coverObject(id); if(object==null) throw br.edu.unijorge.niteconnect.shared.api.ApiException.notFound();
+        return new CoverImage(objectStore().getAsset(object),projects.coverContentType(id));
+    }
+    public record CoverImage(byte[] bytes,String contentType) {}
+
+    private DocumentObjectStore objectStore() {
+        DocumentObjectStore store=objectStores.getIfAvailable();
+        if(store==null) throw new br.edu.unijorge.niteconnect.shared.api.ApiException(HttpStatus.SERVICE_UNAVAILABLE,"Armazenamento de imagens indisponível");
+        return store;
+    }
+    private static String imageType(byte[] bytes) {
+        if(bytes==null||bytes.length==0||bytes.length>2*1024*1024) throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("Imagem deve ter até 2 MiB");
+        if(bytes.length>=3&&(bytes[0]&255)==255&&(bytes[1]&255)==216&&(bytes[2]&255)==255) return "image/jpeg";
+        if(bytes.length>=8&&(bytes[0]&255)==137&&bytes[1]==80&&bytes[2]==78&&bytes[3]==71&&bytes[4]==13&&bytes[5]==10&&bytes[6]==26&&bytes[7]==10) return "image/png";
+        throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("Use uma imagem JPEG ou PNG válida");
+    }
+    private static void validateImage(byte[] bytes) {
+        try(var input=ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            var readers=ImageIO.getImageReaders(input); if(!readers.hasNext()) throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("Imagem inválida");
+            var reader=readers.next(); try { reader.setInput(input,true,true); int w=reader.getWidth(0),h=reader.getHeight(0); if(w<1||h<1||w>4096||h>4096) throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("Imagem deve ter até 4096 pixels por lado"); }
+            finally {reader.dispose();}
+        } catch(IOException|IllegalArgumentException ex){throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("Imagem inválida");}
+    }
+    private static void afterCoverCompletion(DocumentObjectStore store,UUID fresh,UUID old) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){
+            @Override public void afterCompletion(int status){if(status==STATUS_COMMITTED&&old!=null)store.deleteAssetOrphan(old);if(status!=STATUS_COMMITTED&&fresh!=null)store.deleteAssetOrphan(fresh);}
+        });
     }
     @Transactional
     public Project update(UUID actor, UUID id, String title, String description, LocalDate start, LocalDate end, long version, String reason) {

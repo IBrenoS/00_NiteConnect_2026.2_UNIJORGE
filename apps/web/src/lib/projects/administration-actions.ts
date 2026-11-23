@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAuthenticatedNiteSession } from "../auth/server-session";
 import { mutateActivity } from "../activities/mutations";
+import { resolveApiUrl } from "../api/server";
+import { apiIssueFromStatus } from "../api/contracts";
 import { getProjectAuthority, getProjectWorkspace } from "./data";
 import { parseProjectDetails, validProjectDate, isProjectStatus, type ProjectDetails, type ProjectFields } from "./administration-contracts";
 import { projectIdPattern, type ProjectStatus } from "./integration-contracts";
@@ -19,7 +21,7 @@ function clean(v: ProjectFields): ProjectFields { return { title: v.title.trim()
 function refresh(id: string) {
  revalidatePath("/projetos"); revalidatePath(`/projetos/${id}`, "layout"); revalidatePath("/meus-projetos"); revalidatePath(`/meus-projetos/${id}`, "layout");
 }
-async function send<T = null>(bearer: string, path: string, method: "POST" | "PATCH" | "DELETE", body: unknown, id?: string, parse?: (value: unknown) => T | null): Promise<ProjectActionResult<T>> {
+async function send<T = null>(bearer: string, path: string, method: "POST" | "PATCH" | "PUT" | "DELETE", body: unknown, id?: string, parse?: (value: unknown) => T | null): Promise<ProjectActionResult<T>> {
  const result = await mutateActivity(path, bearer, method, body, parse);
  if (result.issue) return fail(result.issue === "too-large" || result.issue === "unsupported" ? "invalid" : result.issue === "project-paused" ? "conflict" : result.issue);
  if (parse && !result.data) return fail("invalid");
@@ -32,13 +34,60 @@ async function context(bearer: string, id: string, expectedVersion: number, capa
  if (!current.data.capabilities[capability]) return "access";
  return current.data.version !== expectedVersion ? "conflict" : null;
 }
-export async function createProjectAction(input: ProjectFields): Promise<ProjectActionResult<ProjectDetails>> {
+export type ProjectCreationFields = Omit<ProjectFields, "reason"> & { initialStatus: Exclude<ProjectStatus, "CONCLUIDO">; image: File | null };
+function validCover(image: File | null): boolean {
+ return image === null || (image instanceof File && image.size > 0 && image.size <= 2 * 1024 * 1024 && ["image/jpeg", "image/png"].includes(image.type));
+}
+function uploadIssue(status: number): ProjectMutationIssue {
+ if (status === 409) return "conflict";
+ if ([400, 413, 415, 422].includes(status)) return "invalid";
+ return apiIssueFromStatus(status);
+}
+async function createRequest(bearer: string, input: ProjectCreationFields): Promise<ProjectActionResult<ProjectDetails>> {
+ const url = resolveApiUrl("/api/v1/projects");
+ if (!url) return fail("unavailable");
+ const payload = { title: input.title.trim(), description: input.description.trim(), startsOn: input.startsOn, endsOn: input.endsOn, initialStatus: input.initialStatus };
+ let body: BodyInit;
+ const headers: Record<string, string> = { Authorization: `Bearer ${bearer}`, Accept: "application/json" };
+ if (input.image) {
+  const multipart = new FormData();
+  multipart.append("project", new Blob([JSON.stringify(payload)], { type: "application/json" }));
+  multipart.append("image", input.image, input.image.name || "capa");
+  body = multipart;
+ } else {
+  headers["Content-Type"] = "application/json";
+  body = JSON.stringify(payload);
+ }
+ try {
+  const response = await fetch(url, { method: "POST", headers, body, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(60_000) });
+  if (!response.ok) return fail(uploadIssue(response.status));
+  const project = parseProjectDetails(await response.json());
+  if (!project) return fail("invalid");
+  refresh(project.id);
+  return { data: project, issue: null, issueText: null };
+ } catch { return fail("unavailable"); }
+}
+export async function createProjectAction(input: ProjectCreationFields): Promise<ProjectActionResult<ProjectDetails>> {
  const session = await requireAuthenticatedNiteSession();
- if (!fields(input)) return fail("invalid");
+ if (!input || !text(input.title,200) || !text(input.description,10000) || !validProjectDate(input.startsOn) || !validProjectDate(input.endsOn) || (input.startsOn && input.endsOn && input.startsOn > input.endsOn) || !["PLANEJAMENTO", "ATIVO", "PAUSADO"].includes(input.initialStatus) || !validCover(input.image)) return fail("invalid");
  const authority = await getProjectAuthority(session.bearer);
  if (authority.issue) return fail(authority.issue);
  if (!authority.data.canCreate) return fail("access");
- return send(session.bearer,"/api/v1/projects","POST",clean(input),undefined,parseProjectDetails);
+ return createRequest(session.bearer, input);
+}
+export async function changeProjectCoverAction(id: string, expectedVersion: number, image: File | null): Promise<ProjectActionResult<ProjectDetails>> {
+ const session = await requireAuthenticatedNiteSession();
+ if (!projectIdPattern.test(id) || !version(expectedVersion) || !validCover(image)) return fail("invalid");
+ const issue = await context(session.bearer, id, expectedVersion, "canManageMembers"); if (issue) return fail(issue);
+ if (!image) return send(session.bearer, `/api/v1/projects/${id}/cover-image`, "DELETE", { expectedVersion }, id, parseProjectDetails);
+ const url = resolveApiUrl(`/api/v1/projects/${id}/cover-image`); if (!url) return fail("unavailable");
+ const multipart = new FormData(); multipart.append("image", image, image.name || "capa");
+ try {
+  const response = await fetch(`${url}?expectedVersion=${expectedVersion}`, { method: "PUT", headers: { Authorization: `Bearer ${session.bearer}`, Accept: "application/json" }, body: multipart, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(60_000) });
+  if (!response.ok) return fail(uploadIssue(response.status));
+  const project = parseProjectDetails(await response.json()); if (!project) return fail("invalid");
+  refresh(id); return { data: project, issue: null, issueText: null };
+ } catch { return fail("unavailable"); }
 }
 export async function updateProjectAction(id: string, input: ProjectFields & { expectedVersion: number }): Promise<ProjectActionResult<ProjectDetails>> {
  const session = await requireAuthenticatedNiteSession();
