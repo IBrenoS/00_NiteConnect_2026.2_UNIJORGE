@@ -21,12 +21,6 @@ public class MeetingsGraphConfiguration {
         return createTokenAcquirer(properties);
     }
 
-    @Bean("invitationDirectoryGraphTokenAcquirer")
-    GraphTokenAcquirer invitationDirectoryGraphTokenAcquirer(MeetingsGraphProperties properties) {
-        if (!properties.hasConfidentialClient()) return new UnavailableGraphTokenAcquirer("INVITATION_DIRECTORY_OBO_NOT_CONFIGURED");
-        return createTokenAcquirer(properties);
-    }
-
     private GraphTokenAcquirer createTokenAcquirer(MeetingsGraphProperties properties) {
         try {
             var credential = ClientCredentialFactory.createFromSecret(properties.getClientSecret());

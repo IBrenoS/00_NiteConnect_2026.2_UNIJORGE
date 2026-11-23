@@ -11,7 +11,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import br.edu.unijorge.niteconnect.identity.application.EntraRecipientDirectory;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -43,7 +42,6 @@ class IdentityBoundaryTest {
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
-    @MockitoBean EntraRecipientDirectory recipientDirectory;
     static final UUID TENANT = UUID.fromString("11111111-1111-4111-8111-111111111111");
     static final UUID ADMIN = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     static final UUID ADMIN_OID = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
@@ -162,7 +160,6 @@ class IdentityBoundaryTest {
     }
 
     UUID invite(UUID target, UUID oid) throws Exception {
-        org.mockito.Mockito.when(recipientDirectory.resolve(org.mockito.ArgumentMatchers.eq("invite-test@unijorge.com.br"), org.mockito.ArgumentMatchers.anyString())).thenReturn(oid);
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Convidado de teste\",\"institutionalEmail\":\"invite-test@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\"}"))
                 .andExpect(status().isCreated());
@@ -194,7 +191,6 @@ class IdentityBoundaryTest {
     @Test
     void identityAlreadyLinkedCannotBeInvitedForAnotherMember() throws Exception {
         UUID target = pending();
-        org.mockito.Mockito.when(recipientDirectory.resolve(org.mockito.ArgumentMatchers.eq("member-test@unijorge.com.br"), org.mockito.ArgumentMatchers.anyString())).thenReturn(MEMBER_OID);
         mvc.perform(post("/api/v1/invitations").with(token(ADMIN_OID)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Pessoa de teste\",\"institutionalEmail\":\"member-test@unijorge.com.br\",\"initialRole\":\"INTEGRANTE\",\"expiresAt\":\"" + java.time.Instant.now().plusSeconds(3600) + "\"}"))
                 .andExpect(status().isConflict());

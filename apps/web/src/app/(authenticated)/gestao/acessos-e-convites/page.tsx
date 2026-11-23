@@ -5,7 +5,6 @@ import { requireAuthenticatedNiteSession } from "../../../../lib/auth/server-ses
 import { getInvitations, invitationStates, invitationStatus, getMembers, type InvitationState } from "../../../../lib/access-management/data";
 import { roleLabel, statusLabel } from "../../../../lib/members/status";
 import { InvitationControls, RoleControls } from "../../../../components/access-management/controls";
-import { requestInvitationDirectoryConsent } from "../../../../lib/auth/actions";
 
 export const metadata = { title: "Acessos e convites" };
 type Params = Record<string, string | string[] | undefined>;
@@ -31,15 +30,6 @@ export default async function AccessManagementPage({ searchParams }: { searchPar
     <nav aria-label="Perspectivas" className="flex flex-wrap gap-2 border-b border-nite-border-soft pb-3">{tabs.map(item => <Link key={item.id} href={`/gestao/acessos-e-convites?tab=${item.id}`} aria-current={tab === item.id ? "page" : undefined}
       className={`rounded-control px-4 py-2 text-type-body-compact focus-visible:outline-3 focus-visible:outline-nite-focus ${tab === item.id ? "bg-nite-brand-soft font-semibold text-nite-brand-primary" : "text-nite-text-secondary hover:bg-nite-surface-subtle"}`}>{item.label}</Link>)}</nav>
     {tab === "convites" ? <>
-      <section className="flex flex-wrap items-end justify-between gap-4 rounded-panel border border-nite-border-soft bg-nite-surface-subtle p-4">
-        <div className="max-w-3xl"><h2 className="font-semibold text-nite-text-primary">Acesso ao diretório Microsoft</h2>
-          <p className="mt-1 text-type-body-compact text-nite-text-secondary">Autorize uma vez por gestor a consulta de ID, e-mail e UPN básicos para validar a identidade institucional do destinatário. A permissão é delegada e respeita o acesso do usuário autenticado.</p></div>
-        <form action={requestInvitationDirectoryConsent}><Button size="compact" type="submit">Autorizar no Microsoft</Button></form>
-      </section>
-      {one(params.directoryConsent) === "granted" ? <p role="status" className="text-type-body-compact text-status-success">Consentimento concluído para esta conta Microsoft. A consulta ao diretório está pronta para convites.</p> : null}
-      {one(params.directoryConsent) === "denied" ? <p role="alert" className="text-type-body-compact text-status-error">O Microsoft Entra não registrou o consentimento. Verifique a política de consentimento do tenant ou solicite aprovação.</p> : null}
-      {one(params.directoryConsent) === "invalid" ? <p role="alert" className="text-type-body-compact text-status-error">O retorno do consentimento expirou ou não pôde ser validado. Inicie a autorização novamente.</p> : null}
-      {one(params.directoryConsent) === "configuration" ? <p role="alert" className="text-type-body-compact text-status-error">A configuração do consentimento Microsoft está incompleta neste ambiente.</p> : null}
       <div className="flex flex-wrap items-end justify-between gap-4"><FilterToolbar compact action="/gestao/acessos-e-convites" method="get" className="border-b border-nite-border-soft pb-4"><input type="hidden" name="tab" value="convites" />
         <label className="grid gap-1 text-type-metadata text-nite-text-secondary">Nome ou e-mail<SearchField name="q" defaultValue={q} maxLength={160} /></label>
         <label className="grid gap-1 text-type-metadata text-nite-text-secondary">Situação<FilterSelect name="state" defaultValue={state}>

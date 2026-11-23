@@ -33,7 +33,6 @@ async function mutate(path: string, method: "POST" | "DELETE", body?: object): P
       if (text.includes("lideranças vigentes")) return { ok: false, message: "Transfira ou encerre as lideranças de projeto vigentes antes de revogar este papel." };
       if (text.includes("janela de repetição")) return { ok: false, message: "O resultado do envio é incerto. Revogue este convite e crie outro." };
       if (text.includes("convite pendente")) return { ok: false, message: "Já existe um convite pendente para este e-mail." };
-      if (text.includes("Destinatário")) return { ok: false, message: "Não foi possível confirmar um destinatário institucional único no diretório Microsoft." };
       return { ok: false, message: "O registro mudou ou a operação não é permitida no estado atual. Atualize a página." };
     }
     return { ok: false, message: response.status >= 500 ? "Falha temporária do serviço. Tente novamente." : "Confira os dados e tente novamente." };

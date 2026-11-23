@@ -5,7 +5,6 @@ import br.edu.unijorge.niteconnect.access.domain.GlobalRole;
 import br.edu.unijorge.niteconnect.audit.application.AuditTrail;
 import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryService;
 import br.edu.unijorge.niteconnect.identity.application.EntraProperties;
-import br.edu.unijorge.niteconnect.identity.application.EntraRecipientDirectory;
 import br.edu.unijorge.niteconnect.identity.application.IdentityDirectory;
 import br.edu.unijorge.niteconnect.members.domain.Member;
 import br.edu.unijorge.niteconnect.members.domain.MemberStatus;
@@ -33,7 +32,6 @@ public class InvitationService {
     private final AccessService access;
     private final IdentityDirectory identities;
     private final EntraProperties entra;
-    private final EntraRecipientDirectory recipientDirectory;
     private final AuditTrail audit;
     private final AdministrativeTransactions transactions;
     private final ObjectProvider<DocumentLibraryService> documentLibrary;
@@ -51,26 +49,23 @@ public class InvitationService {
             rs.getString("send_error_code"), rs.getTimestamp("last_send_at") == null ? null : rs.getTimestamp("last_send_at").toInstant());
 
     public InvitationService(JdbcTemplate jdbc, MemberDirectory members, MemberAdministration administration,
-            AccessService access, IdentityDirectory identities, EntraProperties entra, EntraRecipientDirectory recipientDirectory, AuditTrail audit,
+            AccessService access, IdentityDirectory identities, EntraProperties entra, AuditTrail audit,
             AdministrativeTransactions transactions, ObjectProvider<DocumentLibraryService> documentLibrary,
             InvitationMailSender mail) {
         this.jdbc=jdbc; this.members=members; this.administration=administration; this.access=access;
-        this.identities=identities; this.entra=entra; this.recipientDirectory=recipientDirectory; this.audit=audit; this.transactions=transactions;
+        this.identities=identities; this.entra=entra; this.audit=audit; this.transactions=transactions;
         this.documentLibrary=documentLibrary; this.mail=mail;
     }
 
     @Transactional
-    public Invitation create(UUID actor, String name, String email, InitialRole role, Instant expiresAt, String message,
-            String apiAccessToken) {
+    public Invitation create(UUID actor, String name, String email, InitialRole role, Instant expiresAt, String message) {
         access.requireAdministrator(actor);
         MemberDirectory.validate(name, email);
         if (role == null || expiresAt == null || !expiresAt.isAfter(Instant.now()))
             throw ApiException.invalid("Papel e expiração futura são obrigatórios");
         String normalized = MemberDirectory.normalizeEmail(email);
-        UUID object = recipientDirectory.resolve(normalized, apiAccessToken);
         transactions.lock(); access.requireAdministrator(actor);
         if (!expiresAt.isAfter(Instant.now())) throw ApiException.invalid("Expiração deve ser futura");
-        if (identities.identityExists(entra.tenantId(), object)) throw ApiException.conflict("Identidade já vinculada");
         Member member = jdbc.query("select id from nite_connect.members where institutional_email=?",
                 (rs, row) -> members.require(rs.getObject(1, UUID.class)), normalized).stream().findFirst().orElse(null);
         if (member == null) {
@@ -87,7 +82,7 @@ public class InvitationService {
         jdbc.update("update nite_connect.invitations set revoked_at=current_timestamp where member_id=? and accepted_at is null and revoked_at is null and expires_at<=current_timestamp", member.id());
         UUID id = UUID.randomUUID();
         jdbc.update("insert into nite_connect.invitations(id,member_id,tenant_id,object_id,created_by,expires_at,initial_role,message) values (?,?,?,?,?,?,?,?)",
-                id, member.id(), entra.tenantId(), object, actor, Timestamp.from(expiresAt), role.name(), message);
+                id, member.id(), entra.tenantId(), null, actor, Timestamp.from(expiresAt), role.name(), message);
         audit.record(actor, member.id(), "INVITATION_CREATED", null, id.toString(), "Convite institucional criado");
         return require(id);
     }
@@ -139,8 +134,9 @@ public class InvitationService {
         Invitation invitation = require(id);
         UUID tenant = identities.tenant(jwt), object = identities.object(jwt);
         if (!entra.tenantId().equals(tenant) || !invitation.tenantId().equals(tenant)) throw ApiException.notFound();
-        if (!invitation.objectId().equals(object)) throw ApiException.notFound();
+        if (invitation.objectId() != null && !invitation.objectId().equals(object)) throw ApiException.notFound();
         Member member = members.require(invitation.memberId());
+        if (invitation.objectId() == null && !matchesInvitedEmail(jwt, invitation.email())) throw ApiException.notFound();
         if (invitation.acceptedAt() != null) {
             if (member.status() != MemberStatus.ATIVO || identities.memberForIdentity(tenant, object).filter(member.id()::equals).isEmpty())
                 throw ApiException.forbidden();
@@ -178,6 +174,14 @@ public class InvitationService {
     private Invitation require(UUID id) {
         return jdbc.query("select i.*,m.name,m.institutional_email from nite_connect.invitations i join nite_connect.members m on m.id=i.member_id where i.id=?", MAPPER, id)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
+    }
+
+    private boolean matchesInvitedEmail(Jwt jwt, String invitedEmail) {
+        for (String claim : java.util.List.of("email", "preferred_username", "upn")) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.contains("#EXT#") && invitedEmail.equalsIgnoreCase(value.strip())) return true;
+        }
+        return false;
     }
 
     public enum InitialRole { INTEGRANTE, GESTOR_PROJETO, GESTOR_GERAL, COORDENADOR }

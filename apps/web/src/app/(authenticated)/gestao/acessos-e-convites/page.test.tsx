@@ -8,7 +8,6 @@ vi.mock("../../../../lib/access-management/data", () => ({
   invitationStatus: () => "Pendente",
 }));
 vi.mock("../../../../components/access-management/controls", () => ({ InvitationControls: () => null, RoleControls: () => null }));
-vi.mock("../../../../lib/auth/actions", () => ({ requestInvitationDirectoryConsent: vi.fn() }));
 import Page from "./page";
 
 beforeEach(() => {
@@ -23,6 +22,7 @@ describe("perspectivas administrativas", () => {
     expect(mocks.invitations).toHaveBeenCalledWith("private-bearer", "PENDING", 0, "Ana");
     expect(html).toContain("Aceito pelo provedor; entrega não confirmada");
     expect(html).toContain("Gestor de projeto");
+    expect(html).not.toContain("Autorizar no Microsoft");
     expect(html).not.toContain("private-bearer");
   });
   it("distingue falta de último acesso de falha da consulta", async () => {

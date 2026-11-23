@@ -41,7 +41,7 @@ export function InvitationControls({ invitation, active = false }: { invitation?
       {!invitation.acceptedAt && !invitation.revokedAt ? <Button size="compact" type="button" variant="destructive" disabled={busy} onClick={() => setConfirm(true)}>Revogar</Button> : null}</>
       : <Button size="compact" type="button" onClick={() => setOpen(true)}>Novo convite</Button>}
     {feedback && <span role="status" className="max-w-72 text-type-metadata text-nite-text-secondary">{feedback}</span>}
-    <DialogFrame open={open} onOpenChange={setOpen} title="Novo convite" description="O destinatário será identificado no diretório Microsoft pelo servidor. A validade é de sete dias."
+    <DialogFrame open={open} onOpenChange={setOpen} title="Novo convite" description="O destinatário receberá um link para entrar com o e-mail institucional. A validade é de sete dias."
       footer={<><Button size="compact" type="button" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button><Button size="compact" type="button" loading={busy} onClick={() => void create()}>Criar e enviar</Button></>}>
       <div className="grid gap-4"><label className="grid gap-1 text-type-metadata">Nome<input className={field} value={name} onChange={event => setName(event.target.value)} maxLength={160} required /></label>
         <label className="grid gap-1 text-type-metadata">E-mail institucional<input className={field} type="email" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} required /></label>

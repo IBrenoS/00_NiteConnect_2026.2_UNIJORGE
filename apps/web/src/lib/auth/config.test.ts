@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { invitationDirectoryConsentRequest, isAuthConfigured, meetingsGraphConsentScope } from "./config";
+import { isAuthConfigured, meetingsGraphConsentScope } from "./config";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -45,18 +45,5 @@ describe("meetingsGraphConsentScope", () => {
   it.each([undefined, "", "not-a-scope", "api://resource/access_as_user?next=evil", "api://resource/"])(
     "rejeita configuração inválida (%s)",
     (scope) => expect(meetingsGraphConsentScope(scope)).toBeNull(),
-  );
-});
-
-describe("invitationDirectoryConsentRequest", () => {
-  it("usa o ID do registro da API e somente o escopo Graph de perfil básico", () => {
-    expect(invitationDirectoryConsentRequest("api://22222222-2222-4222-8222-222222222222/access_as_user"))
-      .toEqual({ clientId: "22222222-2222-4222-8222-222222222222", scope: "https://graph.microsoft.com/User.ReadBasic.All" });
-  });
-
-  it.each([undefined, "https://api.example.edu/nite/access_as_user", "api://not-a-guid/access_as_user", "api://22222222-2222-4222-8222-222222222222/"])(
-    "recusa escopo API não suportado: %s", (scope) => {
-      expect(invitationDirectoryConsentRequest(scope)).toBeNull();
-    },
   );
 });
