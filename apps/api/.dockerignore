@@ -1,5 +1,6 @@
 **
 !Dockerfile
+!start.sh
 !pom.xml
 !src/
 !src/**

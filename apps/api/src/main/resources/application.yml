@@ -4,7 +4,7 @@ spring:
   application:
     name: nite-connect-api
   datasource:
-    url: ${DB_URL:jdbc:${DATABASE_URL:postgresql://localhost:${DB_PORT:5432}/${DB_NAME:niteconnect}}}
+    url: ${DB_URL:jdbc:postgresql://localhost:${DB_PORT:5432}/${DB_NAME:niteconnect}}
     username: ${DB_USERNAME:niteconnect}
     password: ${DB_PASSWORD}
   jpa:
