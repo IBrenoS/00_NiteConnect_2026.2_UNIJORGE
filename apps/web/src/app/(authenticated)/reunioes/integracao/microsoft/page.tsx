@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { auth } from "../../../../auth";
-import { requestMeetingsGraphConsent } from "../../../lib/auth/actions";
+import { auth } from "../../../../../../auth";
+import { requestMeetingsGraphConsent } from "@/lib/auth/actions";
 
 export const dynamic = "force-dynamic";
 

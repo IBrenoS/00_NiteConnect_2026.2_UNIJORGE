@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ApiIssue, ApiResult } from "../../lib/api/contracts";
 import type { DashboardContext, DashboardEvolution, DashboardOverview } from "../../lib/dashboard/overview-contracts";
-import styles from "../../app/dev/dashboard-preview/preview.module.css";
+import styles from "./dashboard-overview.module.css";
 
 type Context = "personal" | "institutional";
 type Period = "7" | "30" | "90";

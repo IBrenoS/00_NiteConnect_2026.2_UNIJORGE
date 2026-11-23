@@ -30,7 +30,7 @@ export async function requestMeetingsGraphConsent(): Promise<void> {
 
   await signIn(
     "microsoft-entra-id",
-    { redirectTo: "/dev/meetings-graph-consent/calendar" },
+    { redirectTo: "/reunioes/integracao/microsoft/calendario" },
     { scope: `openid ${scope}` },
   );
 }

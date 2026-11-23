@@ -3,7 +3,7 @@ import { meetingGraphHelpHref } from "./graph-help-link";
 
 describe("meetingGraphHelpHref", () => {
   it.each(["localhost:3000", "127.0.0.1:3000", "[::1]:3000"])("exposes the approved diagnostic only on local development host %s", (host) => {
-    expect(meetingGraphHelpHref("development", host)).toBe("/dev/meetings-graph-consent/calendar");
+    expect(meetingGraphHelpHref("development", host)).toBe("/reunioes/integracao/microsoft");
   });
 
   it.each([

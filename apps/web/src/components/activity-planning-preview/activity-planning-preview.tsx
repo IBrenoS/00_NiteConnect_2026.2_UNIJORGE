@@ -91,7 +91,7 @@ function ScreenPicker({ active, planningId }: { active: Screen; planningId: numb
   </nav>;
 }
 
-export function PlanningCard({ planning, href, stats }: { planning: Planning; href: string; stats?: import("../../lib/activities/contracts").ActivityStatistics | null }) {
+export function PlanningCard({ planning, href, stats }: { planning: Planning; href: string; stats?: Pick<import("../../lib/activities/contracts").ActivityStatistics, "total" | "completed" | "inProgress" | "completionRate"> | null }) {
   const count = stats === null ? null : stats?.total ?? planning.tasks.length;
   const done = stats === null ? null : stats?.completed ?? planning.tasks.filter((task) => task.status === "Concluída").length;
   const active = stats === null ? null : stats?.inProgress ?? planning.tasks.filter((task) => task.status === "Em andamento").length;

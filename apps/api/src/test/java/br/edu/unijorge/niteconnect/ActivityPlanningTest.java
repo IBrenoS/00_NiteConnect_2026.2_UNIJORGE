@@ -12,6 +12,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ActivityPlanningTest extends ActivityTestSupport {
+    @Test void personalActivityItemsReturnsAnEmptyPageForAnActiveMemberWithoutActivities() throws Exception {
+        mvc.perform(get("/api/v1/me/activity-items").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0)).andExpect(jsonPath("$.total").value(0));
+    }
+
     private UUID planning(UUID actor, String projectJson) throws Exception {
         String body = "{\"title\":\"Plano\"" + (projectJson == null ? "" : ",\"projectId\":" + projectJson) + "}";
         mvc.perform(post("/api/v1/activity-plannings").with(token(actor)).contentType("application/json").content(body))
@@ -36,6 +41,7 @@ class ActivityPlanningTest extends ActivityTestSupport {
         jdbc.update("update nite_connect.members set status='AFASTADO' where id=?", MEMBER);
         for (UUID actor : java.util.List.of(MEMBER, UUID.randomUUID())) {
             mvc.perform(get("/api/v1/activity-plannings").with(token(actor))).andExpect(status().isForbidden());
+            mvc.perform(get("/api/v1/me/activity-items").with(token(actor))).andExpect(status().isForbidden());
             mvc.perform(post("/api/v1/activity-plannings").with(token(actor)).contentType("application/json")
                     .content("{\"title\":\"Bloqueado\"}")).andExpect(status().isForbidden());
         }
@@ -58,6 +64,59 @@ class ActivityPlanningTest extends ActivityTestSupport {
                 .andExpect(jsonPath("$.completionRate").value(0));
     }
 
+    @Test void personalActivityItemsPagePlansAndUnplannedTasksWithoutDuplicatingVisibleTasks() throws Exception {
+        UUID plan=planning(MEMBER,null);
+        mvc.perform(post("/api/v1/activity-plannings/"+plan+"/tasks").with(token(MEMBER)).contentType("application/json")
+                .content("{\"title\":\"Tarefa no plano\",\"expectedVersion\":0}"))
+                .andExpect(status().isCreated());
+        UUID unplanned=activity(MEMBER,null,MEMBER);
+
+        mvc.perform(get("/api/v1/me/activity-items").with(token(MEMBER)).param("page","0").param("size","20"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[?(@.kind == 'PLANNING')].taskCount").value(org.hamcrest.Matchers.contains(1)))
+                .andExpect(jsonPath("$.items[?(@.kind == 'TASK')].id").value(org.hamcrest.Matchers.contains(unplanned.toString())));
+        mvc.perform(get("/api/v1/me/activity-items").with(token(MEMBER)).param("page","0").param("size","1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2)).andExpect(jsonPath("$.items.length()").value(1));
+        mvc.perform(get("/api/v1/me/activity-items").with(token(MEMBER)).param("page","1").param("size","1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2)).andExpect(jsonPath("$.items.length()").value(1));
+        mvc.perform(get("/api/v1/me/activity-items").with(token(MEMBER)).param("q","Tarefa no plano"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].kind").value("PLANNING"));
+    }
+
+    @Test void assignedTaskInUnreadablePlanningAppearsAsItsCanonicalTask() throws Exception {
+        UUID plan=planning(MEMBER,null);
+        mvc.perform(post("/api/v1/activity-plannings/"+plan+"/tasks").with(token(MEMBER)).contentType("application/json")
+                .content("{\"title\":\"Atribuída diretamente\",\"primaryExecutorId\":\""+OTHER+"\",\"expectedVersion\":0}"))
+                .andExpect(status().isCreated());
+        UUID task=jdbc.queryForObject("select id from nite_connect.activities where planning_id=?",UUID.class,plan);
+        mvc.perform(get("/api/v1/me/activity-items").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].kind").value("TASK"))
+                .andExpect(jsonPath("$.items[0].id").value(task.toString()))
+                .andExpect(jsonPath("$.items[0].planningId").value(plan.toString()));
+    }
+
+    @Test void personalActivityItemsApplyProjectScopeAndReturnTheRealProjectName() throws Exception {
+        UUID project=activeProject();
+        String title=jdbc.queryForObject("select title from nite_connect.projects where id=?",String.class,project);
+        UUID plan=planning(LEADER,"\""+project+"\"");
+        mvc.perform(post("/api/v1/activity-plannings/"+plan+"/tasks").with(token(LEADER)).contentType("application/json")
+                .content("{\"title\":\"Tarefa do projeto\",\"primaryExecutorId\":\""+MEMBER+"\",\"expectedVersion\":0}"))
+                .andExpect(status().isCreated());
+        mvc.perform(get("/api/v1/me/activity-items").with(token(LEADER)).param("projectId",project.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].projectTitle").value(title));
+        mvc.perform(get("/api/v1/me/activity-items").with(token(MEMBER)).param("projectId",project.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].kind").value("PLANNING"))
+                .andExpect(jsonPath("$.items[0].projectTitle").value(title));
+        UUID inaccessibleProject=project();
+        mvc.perform(get("/api/v1/me/activity-items").with(token(MEMBER)).param("projectId",inaccessibleProject.toString()))
+                .andExpect(status().isNotFound());
+    }
+
     @Test void taskStatusCanMoveRepeatedlyInEitherDirectionWithVersionChecks() throws Exception {
         UUID id=activity(MEMBER,null,MEMBER);
         for(String status:new String[]{"CONCLUIDA","EM_EXECUCAO","PLANEJADA","EM_EXECUCAO","CONCLUIDA"}) {
@@ -66,6 +125,8 @@ class ActivityPlanningTest extends ActivityTestSupport {
                     .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(status));
         }
         assertThat(av(id)).isEqualTo(5);
+        mvc.perform(get("/api/v1/activities/"+id).with(token(MEMBER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONCLUIDA"));
     }
 
     @Test void deletingPlanningDetachesTasksWithoutDeletingThirdPartyTaskData() throws Exception {
@@ -87,6 +148,10 @@ class ActivityPlanningTest extends ActivityTestSupport {
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.activity_assignments where activity_id=?",Integer.class,task)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.activity_evidence where id=? and activity_id=?",Integer.class,evidence,task)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.activity_events where activity_id=? and action='PLANNING_DETACHED'",Integer.class,task)).isEqualTo(1);
+        mvc.perform(get("/api/v1/me/activity-items").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].kind").value("TASK"))
+                .andExpect(jsonPath("$.items[0].id").value(task.toString()));
     }
 
     @Test void projectPlanningCannotBeReadByNonParticipantAndNewTasksInheritProjectScope() throws Exception {

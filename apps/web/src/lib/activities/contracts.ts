@@ -11,6 +11,7 @@ export type Activity = {
 };
 export type Page<T> = { items: T[]; page: number; size: number; total: number };
 export type ActivityPlanning = { id: string; title: string; description: string; projectId: string | null; createdBy: string; version: number; createdAt: string; updatedAt: string; canEdit: boolean; canCreateTasks: boolean; canDelete: boolean };
+export type PersonalActivityItem = { kind: "PLANNING" | "TASK"; id: string; title: string; description: string; projectId: string | null; projectTitle: string | null; planningId: string | null; createdBy: string; version: number; createdAt: string; updatedAt: string; status: ActivityStatus | null; startOn: string | null; dueOn: string | null; priority: ActivityPriority | null; taskCount: number; completedCount: number; inProgressCount: number; completionRate: number; canDelete: boolean };
 export type ActivityPlanningCapabilities = { canRead: boolean; canEdit: boolean; canCreateTasks: boolean; canDelete: boolean; version: number };
 export type ActivityStatistics = { total: number; planned: number; inProgress: number; completed: number; cancelled: number; overdue: number; completionDenominator: number; plannedRate: number; inProgressRate: number; completedRate: number; cancelledRate: number; completionRate: number };
 export type ActivityCapabilities = { edit: boolean; changePriority: boolean; canDelete: boolean; transitions: ActivityStatus[]; history: boolean; manageAssignees: boolean; addEvidence: boolean; upload: boolean; executionBlockedByProjectPause?: boolean; canResumeProject?: boolean };
@@ -29,6 +30,8 @@ export type ProjectSummary = { id: string; title: string };
 const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const nullableString = (v: unknown): v is string | null => v === null || typeof v === "string";
 const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+const activityStatus = (value: unknown): value is ActivityStatus => typeof value === "string" && activityStatuses.some((candidate) => candidate === value);
+const activityPriority = (value: unknown): value is ActivityPriority => typeof value === "string" && activityPriorities.some((candidate) => candidate === value);
 export function parseActivityCapabilities(value: unknown): ActivityCapabilities | null {
   if (!record(value)) return null;
   const { edit, changePriority, canDelete, transitions, history, manageAssignees, addEvidence, upload, executionBlockedByProjectPause, canResumeProject } = value;
@@ -82,6 +85,17 @@ export function parseActivityStatistics(value: unknown): ActivityStatistics | nu
 
 export function parseActivityPlanningPage(value: unknown): Page<ActivityPlanning> | null {
   return parsePage(value, parseActivityPlanning);
+}
+
+export function parsePersonalActivityItem(value: unknown): PersonalActivityItem | null {
+  if (!record(value)) return null;
+  const { kind, id, title, description, projectId, projectTitle, planningId, createdBy, version, createdAt, updatedAt, status, startOn, dueOn, priority, taskCount, completedCount, inProgressCount, completionRate, canDelete } = value;
+  if ((kind !== "PLANNING" && kind !== "TASK") || typeof id !== "string" || typeof title !== "string" || typeof description !== "string" || !nullableString(projectId) || !nullableString(projectTitle) || !nullableString(planningId) || typeof createdBy !== "string" || !count(version) || typeof createdAt !== "string" || typeof updatedAt !== "string" || !(status === null || activityStatus(status)) || !nullableString(startOn) || !nullableString(dueOn) || !(priority === null || activityPriority(priority)) || !count(taskCount) || !count(completedCount) || !count(inProgressCount) || typeof completionRate !== "number" || !Number.isFinite(completionRate) || completionRate < 0 || completionRate > 100 || typeof canDelete !== "boolean") return null;
+  if ((kind === "PLANNING" && (status !== null || planningId !== null)) || (kind === "TASK" && status === null)) return null;
+  return { kind, id, title, description, projectId, projectTitle, planningId, createdBy, version, createdAt, updatedAt, status, startOn, dueOn, priority, taskCount, completedCount, inProgressCount, completionRate, canDelete };
+}
+export function parsePersonalActivityItemPage(value: unknown): Page<PersonalActivityItem> | null {
+  return parsePage(value, parsePersonalActivityItem);
 }
 
 export function parseActivityAssignee(value: unknown): ActivityAssignee | null {

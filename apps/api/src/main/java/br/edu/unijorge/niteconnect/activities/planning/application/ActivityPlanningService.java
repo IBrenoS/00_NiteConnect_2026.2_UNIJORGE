@@ -16,6 +16,7 @@ import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
 import br.edu.unijorge.niteconnect.shared.security.AdministrativeTransactions;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -51,6 +52,17 @@ public class ActivityPlanningService {
 
     @Transactional(readOnly=true) public PageResult<View> list(UUID actor,UUID projectId,String query,int page,int size) {
         return listScoped(actor,projectId,query,page,size,true);
+    }
+
+    @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ) public PageResult<PersonalItem> personalItems(UUID actor,UUID projectId,String query,int page,int size) {
+        access.requireActive(actor);
+        if(query!=null&&(query.strip().length()<2||query.strip().length()>160)) throw ApiException.invalid("Pesquisa deve conter de 2 a 160 caracteres");
+        if(projectId!=null) projectAccess.requireRead(actor,projectId);
+        var result=plannings.personalItems(actor,access.isAdministrator(actor),projectAccessProjectIds(actor),projectId,query,page,size);
+        return new PageResult<>(result.items().stream().map(item->new PersonalItem(item.kind(),item.id(),item.title(),item.description(),item.projectId(),item.projectTitle(),item.planningId(),
+                item.createdBy(),item.version(),item.createdAt(),item.updatedAt(),item.status()==null?null:br.edu.unijorge.niteconnect.activities.domain.ActivityStatus.valueOf(item.status()),
+                item.startOn(),item.dueOn(),item.priority(),item.taskCount(),item.completedCount(),item.inProgressCount(),item.completionRate(),
+                item.kind().equals("PLANNING")&&item.createdBy().equals(actor))).toList(),page,size,result.total());
     }
 
     @Transactional(readOnly=true) public PageResult<View> administrativeList(UUID actor,UUID projectId,String query,int page,int size) {

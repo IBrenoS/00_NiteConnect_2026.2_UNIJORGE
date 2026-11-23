@@ -51,7 +51,7 @@ export function PlanningDeleteMenu({ id, version, title, canDelete, leaveWorkspa
       title="Excluir esta atividade?" description="O planejamento será excluído permanentemente. Esta ação não pode ser desfeita."
       confirmLabel="Excluir atividade" pending={pending} onConfirm={() => void remove()} className="max-w-md">
       <p className="break-words font-medium text-nite-text-primary">{title}</p>
-      <p className="mt-3 text-type-body-compact text-nite-text-secondary">As tarefas serão desvinculadas e continuarão disponíveis em Minhas tarefas, com seu histórico e suas evidências.</p>
+      <p className="mt-3 text-type-body-compact text-nite-text-secondary">As tarefas serão desvinculadas e continuarão disponíveis em Minhas atividades, com seu histórico e suas evidências.</p>
       {error ? <TransientFeedback messageKey={error} onDismiss={() => setError(null)}><p role="alert" className="mt-4 text-type-body-compact text-status-error">{error}</p></TransientFeedback> : null}
     </AlertDialog>
   </>;

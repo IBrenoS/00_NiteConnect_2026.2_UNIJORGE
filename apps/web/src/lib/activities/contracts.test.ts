@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseActivityHistoryEvent, parsePage, parseActivityPage, parseActivityCapabilities, parseActivityPlanning, parseActivityPlanningCapabilities, parseActivityStatistics } from "./contracts";
+import { parseActivityHistoryEvent, parsePage, parseActivityPage, parseActivityCapabilities, parseActivityPlanning, parseActivityPlanningCapabilities, parseActivityStatistics, parsePersonalActivityItemPage } from "./contracts";
 
 const activity = { id: "a", title: "Atividade", description: "Descrição", projectId: null, planningId: null, status: "PLANEJADA", startOn: null, dueOn: null, priority: null, primaryExecutorId: "m", primaryExecutorName: "Pessoa", executorAvailable: true, createdBy: "m", version: 0, createdAt: "2026-10-31T00:00:00Z", updatedAt: "2026-10-31T00:00:00Z", completedAt: null, deadlinePassed: false, overdue: false, attentionRequired: false };
 
@@ -23,6 +23,12 @@ describe("activity API contract", () => {
   });
   it("preserves independent activities and the API overdue condition", () => {
     expect(parseActivityPage({ items: [{ ...activity, overdue: true }], page: 0, size: 20, total: 1 })?.items[0]).toMatchObject({ projectId: null, status: "PLANEJADA", overdue: true });
+  });
+  it("validates the unified personal activity card projection", () => {
+    const planning = { kind: "PLANNING", id: "planning-1", title: "Plano", description: "", projectId: null, projectTitle: null, planningId: null, createdBy: "m", version: 1, createdAt: "2026-11-17T12:00:00Z", updatedAt: "2026-11-17T12:00:00Z", status: null, startOn: null, dueOn: null, priority: null, taskCount: 2, completedCount: 1, inProgressCount: 1, completionRate: 50, canDelete: true };
+    const task = { ...planning, kind: "TASK", id: "task-1", title: "Tarefa", planningId: "planning-hidden", status: "EM_EXECUCAO", taskCount: 0, completedCount: 0, inProgressCount: 0, completionRate: 0, canDelete: false };
+    expect(parsePersonalActivityItemPage({ items: [planning, task], page: 0, size: 20, total: 2 })?.items).toEqual([planning, task]);
+    expect(parsePersonalActivityItemPage({ items: [{ ...task, planningId: "planning-hidden", status: null }], page: 0, size: 20, total: 1 })).toBeNull();
   });
   it("rejects unknown statuses and malformed pagination", () => {
     expect(parseActivityPage({ items: [{ ...activity, status: "ATRASADA" }], page: 0, size: 20, total: 1 })).toBeNull();

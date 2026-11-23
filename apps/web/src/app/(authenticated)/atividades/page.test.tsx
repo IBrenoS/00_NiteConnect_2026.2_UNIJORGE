@@ -2,65 +2,66 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getActivityPlannings: vi.fn(), getActivityPlanningStats: vi.fn(), getAllMyProjects: vi.fn(), getAllProjects: vi.fn(),
-  getProjectSummary: vi.fn(), getMyActivities: vi.fn(), getMyActivityStats: vi.fn(),
+  getPersonalActivityItems: vi.fn(), getAllMyProjects: vi.fn(), redirect: vi.fn(),
 }));
 
 vi.mock("../../../lib/auth/server-session", () => ({
   requireAuthenticatedNiteSession: vi.fn(async () => ({ bearer: "server-only", member: { id: "member-1" }, roles: [] })),
 }));
 vi.mock("../../../lib/activities/data", () => mocks);
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect, useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 vi.mock("../../../components/activities/activity-detail", () => ({ ActivityFeedback: () => null }));
 vi.mock("../../../components/activities/activity-planning-filters", () => ({ ActivityPlanningFilters: () => <div>Filtros reais</div> }));
 
 vi.mock("../../../lib/activities/planning-actions", () => ({ deletePlanningAction: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 import ActivitiesPage from "./page";
 
 const planning = {
-  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Plano autorizado", description: "Descrição real", projectId: null,
-  createdBy: "member-1", version: 1, createdAt: "2026-11-17T12:00:00Z", updatedAt: "2026-11-17T12:00:00Z",
-  canEdit: true, canCreateTasks: true, canDelete: true,
+  kind: "PLANNING" as const, planningId: null, status: null, startOn: null, dueOn: null, priority: null, taskCount: 4, completedCount: 1,
+  inProgressCount: 1, completionRate: 33.3,
+  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Plano autorizado", description: "Descrição real", projectId: null, projectTitle: null,
+  createdBy: "member-1", version: 1, createdAt: "2026-11-17T12:00:00Z", updatedAt: "2026-11-17T12:00:00Z", canDelete: true,
 };
-const statistics = {
-  total: 4, planned: 1, inProgress: 1, completed: 1, cancelled: 1, overdue: 1, completionDenominator: 3,
-  plannedRate: 25, inProgressRate: 25, completedRate: 25, cancelledRate: 25, completionRate: 33.3,
+const task = {
+  kind: "TASK" as const, planningId: null, status: "EM_EXECUCAO" as const, startOn: null, dueOn: "2026-11-30", priority: null, taskCount: 0,
+  completedCount: 0, inProgressCount: 0, completionRate: 0, canDelete: false, id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  title: "Tarefa direta", description: "", projectId: null, projectTitle: null, createdBy: "member-1", version: 1,
+  createdAt: "2026-11-17T12:00:00Z", updatedAt: "2026-11-17T12:00:00Z",
 };
 
-function pageResult(total: number, page = 0, items = [planning]) {
+function pageResult(total: number, page = 0, items: Array<typeof planning | typeof task> = [planning]) {
   return { data: { items, page, size: 20, total }, issue: null };
 }
 
 describe("Minhas atividades com V43", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getActivityPlannings.mockResolvedValue(pageResult(1));
-    mocks.getActivityPlanningStats.mockResolvedValue({ data: statistics, issue: null });
+    mocks.getPersonalActivityItems.mockResolvedValue(pageResult(2, 0, [planning, task]));
     mocks.getAllMyProjects.mockResolvedValue({ data: [], issue: null });
-    mocks.getAllProjects.mockResolvedValue({ data: [], issue: null });
-    mocks.getProjectSummary.mockResolvedValue({ data: null, issue: null });
+    mocks.redirect.mockImplementation((path: string) => { throw new Error(`REDIRECT:${path}`); });
   });
 
-  it("mostra planejamentos persistidos, estatísticas agregadas e esconde os controles do protótipo", async () => {
+  it("mostra planejamentos e tarefas em uma única grade de cards", async () => {
     const page = await ActivitiesPage({ searchParams: Promise.resolve({}) });
     const markup = renderToStaticMarkup(page);
     expect(markup).toContain("Plano autorizado");
     expect(markup).toContain(">4</strong> tarefas");
     expect(markup).toContain("33%");
     expect(markup).toContain(`/atividades/planejamentos/${planning.id}`);
-    expect(markup).toContain("Tarefas sem planejamento");
-    expect(markup).not.toContain("Demonstração");
-    expect(markup).not.toContain("Aplicar na prévia");
-    expect(markup).not.toContain("Telas do protótipo");
+    expect(markup).toContain("Tarefa direta");
+    expect(markup).toContain(`/atividades/${task.id}?from=%2Fatividades`);
+    expect(markup).toContain("Independente");
+    expect(markup.match(/aria-label="Minhas atividades"/g)).toHaveLength(1);
+    expect(markup).not.toContain("Tarefas sem planejamento");
   });
 
   it("preserva busca, projeto contextual e paginação da API", async () => {
     const projectId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-    mocks.getActivityPlannings.mockResolvedValue(pageResult(41, 1));
     mocks.getAllMyProjects.mockResolvedValue({ data: [{ id: projectId, title: "Projeto autorizado" }], issue: null });
+    mocks.getPersonalActivityItems.mockResolvedValue(pageResult(41, 1));
     const page = await ActivitiesPage({ searchParams: Promise.resolve({ page: "1", q: "plano", projectId }) });
     const markup = renderToStaticMarkup(page);
-    const query = mocks.getActivityPlannings.mock.calls[0]?.[1] as URLSearchParams;
+    const query = mocks.getPersonalActivityItems.mock.calls[0]?.[1] as URLSearchParams;
     expect(query.get("page")).toBe("1");
     expect(query.get("q")).toBe("plano");
     expect(query.get("projectId")).toBe(projectId);
@@ -69,10 +70,13 @@ describe("Minhas atividades com V43", () => {
   });
 
   it("mostra um erro explícito quando a consulta autorizada falha", async () => {
-    mocks.getActivityPlannings.mockResolvedValue({ data: null, issue: "unavailable" });
+    mocks.getPersonalActivityItems.mockResolvedValue({ data: null, issue: "unavailable" });
     const page = await ActivitiesPage({ searchParams: Promise.resolve({}) });
     const markup = renderToStaticMarkup(page);
-    expect(markup).toContain("Não foi possível carregar seus planejamentos.");
-    expect(markup).toContain("Tarefas sem planejamento");
+    expect(markup).toContain("Não foi possível carregar suas atividades.");
+  });
+
+  it.each(["tasks", "legacy"]) ("redireciona a visualização antiga %s para a página unificada", async (view) => {
+    await expect(ActivitiesPage({ searchParams: Promise.resolve({ view, q: "minha busca" }) })).rejects.toThrow("REDIRECT:/atividades?q=minha+busca");
   });
 });

@@ -52,7 +52,7 @@ describe("destino de autenticação do handoff", () => {
 
     expect(mocks.signIn).toHaveBeenCalledWith(
       "microsoft-entra-id",
-      { redirectTo: "/dev/meetings-graph-consent/calendar" },
+      { redirectTo: "/reunioes/integracao/microsoft/calendario" },
       { scope: "openid api://22222222-2222-4222-8222-222222222222/.default" },
     );
   });

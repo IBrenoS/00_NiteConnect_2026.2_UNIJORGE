@@ -32,12 +32,6 @@ describe("contexto do espaço de trabalho", () => {
     expect(url.hash).toBe("");
   });
 
-  it("preserva o cenário somente na rota de prévia local", () => {
-    const href = workspaceContextHref("/dev/dashboard-scenarios", "scenario=activities&access_token=secret", "personal");
-
-    expect(new URL(href, "https://nite.example.invalid").search).toBe("?scenario=activities&scope=personal");
-  });
-
   it("recusa um caminho protocol-relative antes de formar o destino", () => {
     expect(workspaceContextHref("//outside.example", "q=test", "personal")).toBe("/dashboard?q=test&scope=personal");
   });

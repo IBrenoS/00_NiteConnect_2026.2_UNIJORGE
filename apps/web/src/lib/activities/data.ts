@@ -12,6 +12,7 @@ import {
   parseActivityPlanning,
   parseActivityPlanningCapabilities,
   parseActivityPlanningPage,
+  parsePersonalActivityItemPage,
   parseActivityStatistics,
   parsePage,
   parseEvidenceCapabilities,
@@ -33,6 +34,9 @@ export function getMyActivityCapabilities(bearer: string) {
 }
 export function getActivityPlannings(bearer: string, query = new URLSearchParams({ page: "0", size: "20" })) {
   return getApiJson(`/api/v1/activity-plannings?${query}`, bearer, parseActivityPlanningPage);
+}
+export function getPersonalActivityItems(bearer: string, query = new URLSearchParams({ page: "0", size: "20" })) {
+  return getApiJson(`/api/v1/me/activity-items?${query}`, bearer, parsePersonalActivityItemPage);
 }
 export function getProjectActivityPlannings(bearer: string, projectId: string, query = new URLSearchParams({ page: "0", size: "20" })) {
   return getApiJson(`/api/v1/projects/${encodeURIComponent(projectId)}/activity-plannings?${query}`, bearer, parseActivityPlanningPage);

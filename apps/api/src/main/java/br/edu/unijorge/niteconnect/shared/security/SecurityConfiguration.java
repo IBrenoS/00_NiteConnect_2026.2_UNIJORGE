@@ -110,7 +110,7 @@ public class SecurityConfiguration {
                                 "/api/v1/projects/*/activity-assignee-candidates", "/api/v1/management/activities", "/api/v1/projects/*/management/activities",
                                 "/api/v1/management/activities/people", "/api/v1/projects/*/management/activities/people").access(authenticatedJwt)
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities", "/api/v1/activities/*/collaborators").access(authenticatedJwt)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/activity-plannings", "/api/v1/activity-plannings/*", "/api/v1/activity-plannings/*/capabilities",
+                        .requestMatchers(HttpMethod.GET, "/api/v1/activity-plannings", "/api/v1/me/activity-items", "/api/v1/activity-plannings/*", "/api/v1/activity-plannings/*/capabilities",
                                 "/api/v1/activity-plannings/*/tasks", "/api/v1/activity-plannings/*/stats", "/api/v1/me/activities/stats",
                                 "/api/v1/projects/*/activity-stats", "/api/v1/projects/*/activity-plannings",
                                 "/api/v1/admin/activity-plannings", "/api/v1/members/*/activity-stats").access(authenticatedJwt)

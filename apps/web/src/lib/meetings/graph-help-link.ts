@@ -8,5 +8,5 @@ export function meetingGraphHelpHref(nodeEnvironment: string | undefined, hostHe
     ? host.slice(0, host.indexOf("]") + 1)
     : host.split(":", 1)[0];
 
-  return localHostnames.has(hostname) ? "/dev/meetings-graph-consent/calendar" : null;
+  return localHostnames.has(hostname) ? "/reunioes/integracao/microsoft" : null;
 }

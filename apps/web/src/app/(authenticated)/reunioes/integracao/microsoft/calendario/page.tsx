@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { getAuthenticatedNiteSession } from "../../../../lib/auth/server-session";
-import { probeMeetingCalendar } from "../../../../lib/auth/meetings-graph-probe";
+import { getAuthenticatedNiteSession } from "@/lib/auth/server-session";
+import { probeMeetingCalendar } from "@/lib/auth/meetings-graph-probe";
 
 export const dynamic = "force-dynamic";
 

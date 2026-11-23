@@ -23,6 +23,9 @@ public final class ActivityPlanningContracts {
     public record Delete(@NotNull @PositiveOrZero Long expectedVersion,@NotNull Boolean confirmed) {}
     public record View(UUID id,String title,String description,UUID projectId,UUID createdBy,long version,
                        Instant createdAt,Instant updatedAt,boolean canEdit,boolean canCreateTasks,boolean canDelete) {}
+    public record PersonalItem(String kind,UUID id,String title,String description,UUID projectId,String projectTitle,UUID planningId,UUID createdBy,long version,
+                       Instant createdAt,Instant updatedAt,ActivityStatus status,java.time.LocalDate startOn,java.time.LocalDate dueOn,String priority,
+                       long taskCount,long completedCount,long inProgressCount,double completionRate,boolean canDelete) {}
     public record Capabilities(boolean canRead,boolean canEdit,boolean canCreateTasks,boolean canDelete,long version) {}
     public record TaskCreated(br.edu.unijorge.niteconnect.activities.application.ActivityService.View activity,long planningVersion) {}
 }

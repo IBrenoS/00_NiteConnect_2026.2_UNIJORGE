@@ -30,6 +30,11 @@ public class ActivityPlanningController {
             @RequestParam(required=false) String q,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
         return service.list(identities.member(jwt),projectId,q,page,size);
     }
+    @GetMapping("/api/v1/me/activity-items")
+    PageResult<ActivityPlanningContracts.PersonalItem> personalItems(@AuthenticationPrincipal Jwt jwt,@RequestParam(required=false) UUID projectId,
+            @RequestParam(required=false) String q,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
+        return service.personalItems(identities.member(jwt),projectId,q,page,size);
+    }
     @GetMapping("/api/v1/activity-plannings/{id}")
     ActivityPlanningContracts.View read(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) { return service.read(identities.member(jwt),id); }
     @GetMapping("/api/v1/admin/activity-plannings")

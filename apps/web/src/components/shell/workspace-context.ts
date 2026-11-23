@@ -4,7 +4,6 @@ export type WorkspaceContext = "personal" | "institutional" | `project:${string}
 
 const preservedQueryKeys: Readonly<Record<string, readonly string[]>> = {
   "/dashboard": ["from", "to", "q"],
-  "/dev/dashboard-scenarios": ["scenario"],
 };
 
 export function resolveWorkspaceContext(
