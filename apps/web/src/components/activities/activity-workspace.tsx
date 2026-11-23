@@ -9,6 +9,7 @@ import { useRef, useState, type DragEvent } from "react";
 import { moveActivityAction } from "../../lib/activities/actions";
 import { activityPriorities, activityStatuses, type Activity, type ActivityCapabilities, type ActivityPriority, type ActivityStatus } from "../../lib/activities/contracts";
 import { formatActivityDate } from "./activity-list";
+import { activityPriorityGroupTone, activityStatusGroupTone } from "./activity-visuals";
 
 type View = "status" | "priority" | "list";
 type Props = {
@@ -28,16 +29,16 @@ const statusLabels: Record<ActivityStatus, string> = {
 };
 const priorityLabels: Record<ActivityPriority, string> = { ALTA: "Alta", MEDIA: "Média", BAIXA: "Baixa" };
 const statusGroups: readonly { id: ActivityStatus; label: string; tone: string }[] = [
-  { id: "PLANEJADA", label: "Planejadas", tone: "border-status-draft-border bg-status-draft-soft" },
-  { id: "EM_EXECUCAO", label: "Em execução", tone: "border-status-progress-border bg-status-progress-soft" },
-  { id: "CONCLUIDA", label: "Concluídas", tone: "border-status-done-border bg-status-done-soft" },
-  { id: "CANCELADA", label: "Canceladas", tone: "border-status-cancelled-border bg-status-cancelled-soft" },
+  { id: "PLANEJADA", label: "Planejadas", tone: activityStatusGroupTone.PLANEJADA },
+  { id: "EM_EXECUCAO", label: "Em execução", tone: activityStatusGroupTone.EM_EXECUCAO },
+  { id: "CONCLUIDA", label: "Concluídas", tone: activityStatusGroupTone.CONCLUIDA },
+  { id: "CANCELADA", label: "Canceladas", tone: activityStatusGroupTone.CANCELADA },
 ];
 const priorityGroups: readonly { id: ActivityPriority | null; label: string; tone: string }[] = [
-  { id: "ALTA", label: "Alta", tone: "border-status-error-border bg-status-error-soft" },
-  { id: "MEDIA", label: "Média", tone: "border-status-warning-border bg-status-warning-soft" },
-  { id: "BAIXA", label: "Baixa", tone: "border-status-done-border bg-status-done-soft" },
-  { id: null, label: "Sem prioridade", tone: "border-nite-border-soft bg-nite-surface-subtle" },
+  { id: "ALTA", label: "Alta", tone: activityPriorityGroupTone.ALTA },
+  { id: "MEDIA", label: "Média", tone: activityPriorityGroupTone.MEDIA },
+  { id: "BAIXA", label: "Baixa", tone: activityPriorityGroupTone.BAIXA },
+  { id: null, label: "Sem prioridade", tone: activityPriorityGroupTone.SEM_PRIORIDADE },
 ];
 
 function priorityLabel(priority: ActivityPriority | null): string {

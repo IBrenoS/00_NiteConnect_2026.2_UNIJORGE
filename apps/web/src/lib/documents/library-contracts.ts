@@ -47,8 +47,6 @@ export type DocumentVersion={id:string;revision:number;size:number;createdBy:str
 export type DocumentVersionPage={items:DocumentVersion[];nextBeforeRevision:number|null;hasMore:boolean};
 export type FileRequestView={id:string;requestedBy:string;targetFolderId:string|null;targetFolderName:string|null;recipientIds:string[];status:string;dueAt:string|null;createdAt:string;cancelledAt:string|null;uploads:Array<{documentId:string;name:string;size:number;uploadedBy:string;uploadedAt:string}>;events:Array<{action:string;actorId:string;occurredAt:string;documentId:string|null}>};
 export type FileRequestPage={items:FileRequestView[];limit:number;offset:number;hasMore:boolean};
-export type SearchItem={id:string;type:"DOCUMENT"|"FOLDER";name:string;mimeType:string|null;size:number|null;createdAt:string;modifiedAt:string;identity:DocumentIdentity;capabilities:DocumentCapabilities};
-export type SearchPage={items:SearchItem[];nextCursor:string|null;hasMore:boolean};
 export type LibraryActivity={id:string;action:string;reason:string|null;actorId:string|null;actorName:string|null;occurredAt:string};
 export type ActivityListing={items:LibraryActivity[];nextCursor:string|null;hasMore:boolean};
 export type LibraryTemplate={id:string;title:string;autoAssign:boolean;retired:boolean;currentVersionId:string|null;revision:number};
@@ -182,13 +180,6 @@ export function parseFileRequestPage(value:unknown):FileRequestPage|null {
       ||!item.recipientIds.every(uuid)||!str(item.status)||!optionalStr(item.dueAt)||!str(item.createdAt)
       ||!optionalStr(item.cancelledAt)||!Array.isArray(item.uploads)||!Array.isArray(item.events))return null;
   return value as FileRequestPage;
-}
-export function parseSearchPage(value:unknown):SearchPage|null {
-  if(!object(value)||!Array.isArray(value.items)||!optionalStr(value.nextCursor)||typeof value.hasMore!=="boolean")return null;
-  for(const item of value.items)if(!object(item)||!uuid(item.id)||(item.type!=="DOCUMENT"&&item.type!=="FOLDER")
-      ||!str(item.name)||!optionalStr(item.mimeType)||!(item.size===null||typeof item.size==="number")
-      ||!str(item.createdAt)||!str(item.modifiedAt)||!parseDocumentIdentity(item.identity)||!parseDocumentCapabilities(item.capabilities))return null;
-  return value as SearchPage;
 }
 function parseActivity(value:unknown):LibraryActivity|null {
   if(!object(value)||!uuid(value.id)||!str(value.action)||!optionalStr(value.reason)||!optionalStr(value.actorId)||!optionalStr(value.actorName)||!str(value.occurredAt))return null;

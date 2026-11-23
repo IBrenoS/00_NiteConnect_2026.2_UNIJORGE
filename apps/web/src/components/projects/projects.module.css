@@ -175,6 +175,8 @@
 .requestContent p{font-size:.9375rem;line-height:1.8;margin-top:12px}
 .rowActions{display:flex;gap:8px}
 .planningGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.projectPlanningFilters{margin-bottom:24px}
+.projectPlanningSearch{width:min(100%,28rem);flex:0 1 28rem}
 .taskViews{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--nite-border-soft);gap:16px}
 .taskViews>nav{display:flex;gap:16px;overflow-x:auto}
 .taskViews a{font-size:.875rem;padding:10px 0;white-space:nowrap;color:var(--nite-text-secondary);border-bottom:2px solid transparent}
@@ -221,6 +223,8 @@
 }
 
 @media(max-width:520px){.page{padding:14px 16px 32px}
+.projectPlanningFilters>div:first-child>div:first-child{flex-basis:100%}
+.projectPlanningSearch{width:auto;max-width:100%;flex:1 1 0}
 .pageHeader{align-items:flex-start;flex-direction:column;margin:24px 0}
 .page h1{font-size:1.5rem}
 .pageHeader>div>p:last-child{font-size:.875rem}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Activity, ActivityStatus } from "../../lib/activities/contracts";
+import { activityStatusGroupTone } from "./activity-visuals";
 
 export const activityStatusLabel: Record<ActivityStatus, string> = {
   PLANEJADA: "Planejada",
@@ -9,10 +10,7 @@ export const activityStatusLabel: Record<ActivityStatus, string> = {
 };
 
 const statusStyles: Record<ActivityStatus, string> = {
-  PLANEJADA: "bg-status-draft-soft text-status-draft",
-  EM_EXECUCAO: "bg-status-progress-soft text-status-progress",
-  CONCLUIDA: "bg-status-done-soft text-status-done",
-  CANCELADA: "bg-status-cancelled-soft text-status-cancelled",
+  ...activityStatusGroupTone,
 };
 
 const statusTextStyles: Record<ActivityStatus, string> = {

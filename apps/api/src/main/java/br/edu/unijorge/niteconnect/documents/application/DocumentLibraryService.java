@@ -623,6 +623,10 @@ public class DocumentLibraryService {
         if(item.retentionHold()||"UNKNOWN".equals(item.resourceOwnerKind())) return false;
         if("MEMBER".equals(item.resourceOwnerKind()))
             return actor.equals(item.resourceOwnerId())&&actor.equals(item.createdBy())&&"NONE".equals(item.protection());
+        if("PROJECT".equals(item.resourceOwnerKind())&&item.resourceOwnerId()!=null) {
+            try { projects.requireManage(actor,item.resourceOwnerId()); return true; }
+            catch(ApiException denied) { /* Admin authority below remains available. */ }
+        }
         return access.isAdministrator(actor)&&("INSTITUTION".equals(item.resourceOwnerKind())
                 ||"PROJECT".equals(item.resourceOwnerKind()));
     }

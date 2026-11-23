@@ -145,6 +145,10 @@ public class DocumentCapabilityService {
 
     /** Fail-closed purge authority for a trashed resource; policy/hold/reference checks are mandatory inputs. */
     public String purgeDeniedReason(UUID actor,DocumentLibraryRepository.TrashItem item,boolean policyEligible,boolean workerEnabled) {
+        return purgeDeniedReason(actor,item,policyEligible,workerEnabled,false);
+    }
+    public String purgeDeniedReason(UUID actor,DocumentLibraryRepository.TrashItem item,boolean policyEligible,
+                                    boolean workerEnabled,boolean voluntaryPersonal) {
         if(!active(actor)) return "INACTIVE_MEMBER";
         if(item.retentionHold()) return "HOLD";
         if("UNKNOWN".equals(item.resourceOwnerKind())) return "OWNER_UNKNOWN";
@@ -153,6 +157,7 @@ public class DocumentCapabilityService {
         boolean institutionalAuthority=access.isAdministrator(actor)
                 &&("INSTITUTION".equals(item.resourceOwnerKind())||"PROJECT".equals(item.resourceOwnerKind()));
         if(!ownPersonalContent&&!institutionalAuthority) return "OUT_OF_SCOPE";
+        if(voluntaryPersonal&&!ownPersonalContent) return "OUT_OF_SCOPE";
         if(!policyEligible) return "POLICY_NOT_APPROVED";
         if(!workerEnabled) return "PROCESSING_DISABLED";
         return "";

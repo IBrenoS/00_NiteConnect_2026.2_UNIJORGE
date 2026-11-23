@@ -195,7 +195,7 @@ class InstitutionalLibraryTest extends ProjectTestSupport {
         jdbc.update("insert into nite_connect.document_purge_activation(id) values (true) on conflict do nothing");
         activation.change(ADMIN,new br.edu.unijorge.niteconnect.documents.application.DocumentPurgeActivationService.Activation(
                 true,true,true,true,true,true,null,null,"Infraestrutura isolada de teste"));
-        var purge=new br.edu.unijorge.niteconnect.documents.application.DocumentPurgeService(access,capabilities,purgeRepository,true,
+        var purge=new br.edu.unijorge.niteconnect.documents.application.DocumentPurgeService(access,capabilities,purgeRepository,true,true,
                 new org.springframework.transaction.support.TransactionTemplate(transactionManager));
         assertThat(purge.preview(ADMIN,recent).reasonCode()).isEqualTo("RETENTION_PERIOD");
         assertThat(purge.request(ADMIN,recent,"library-retention:"+recent).status()).isEqualTo("BLOCKED_POLICY");
@@ -212,7 +212,7 @@ class InstitutionalLibraryTest extends ProjectTestSupport {
             public void deleteOrphan(UUID id) {store.deleteOrphan(id);}
             public void purge(UUID id,boolean asset) {store.deleteOrphan(id);}
         };
-        var worker=new br.edu.unijorge.niteconnect.documents.application.DocumentPurgeWorker(purgeRepository,objectStore,true);
+        var worker=new br.edu.unijorge.niteconnect.documents.application.DocumentPurgeWorker(purgeRepository,objectStore,true,true);
         assertThat(worker.runOnce(operation)).isTrue(); // One file/version in this isolated tree.
         assertThat(purgeRepository.operation(operation).status()).isEqualTo("COMPLETED");
         assertThat(store.objects).doesNotContainKey(object);

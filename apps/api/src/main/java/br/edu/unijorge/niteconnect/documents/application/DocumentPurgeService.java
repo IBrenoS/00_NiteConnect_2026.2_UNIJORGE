@@ -22,13 +22,15 @@ public class DocumentPurgeService {
     private final DocumentCapabilityService capabilities;
     private final DocumentPurgeRepository repository;
     private final boolean purgeWorkerEnabled;
+    private final boolean automaticPurgeEnabled;
     private final TransactionTemplate transactions;
 
     public DocumentPurgeService(AccessService access,DocumentCapabilityService capabilities,DocumentPurgeRepository repository,
                                 @Value("${nite.documents.purge.worker-enabled:false}") boolean purgeWorkerEnabled,
+                                @Value("${nite.documents.purge.automatic-enabled:false}") boolean automaticPurgeEnabled,
                                 TransactionTemplate transactions) {
         this.access=access;this.capabilities=capabilities;this.repository=repository;this.purgeWorkerEnabled=purgeWorkerEnabled;
-        this.transactions=transactions;
+        this.automaticPurgeEnabled=automaticPurgeEnabled;this.transactions=transactions;
     }
 
     public DocumentPurgeRepository.Preview preview(UUID actor,UUID resourceId) {
@@ -49,11 +51,20 @@ public class DocumentPurgeService {
     public DocumentPurgeRepository.Operation request(UUID actor,UUID resourceId,String idempotencyKey) {
         access.requireActive(actor);
         validateIdempotencyKey(idempotencyKey);
+        var previous=repository.existingRequest(actor,idempotencyKey);
+        if(previous.isPresent()) {
+            var operation=previous.get();
+            if(!List.of("ITEM","VOLUNTARY").contains(operation.operationType())
+                    ||!repository.operationContains(operation.id(),resourceId,"DOCUMENT","FOLDER"))
+                throw ApiException.conflict("Chave de idempotência já utilizada em outra solicitação");
+            return operation;
+        }
         var item=repository.trashItem(resourceId);
         requireTrashVisibility(actor,item);
         var resources=resources(item);
         var evaluation=evaluate(actor,resources);
-        if(evaluation.reason().isEmpty()) return repository.queueRequest(actor,idempotencyKey,"ITEM",resources,evaluation.policyId());
+        if(evaluation.reason().isEmpty()) return repository.queueRequest(actor,idempotencyKey,
+                evaluation.voluntaryPersonal()?"VOLUNTARY":"ITEM",resources,evaluation.policyId());
         String reason=evaluation.reason();
         var preview=repository.preview(item,reason);
         return repository.recordBlockedRequest(actor,idempotencyKey,item,reason,preview.itemCount(),preview.estimatedBytes());
@@ -68,8 +79,7 @@ public class DocumentPurgeService {
     public EmptyPreview previewEmpty(UUID actor,int requestedLimit) {
         access.requireActive(actor);
         int limit=Math.max(1,Math.min(requestedLimit,200));
-        boolean administrator=access.isAdministrator(actor);
-        var selected=repository.trashItems(administrator?null:actor,administrator,limit+1);
+        var selected=repository.trashItems(actor,false,limit+1);
         boolean truncated=selected.size()>limit;
         var items=selected.stream().limit(limit).map(item->{
             var evaluation=evaluate(actor,resources(item));
@@ -80,16 +90,24 @@ public class DocumentPurgeService {
 
     @Transactional
     public DocumentPurgeRepository.Operation requestEmpty(UUID actor,String idempotencyKey) {
+        access.requireActive(actor);
         validateIdempotencyKey(idempotencyKey);
+        var previous=repository.existingRequest(actor,idempotencyKey);
+        if(previous.isPresent()) {
+            if(!List.of("EMPTY","VOLUNTARY_EMPTY").contains(previous.get().operationType()))
+                throw ApiException.conflict("Chave de idempotência já utilizada em outra solicitação");
+            return previous.get();
+        }
         EmptyPreview preview=previewEmpty(actor,200);
         if(preview.truncated()) throw ApiException.conflict("Lixeira excede o limite do lote; solicite prévias paginadas antes do esvaziamento");
         if(preview.items().isEmpty()) throw ApiException.conflict("A Lixeira está vazia");
         if(preview.items().stream().allMatch(item->"ELIGIBLE".equals(item.reasonCode()))) {
-            var selected=repository.trashItems(access.isAdministrator(actor)?null:actor,access.isAdministrator(actor),201);
+            var selected=repository.trashItems(actor,false,201);
             var resources=new ArrayList<DocumentLibraryRepository.TrashItem>();
             for(var item:selected) resources.addAll(resources(item));
             var evaluation=evaluate(actor,resources);
-            if(evaluation.reason().isEmpty()) return repository.queueRequest(actor,idempotencyKey,"EMPTY",resources,evaluation.policyId());
+            if(evaluation.reason().isEmpty()) return repository.queueRequest(actor,idempotencyKey,
+                    evaluation.voluntaryPersonal()?"VOLUNTARY_EMPTY":"EMPTY",resources,evaluation.policyId());
         }
         return repository.recordBlockedEmptyRequest(actor,idempotencyKey,preview.items());
     }
@@ -100,22 +118,26 @@ public class DocumentPurgeService {
 
     private Evaluation evaluate(UUID actor,List<DocumentLibraryRepository.TrashItem> items) {
         UUID policyId=null;
+        Boolean voluntaryPersonal=null;
         for(var item:items) {
             if(!actor.equals(item.spaceOwnerId())&&!access.isAdministrator(actor)) return new Evaluation(null,"OUT_OF_SCOPE");
-            boolean institutionalLibrary="INSTITUTION".equals(item.resourceOwnerKind())&&item.spaceOwnerId()==null;
-            var policy=repository.policyEligibility(item,institutionalLibrary);
-            String reason=capabilities.purgeDeniedReason(actor,item,policy.eligible(),purgeWorkerEnabled);
+            boolean personal=actor.equals(item.spaceOwnerId())&&actor.equals(item.createdBy())
+                    &&"MEMBER".equals(item.resourceOwnerKind())&&"NONE".equals(item.protection());
+            if(voluntaryPersonal!=null&&voluntaryPersonal!=personal) return new Evaluation(null,"MIXED_POLICIES");
+            voluntaryPersonal=personal;
+            var policy=personal?repository.voluntaryPersonalEligibility(item):repository.policyEligibility(item,true);
+            String reason=capabilities.purgeDeniedReason(actor,item,policy.eligible(),purgeWorkerEnabled,personal);
             if("POLICY_NOT_APPROVED".equals(reason)&&policy.reasonCode()!=null) reason=policy.reasonCode();
             if(!reason.isEmpty()) return new Evaluation(policy.policyId(),reason);
             if(policyId==null) policyId=policy.policyId();
             else if(!policyId.equals(policy.policyId())) return new Evaluation(null,"MIXED_POLICIES");
         }
-        return new Evaluation(policyId,"");
+        return new Evaluation(policyId,"",Boolean.TRUE.equals(voluntaryPersonal));
     }
 
     @Scheduled(fixedDelayString="${nite.documents.purge.poll-delay-ms:30000}")
     public void discoverAutomatic() {
-        if(!purgeWorkerEnabled) return;
+        if(!purgeWorkerEnabled||!automaticPurgeEnabled) return;
         for(var candidate:repository.scanAutomatic(100)) {
             try {
                 transactions.executeWithoutResult(status->queueAutomatic(candidate.id()));
@@ -151,5 +173,7 @@ public class DocumentPurgeService {
     public record EmptyPreview(List<DocumentPurgeRepository.Preview> items,int limit,boolean truncated) {
         public EmptyPreview { items=List.copyOf(items); }
     }
-    private record Evaluation(UUID policyId,String reason) {}
+    private record Evaluation(UUID policyId,String reason,boolean voluntaryPersonal) {
+        private Evaluation(UUID policyId,String reason) { this(policyId,reason,false); }
+    }
 }

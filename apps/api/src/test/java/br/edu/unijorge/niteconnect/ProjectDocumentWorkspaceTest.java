@@ -137,7 +137,7 @@ class ProjectDocumentWorkspaceTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/projects/"+project+"/trash").with(token(LEADER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].item.id").value(doc.toString()))
-                .andExpect(jsonPath("$.items[0].capabilities.canRestore").value(false))
+                .andExpect(jsonPath("$.items[0].capabilities.canRestore").value(true))
                 .andExpect(jsonPath("$.items[0].capabilities.canPermanentlyDelete").value(false));
         mvc.perform(get("/api/v1/projects/"+project+"/trash").with(token(MEMBER))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/projects/"+project+"/trash").with(token(ADMIN)))
@@ -147,8 +147,7 @@ class ProjectDocumentWorkspaceTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/me/trash").with(token(MEMBER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].item.id").value(personalDoc.toString()));
-        mvc.perform(post("/api/v1/me/trash/"+doc+"/restore").with(token(LEADER))).andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/me/trash/"+doc+"/restore").with(token(ADMIN))).andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/me/trash/"+doc+"/restore").with(token(LEADER))).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/library/documents/"+doc).with(token(MEMBER))).andExpect(status().isOk());
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,foreignDoc)).isEqualTo("TRASHED");
     }

@@ -38,6 +38,16 @@ describe("explorador Meus arquivos", () => {
     expect(hrefs.every((href)=>href?.startsWith(projectContext.basePath))).toBe(true);
   });
 
+  it("mantém Meus arquivos e filtros rápidos sem o link da pesquisa avançada",()=>{
+    const root={...projectFolder,kind:"PERSONAL" as const,projectId:null,name:"Meus arquivos"};
+    const html=renderToStaticMarkup(<MyFilesExplorer listing={{folder:root,folders:[],files:[],totalFiles:0,hasMore:false,nextCursor:null}} ancestors={[]} issue={null} view="personal" memberId="integrante" canArchivePersonal={false} templates={[]} params={{}}/>);
+    expect(html).toContain("Meus arquivos");
+    expect(html).toContain('aria-label="PDF, filtrar"');
+    expect(html).toContain('aria-label="Word, filtrar"');
+    expect(html).not.toContain("Pesquisa avançada");
+    expect(html).not.toContain("advanced=1");
+  });
+
   it("reconhece a raiz PROJECT mesmo quando o retorno da ação inclui folder",()=>{
     const root={...projectFolder,kind:"PROJECT" as const,name:projectContext.name};
     const html=renderToStaticMarkup(<MyFilesExplorer projectContext={projectContext} listing={{folder:root,folders:[],files:[],totalFiles:0,hasMore:false,nextCursor:null}} issue={null} view="personal" templates={[]} params={{folder:root.id}}/>);

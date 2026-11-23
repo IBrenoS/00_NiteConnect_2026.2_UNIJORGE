@@ -150,17 +150,35 @@ class DocumentInternalRetentionPolicyTest {
         var library=new DocumentLibraryRepository(jdbc,identities);
         var repository=new DocumentPurgeRepository(jdbc,library);
         var capabilities=new DocumentCapabilityService(access,mock(ProjectAccess.class),mock(DocumentSharingRepository.class),library,identities);
-        var service=new DocumentPurgeService(access,capabilities,repository,true,new TransactionTemplate(new DataSourceTransactionManager(dataSource)));
+        var service=new DocumentPurgeService(access,capabilities,repository,true,true,new TransactionTemplate(new DataSourceTransactionManager(dataSource)));
         service.discoverAutomatic();
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,old)).isEqualTo("PURGE_PENDING");
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,recent)).isEqualTo("TRASHED");
         UUID operation=jdbc.queryForObject("select purge_operation_id from nite_connect.documents where id=?",UUID.class,old);
-        assertThat(new DocumentPurgeWorker(repository,mock(DocumentObjectStore.class),true).runOnce(operation)).isFalse();
+        assertThat(new DocumentPurgeWorker(repository,mock(DocumentObjectStore.class),true,true).runOnce(operation)).isFalse();
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,old)).isEqualTo("PURGED");
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_purge_tombstones where resource_id=?",Integer.class,old)).isEqualTo(1);
+        new DocumentPurgeActivationService(jdbc,access).change(actor,new DocumentPurgeActivationService.Activation(
+                false,true,true,true,true,true,null,null,"Desativada para validar descarte voluntário"));
         assertThat(service.preview(actor,recent).decision()).isEqualTo("ELIGIBLE");
         var early=service.request(actor,recent,"manual-early:"+recent);
         assertThat(early.status()).isEqualTo("PENDING");
+        assertThat(early.operationType()).isEqualTo("VOLUNTARY");
+        assertThat(jdbc.queryForObject("select policy_id from nite_connect.document_purge_operations where id=?",UUID.class,early.id())).isNull();
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,recent)).isEqualTo("PURGE_PENDING");
+        assertThat(service.request(actor,recent,"manual-early:"+recent).id()).isEqualTo(early.id());
+        assertThat(new DocumentPurgeWorker(repository,mock(DocumentObjectStore.class),true,false).runOnce(early.id())).isFalse();
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,recent)).isEqualTo("PURGED");
+        UUID other=UUID.randomUUID(),mine=UUID.randomUUID(),theirs=UUID.randomUUID();
+        jdbc.update("insert into nite_connect.members(id,name,institutional_email,status) values (?,'Outro integrante','auto-other-test@unijorge.com.br','ATIVO')",other);
+        insertTrashedDocument(jdbc,mine,actor,1);
+        insertTrashedDocument(jdbc,theirs,other,1);
+        org.mockito.Mockito.when(access.isAdministrator(actor)).thenReturn(true);
+        var empty=service.previewEmpty(actor,100);
+        assertThat(empty.items()).extracting(DocumentPurgeRepository.Preview::resourceId).contains(mine).doesNotContain(theirs);
+        var emptyOperation=service.requestEmpty(actor,"empty-scope:"+actor);
+        assertThat(emptyOperation.operationType()).isEqualTo("VOLUNTARY_EMPTY");
+        assertThat(emptyOperation.itemCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,theirs)).isEqualTo("TRASHED");
     }
 }

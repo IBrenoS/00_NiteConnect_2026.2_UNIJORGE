@@ -7,6 +7,7 @@ import Link from "next/link";
 import { AlertDialog } from "../ui/alert-dialog";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { activityPriorityGroupTone, activityStatusGroupTone } from "../activities/activity-visuals";
 
 type Screen = "plannings" | "create-planning" | "workspace" | "priority" | "status" | "table" | "task-form" | "empty" | "legacy-tasks";
 type Status = "Planejada" | "Em andamento" | "Concluída" | "Cancelada";
@@ -143,11 +144,11 @@ export function Toolbar({ view, planningId, query, setQuery, statusFilter, setSt
 }
 
 export function StatusPill({ status }: { status: Status }) {
-  const color = status === "Concluída" ? "bg-status-done-soft text-status-done" : status === "Em andamento" ? "bg-status-progress-soft text-status-progress" : status === "Cancelada" ? "bg-status-cancelled-soft text-status-cancelled" : "bg-status-draft-soft text-status-draft";
+  const color = activityStatusGroupTone[({ "Planejada": "PLANEJADA", "Em andamento": "EM_EXECUCAO", "Concluída": "CONCLUIDA", "Cancelada": "CANCELADA" } as const)[status]];
   return <span className={"inline-flex max-w-full items-center whitespace-nowrap rounded-control px-2 py-0.5 text-type-metadata font-medium " + color}>{status}</span>;
 }
 export function PriorityPill({ priority }: { priority: Priority }) {
-  const color = priority === "Alta" ? "bg-status-error-soft text-status-error" : priority === "Média" ? "bg-status-warning-soft text-status-warning" : priority === "Baixa" ? "bg-status-done-soft text-status-done" : "bg-nite-surface-subtle text-nite-text-muted";
+  const color = activityPriorityGroupTone[({ "Alta": "ALTA", "Média": "MEDIA", "Baixa": "BAIXA", "Sem prioridade": "SEM_PRIORIDADE" } as const)[priority]];
   return <span className={"inline-flex items-center rounded-control px-2 py-0.5 text-type-metadata font-medium " + color}>{priority}</span>;
 }
 
@@ -190,7 +191,7 @@ export function KanbanColumn({ title, tone, tasks, grouping, onEdit, onAdd, onMo
       if (rawTaskId) onMove(/^\d+$/.test(rawTaskId) ? Number(rawTaskId) : rawTaskId, grouping, title);
     }}
   >
-    <header className="mb-2 flex min-h-9 items-center justify-between rounded-control px-2"><h3 className="text-type-body-compact font-medium text-nite-text-primary"><span className={"rounded-control px-2 py-0.5 " + tone}>{title}</span></h3><span className="min-w-6 rounded-control bg-nite-surface/80 px-1.5 py-0.5 text-center text-type-metadata text-nite-text-secondary">{tasks.length}</span></header>
+    <header className="mb-2 flex min-h-9 items-center justify-between rounded-control px-2"><h3 className="text-type-body-compact font-medium text-nite-text-primary"><span className={"rounded-control px-2 py-0.5 " + tone}>{title}</span></h3><span className={"min-w-6 rounded-control px-1.5 py-0.5 text-center text-type-metadata font-medium " + tone}>{tasks.length}</span></header>
     <div className="grid content-start gap-2">{tasks.map((task) => <TaskCard key={task.id} task={task} onEdit={onEdit} draggable={task.canMoveStatus === undefined && task.canChangePriority === undefined ? true : Boolean(grouping === "status" ? task.canMoveStatus : task.canChangePriority)}/>)}</div>
     {creating ? <form onSubmit={submit} className="mt-1">
       <label className="sr-only" htmlFor={inputId}>Título da nova tarefa</label>
@@ -202,7 +203,9 @@ export function KanbanColumn({ title, tone, tasks, grouping, onEdit, onAdd, onMo
 
 export function TaskBoard({ tasks, grouping, onEdit, onAdd, onMove, canCreateTasks = true }: { tasks: Task[]; grouping: BoardGrouping; onEdit: (task: Task) => void; onAdd: (title: string, grouping: BoardGrouping, group: BoardGroup) => void | Promise<boolean>; onMove: (taskId: TaskId, grouping: BoardGrouping, group: BoardGroup) => void; canCreateTasks?: boolean }) {
   const groups = grouping === "priority" ? priorityOrder : statusOrder;
-  const tones = grouping === "priority" ? ["bg-status-error-soft/70", "bg-status-warning-soft/70", "bg-status-done-soft/70", "bg-nite-surface-subtle"] : ["bg-status-draft-soft/70", "bg-status-progress-soft/70", "bg-status-done-soft/70", "bg-status-cancelled-soft/70"];
+  const tones = grouping === "priority"
+    ? [activityPriorityGroupTone.ALTA, activityPriorityGroupTone.MEDIA, activityPriorityGroupTone.BAIXA, activityPriorityGroupTone.SEM_PRIORIDADE]
+    : [activityStatusGroupTone.PLANEJADA, activityStatusGroupTone.EM_EXECUCAO, activityStatusGroupTone.CONCLUIDA, activityStatusGroupTone.CANCELADA];
   return <div className="grid min-w-0 grid-cols-1 gap-2.5 md:grid-cols-2 2xl:grid-cols-4">{groups.map((group, index) => <KanbanColumn key={group} title={group} tone={tones[index]} tasks={tasks.filter((task) => grouping === "priority" ? task.priority === group : task.status === group)} grouping={grouping} onEdit={onEdit} onAdd={onAdd} onMove={onMove} canCreateTasks={canCreateTasks}/>)}</div>;
 }
 export function StatsPanel({ tasks, stats, nextDue: serverNextDue, showOptions = true }: { tasks: Task[]; stats?: import("../../lib/activities/contracts").ActivityStatistics; nextDue?: string | null; showOptions?: boolean }) {

@@ -124,23 +124,7 @@ class DocumentQueriesRequestsTest extends ProjectTestSupport {
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_versions where document_id=?",Integer.class,doc)).isEqualTo(3);
         mvc.perform(get("/api/v1/documents/"+doc+"/versions").with(token(OTHER))).andExpect(status().isNotFound());
     }
-    @Test void searchFiltersAuthorizedResourcesAndUsesStableCursor() throws Exception {
-        UUID root=home(MEMBER);
-        UUID first=upload(MEMBER,root,"Busca A.docx");
-        UUID second=upload(MEMBER,root,"Busca B.docx");
-        mvc.perform(get("/api/v1/library/search").with(token(OTHER)).param("search","Busca"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
-        String page=mvc.perform(get("/api/v1/library/search").with(token(MEMBER)).param("search","Busca")
-                        .param("type","DOCUMENT").param("sortBy","name").param("direction","asc").param("limit","1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(first.toString()))
-                .andExpect(jsonPath("$.hasMore").value(true)).andReturn().getResponse().getContentAsString();
-        String cursor=com.jayway.jsonpath.JsonPath.read(page,"$.nextCursor");
-        mvc.perform(get("/api/v1/library/search").with(token(MEMBER)).param("search","Busca")
-                        .param("type","DOCUMENT").param("sortBy","name").param("direction","asc")
-                        .param("limit","1").param("cursor",cursor))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].id").value(second.toString()));
-        mvc.perform(get("/api/v1/library/search").with(token(MEMBER)).param("search","Outra")
-                        .param("type","DOCUMENT").param("sortBy","name").param("direction","asc")
-                        .param("limit","1").param("cursor",cursor)).andExpect(status().isBadRequest());
+    @Test void advancedSearchEndpointIsNoLongerMapped() throws Exception {
+        mvc.perform(get("/api/v1/library/search").with(token(MEMBER))).andExpect(status().isNotFound());
     }
 }

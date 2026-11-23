@@ -37,6 +37,19 @@ public class DocumentPurgeRepository {
 
     public DocumentLibraryRepository.TrashItem trashItem(UUID id) { return library.trashItem(id); }
 
+    public java.util.Optional<Operation> existingRequest(UUID actor,String idempotencyKey) {
+        return jdbc.query("select * from nite_connect.document_purge_operations where actor_id=? and idempotency_key=?",
+                OPERATION,actor,idempotencyKey).stream().findFirst();
+    }
+
+    public boolean operationContains(UUID operationId,UUID resourceId,String... resourceTypes) {
+        if(resourceTypes.length==0) return false;
+        String marks=String.join(",",java.util.Collections.nCopies(resourceTypes.length,"?"));
+        Object[] args=new Object[resourceTypes.length+2];args[0]=operationId;args[1]=resourceId;
+        System.arraycopy(resourceTypes,0,args,2,resourceTypes.length);
+        return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.document_purge_operation_items where operation_id=? and resource_id=? and resource_type in ("+marks+"))",Boolean.class,args));
+    }
+
     public List<DocumentLibraryRepository.TrashItem> trashItems(UUID spaceOwner,boolean administrative,int limit) {
         return library.trash(spaceOwner,null,administrative,null,"deletedAt","desc",limit,0);
     }
@@ -93,18 +106,34 @@ public class DocumentPurgeRepository {
         boolean oldEnough=Boolean.TRUE.equals(jdbc.queryForObject("select ?::timestamptz + make_interval(days => ?) <= clock_timestamp()",
                 Boolean.class,java.sql.Timestamp.from(item.deletedAt()),retentionDays));
         if(enforceThirtyDays&&!oldEnough) return new PolicyEligibility(policyId,false,"RETENTION_PERIOD");
-        boolean referenced=Boolean.TRUE.equals(jdbc.queryForObject("""
-                select exists(select 1 from nite_connect.diaries d where d.document_id=? and ?='DOCUMENT')
-                  or exists(select 1 from nite_connect.document_template_distributions d where d.document_id=? and ?='DOCUMENT')
-                """,Boolean.class,item.id(),item.type(),item.id(),item.type()));
-        if(referenced) return new PolicyEligibility(policyId,false,"PRESERVATION_REFERENCE");
+        String referenceReason=referenceBlockReason(item);
+        if(referenceReason!=null) return new PolicyEligibility(policyId,false,referenceReason);
         return new PolicyEligibility(policyId,true,null);
+    }
+
+    /** Voluntary disposal of a member's own unprotected files does not depend on automatic-retention governance. */
+    public PolicyEligibility voluntaryPersonalEligibility(DocumentLibraryRepository.TrashItem item) {
+        String referenceReason=referenceBlockReason(item);
+        return referenceReason==null?new PolicyEligibility(null,true,null):new PolicyEligibility(null,false,referenceReason);
+    }
+
+    private String referenceBlockReason(DocumentLibraryRepository.TrashItem item) {
+        List<UUID> documentIds="DOCUMENT".equals(item.type())?List.of(item.id()):jdbc.query(
+                "select id from nite_connect.documents where trash_batch_id=? and lifecycle_state='TRASHED'",
+                (rs,row)->rs.getObject(1,UUID.class),item.batchId());
+        if(hasExternalReferences(documentIds)) return "PRESERVATION_REFERENCE";
+        if(documentIds.isEmpty()) return null;
+        String marks=String.join(",",java.util.Collections.nCopies(documentIds.size(),"?"));
+        String sql="select exists(select 1 from nite_connect.diaries where document_id in ("+marks+")"
+                +" union all select 1 from nite_connect.document_template_distributions where document_id in ("+marks+"))";
+        Object[] args=java.util.stream.Stream.concat(documentIds.stream(),documentIds.stream()).toArray();
+        return Boolean.TRUE.equals(jdbc.queryForObject(sql,Boolean.class,args))?"PRESERVATION_REFERENCE":null;
     }
 
     /** Queues the fully validated set atomically; bytes are only claimed and deleted after commit. */
     public Operation queueRequest(UUID actor,String idempotencyKey,String operationType,List<DocumentLibraryRepository.TrashItem> items,UUID policyId) {
         if(items.isEmpty()) throw ApiException.conflict("Não há recursos na operação");
-        if(!List.of("ITEM","EMPTY","AUTO").contains(operationType)) throw ApiException.invalid("Tipo de descarte inválido");
+        if(!List.of("ITEM","EMPTY","AUTO","VOLUNTARY","VOLUNTARY_EMPTY").contains(operationType)) throw ApiException.invalid("Tipo de descarte inválido");
         var previous=jdbc.query("select * from nite_connect.document_purge_operations where actor_id=? and idempotency_key=?",
                 OPERATION,actor,idempotencyKey).stream().findFirst();
         if(previous.isPresent()) {
@@ -156,10 +185,10 @@ public class DocumentPurgeRepository {
                         from nite_connect.document_pdfs p join nite_connect.document_versions v on v.id=p.version_id where v.document_id=?
                         on conflict(operation_id,storage_kind,object_id) do nothing
                         """,operation,operationItem,item.id());
-                jdbc.update("insert into nite_connect.document_events(id,document_id,actor_id,action,reason) values (?,?,?,'PURGE_QUEUED','Descarte aprovado por política vigente')",
-                        UUID.randomUUID(),item.id(),actor);
-            } else jdbc.update("insert into nite_connect.document_folder_events(id,folder_id,actor_id,action,reason) values (?,?,?,'PURGE_QUEUED','Descarte aprovado por política vigente')",
-                    UUID.randomUUID(),item.id(),actor);
+                jdbc.update("insert into nite_connect.document_events(id,document_id,actor_id,action,reason) values (?,?,?,'PURGE_QUEUED',?)",
+                        UUID.randomUUID(),item.id(),actor,operationType.startsWith("VOLUNTARY")?"Descarte voluntário confirmado pelo titular":"Descarte aprovado por política vigente");
+            } else jdbc.update("insert into nite_connect.document_folder_events(id,folder_id,actor_id,action,reason) values (?,?,?,'PURGE_QUEUED',?)",
+                    UUID.randomUUID(),item.id(),actor,operationType.startsWith("VOLUNTARY")?"Descarte voluntário confirmado pelo titular":"Descarte aprovado por política vigente");
         }
         return operation(operation);
     }
@@ -297,12 +326,14 @@ public class DocumentPurgeRepository {
     public boolean hasApprovedPolicy(UUID operationId) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 select exists(select 1 from nite_connect.document_purge_operations o
+                  where o.id=? and o.operation_type in ('VOLUNTARY','VOLUNTARY_EMPTY') and o.policy_id is null)
+                  or exists(select 1 from nite_connect.document_purge_operations o
                   join nite_connect.document_retention_policies p on p.id=o.policy_id
                   where o.id=? and p.enabled and p.policy_key='NITE_DOCUMENTS' and p.minimum_trash_days=30
                     and exists(select 1 from nite_connect.document_purge_activation a where a.id=true and a.enabled)
                     and p.approved_by is not null and p.approved_at is not null
                     and p.effective_from<=clock_timestamp() and (p.effective_until is null or p.effective_until>clock_timestamp()))
-                """,Boolean.class,operationId));
+                """,Boolean.class,operationId,operationId));
     }
 
     public UUID policyApprover(UUID policyId) {
@@ -342,11 +373,13 @@ public class DocumentPurgeRepository {
     public boolean operationResourcesStillEligible(UUID operationId) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 select exists(select 1 from nite_connect.document_purge_operations o
-                  join nite_connect.document_retention_policies p on p.id=o.policy_id
-                  where o.id=? and p.enabled and p.policy_key='NITE_DOCUMENTS' and p.approved_by is not null and p.approved_at is not null
-                    and exists(select 1 from nite_connect.document_purge_activation a where a.id=true and a.enabled)
-                    and p.minimum_trash_days=30 and p.scope='GLOBAL'
-                    and p.effective_from<=clock_timestamp() and (p.effective_until is null or p.effective_until>clock_timestamp())
+                  left join nite_connect.document_retention_policies p on p.id=o.policy_id
+                  where o.id=? and ((o.operation_type in ('VOLUNTARY','VOLUNTARY_EMPTY') and o.policy_id is null)
+                    or (o.operation_type not in ('VOLUNTARY','VOLUNTARY_EMPTY') and p.enabled and p.policy_key='NITE_DOCUMENTS'
+                      and p.approved_by is not null and p.approved_at is not null
+                      and exists(select 1 from nite_connect.document_purge_activation a where a.id=true and a.enabled)
+                      and p.minimum_trash_days=30 and p.scope='GLOBAL'
+                      and p.effective_from<=clock_timestamp() and (p.effective_until is null or p.effective_until>clock_timestamp())))
                     and not exists(
                       select 1 from nite_connect.document_purge_operation_items i
                       left join nite_connect.documents d on i.resource_type='DOCUMENT' and d.id=i.resource_id
@@ -354,24 +387,28 @@ public class DocumentPurgeRepository {
                       where i.operation_id=o.id and (i.resource_type='DOCUMENT' and
                         (d.id is null or d.lifecycle_state<>'PURGE_PENDING' or d.archived_at is not null
                           or d.retention_hold or d.resource_owner_kind='UNKNOWN'
+                          or (o.operation_type in ('VOLUNTARY','VOLUNTARY_EMPTY') and d.resource_owner_kind<>'MEMBER')
                           or not ((d.resource_owner_kind='MEMBER' and d.protection='NONE' and d.space_owner_id=d.created_by
+                              and (o.operation_type not in ('VOLUNTARY','VOLUNTARY_EMPTY') or o.actor_id=d.space_owner_id)
                               and (o.operation_type='AUTO' or (d.space_owner_id=o.actor_id and exists
                                 (select 1 from nite_connect.members m where m.id=o.actor_id and m.status='ATIVO'))))
                             or (d.resource_owner_kind in ('INSTITUTION','PROJECT') and exists
                               (select 1 from nite_connect.role_assignments r join nite_connect.members m on m.id=r.member_id
                                 where r.member_id=o.actor_id and r.role in ('GESTOR_GERAL','COORDENADOR') and m.status='ATIVO')))
-                          or ((o.operation_type='AUTO' or (d.resource_owner_kind='INSTITUTION' and d.space_owner_id is null))
+                          or ((o.operation_type='AUTO' or d.resource_owner_kind in ('INSTITUTION','PROJECT'))
                             and d.deleted_at+make_interval(days=>30)>clock_timestamp()))
                         or i.resource_type='FOLDER' and
                         (f.id is null or f.lifecycle_state<>'PURGE_PENDING' or f.archived_at is not null
                           or f.retention_hold or f.resource_owner_kind='UNKNOWN'
+                          or (o.operation_type in ('VOLUNTARY','VOLUNTARY_EMPTY') and f.resource_owner_kind<>'MEMBER')
                           or not ((f.resource_owner_kind='MEMBER' and f.protection='NONE' and f.space_owner_id=f.created_by
+                              and (o.operation_type not in ('VOLUNTARY','VOLUNTARY_EMPTY') or o.actor_id=f.space_owner_id)
                               and (o.operation_type='AUTO' or (f.space_owner_id=o.actor_id and exists
                                 (select 1 from nite_connect.members m where m.id=o.actor_id and m.status='ATIVO'))))
                             or (f.resource_owner_kind in ('INSTITUTION','PROJECT') and exists
                               (select 1 from nite_connect.role_assignments r join nite_connect.members m on m.id=r.member_id
                                 where r.member_id=o.actor_id and r.role in ('GESTOR_GERAL','COORDENADOR') and m.status='ATIVO')))
-                          or ((o.operation_type='AUTO' or (f.resource_owner_kind='INSTITUTION' and f.space_owner_id is null))
+                          or ((o.operation_type='AUTO' or f.resource_owner_kind in ('INSTITUTION','PROJECT'))
                             and f.deleted_at+make_interval(days=>30)>clock_timestamp()))
                     )))
                 """,Boolean.class,operationId));
@@ -421,16 +458,24 @@ public class DocumentPurgeRepository {
                 """,object.id());
     }
 
-    public List<UUID> pendingOperations(int limit) {
+    public List<UUID> pendingOperations(int limit,boolean automaticEnabled) {
         return jdbc.query("""
                 select o.id from nite_connect.document_purge_operations o
-                where o.status in ('PENDING','PARTIAL','PROCESSING') and exists(select 1 from nite_connect.document_retention_policies p
+                where o.status in ('PENDING','PARTIAL','PROCESSING') and (
+                  o.operation_type in ('VOLUNTARY','VOLUNTARY_EMPTY')
+                  or (o.operation_type='AUTO' and ?)
+                  or (o.operation_type in ('ITEM','EMPTY') and exists(select 1 from nite_connect.document_retention_policies p
                   where p.id=o.policy_id and p.enabled and p.policy_key='NITE_DOCUMENTS' and p.minimum_trash_days=30
                     and exists(select 1 from nite_connect.document_purge_activation a where a.id=true and a.enabled)
                     and p.approved_by is not null and p.approved_at is not null
-                    and p.effective_from<=clock_timestamp() and (p.effective_until is null or p.effective_until>clock_timestamp()))
+                    and p.effective_from<=clock_timestamp() and (p.effective_until is null or p.effective_until>clock_timestamp())))
+                  or (o.operation_type='AUTO' and ? and exists(select 1 from nite_connect.document_retention_policies p
+                    where p.id=o.policy_id and p.enabled and p.policy_key='NITE_DOCUMENTS' and p.minimum_trash_days=30
+                      and exists(select 1 from nite_connect.document_purge_activation a where a.id=true and a.enabled)
+                      and p.approved_by is not null and p.approved_at is not null
+                      and p.effective_from<=clock_timestamp() and (p.effective_until is null or p.effective_until>clock_timestamp()))))
                 order by o.requested_at,o.id limit ?
-                """,(rs,row)->rs.getObject(1,UUID.class),limit);
+                """,(rs,row)->rs.getObject(1,UUID.class),automaticEnabled,automaticEnabled,limit);
     }
 
     public boolean hasExternalReference(PurgeObject object) {

@@ -36,6 +36,16 @@ class DocumentPurgeCapabilityTest {
                 .isEqualTo("OUT_OF_SCOPE");
     }
 
+    @Test void voluntaryPersonalPurgeDoesNotDependOnRetentionPolicyOrOperationalRelease() {
+        var item=item(owner,"MEMBER","NONE",false);
+        assertThat(capabilities.purgeDeniedReason(owner,item,true,true,true)).isEmpty();
+        assertThat(capabilities.purgeDeniedReason(owner,item,true,false,true)).isEqualTo("PROCESSING_DISABLED");
+        assertThat(capabilities.purgeDeniedReason(owner,item(owner,"MEMBER","OFFICIAL",false),true,true,true))
+                .isEqualTo("OUT_OF_SCOPE");
+        assertThat(capabilities.purgeDeniedReason(owner,item(owner,"MEMBER","NONE",true),true,true,true))
+                .isEqualTo("HOLD");
+    }
+
     @Test void administratorMayPurgeIdentifiedInstitutionalContentButCannotOverrideHold() {
         when(access.isAdministrator(owner)).thenReturn(true);
         assertThat(capabilities.purgeDeniedReason(owner,item(owner,"INSTITUTION","OFFICIAL",false),true,true))

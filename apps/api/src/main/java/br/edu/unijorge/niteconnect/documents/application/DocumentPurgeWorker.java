@@ -17,17 +17,21 @@ public class DocumentPurgeWorker {
     private final DocumentPurgeRepository repository;
     private final DocumentObjectStore objectStore;
     private final boolean enabled;
+    private final boolean automaticEnabled;
 
     public DocumentPurgeWorker(DocumentPurgeRepository repository,DocumentObjectStore objectStore,
-                               @Value("${nite.documents.purge.worker-enabled:false}") boolean enabled) {
-        this.repository=repository;this.objectStore=objectStore;this.enabled=enabled;
+                               @Value("${nite.documents.purge.worker-enabled:false}") boolean enabled,
+                               @Value("${nite.documents.purge.automatic-enabled:false}") boolean automaticEnabled) {
+        this.repository=repository;this.objectStore=objectStore;this.enabled=enabled;this.automaticEnabled=automaticEnabled;
     }
 
     /** Returns false when no eligible object is queued. S3 is never called inside a DB transaction. */
     public boolean runOnce(UUID operationId) {
         if(!enabled) throw new ApiException(HttpStatus.CONFLICT,"Processamento de descarte está desabilitado");
-        if(!repository.hasApprovedPolicy(operationId)) throw new ApiException(HttpStatus.CONFLICT,"Não há política de retenção aprovada e vigente");
         var operation=repository.operation(operationId);
+        if("AUTO".equals(operation.operationType())&&!automaticEnabled)
+            throw new ApiException(HttpStatus.CONFLICT,"Processamento automático de retenção está desabilitado");
+        if(!repository.hasApprovedPolicy(operationId)) throw new ApiException(HttpStatus.CONFLICT,"Não há política de retenção aprovada e vigente");
         if(!"PENDING".equals(operation.status())&&!"PARTIAL".equals(operation.status())&&!"PROCESSING".equals(operation.status()))
             throw new ApiException(HttpStatus.CONFLICT,"Operação não está disponível para processamento");
         if(!repository.operationResourcesStillEligible(operationId)) {
@@ -61,6 +65,6 @@ public class DocumentPurgeWorker {
     @Scheduled(fixedDelayString="${nite.documents.purge.poll-delay-ms:30000}")
     public void poll() {
         if(!enabled) return;
-        for(UUID operationId:repository.pendingOperations(25)) runOnce(operationId);
+        for(UUID operationId:repository.pendingOperations(25,automaticEnabled)) runOnce(operationId);
     }
 }

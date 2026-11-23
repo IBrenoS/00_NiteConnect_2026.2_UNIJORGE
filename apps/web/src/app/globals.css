@@ -306,6 +306,10 @@ body {
   font-size: var(--type-body-size);
   line-height: var(--type-body-line-height);
 }
+.document-data-grid-surface { background-color: var(--nite-surface-elevated); }
+:root[data-theme="dark"] .document-data-grid-surface { background-color: #292827; }
+.document-trash-delete-icon { filter: brightness(0); }
+:root[data-theme="dark"] .document-trash-delete-icon { filter: brightness(0) invert(1); }
 button, select { font: inherit; }
 button:focus-visible, a:focus-visible, select:focus-visible {
   outline: 3px solid var(--nite-focus);

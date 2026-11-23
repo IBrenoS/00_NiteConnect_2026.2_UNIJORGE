@@ -1,18 +1,14 @@
 import { requireAuthenticatedNiteSession } from "../../../lib/auth/server-session";
-import { getDocumentSearch,getFolderAncestors,getPersonalLibrary,getSharedFolder,getSharedListing,getSentListing,getTemplates,validUuid } from "../../../lib/documents/library";
+import { redirect } from "next/navigation";
+import { getFolderAncestors,getPersonalLibrary,getSharedFolder,getSharedListing,getSentListing,getTemplates,validUuid } from "../../../lib/documents/library";
 import { MyFilesExplorer } from "../../../components/documents/my-files-explorer";
-import { DocumentSearchResults } from "../../../components/documents/document-search-results";
 export const dynamic="force-dynamic";
 export const metadata={title:"Meus arquivos"};
-type Props={searchParams:Promise<{folder?:string;view?:string;error?:string;saved?:string;uploaded?:string;advanced?:string;search?:string;type?:string;mimeType?:string;from?:string;to?:string;createdBy?:string;modifiedBy?:string;ownerKind?:string;ownerId?:string;origin?:string;shared?:string;permission?:string;sortBy?:string;cursor?:string;sort?:string;direction?:string}>};
+type Props={searchParams:Promise<{folder?:string;view?:string;error?:string;saved?:string;uploaded?:string;advanced?:string;search?:string;type?:string;sort?:string;direction?:string}>};
 export default async function PersonalDocumentsPage({searchParams}:Props) {
-  const session=await requireAuthenticatedNiteSession();
   const params=await searchParams;
-  if(params.advanced==="1") {
-    const dateTime=(value:string|undefined,end=false)=>value&&/^\d{4}-\d{2}-\d{2}$/.test(value)?`${value}T${end?"23:59:59.999":"00:00:00.000"}Z`:undefined;
-    const result=await getDocumentSearch(session.bearer,{search:params.search,type:params.type,mimeType:params.mimeType,modifiedFrom:dateTime(params.from),modifiedTo:dateTime(params.to,true),createdBy:params.createdBy,modifiedBy:params.modifiedBy,ownerKind:params.ownerKind,ownerId:params.ownerId,origin:params.origin,shared:params.shared,permission:params.permission,sortBy:params.sortBy,direction:params.direction,cursor:params.cursor,limit:50});
-    return <DocumentSearchResults page={result.data} issue={result.issue} filters={params} memberId={session.member.id}/>;
-  }
+  if(params.advanced==="1") redirect("/documentos");
+  const session=await requireAuthenticatedNiteSession();
   const canArchivePersonal=session.roles.some((role)=>role==="COORDENADOR"||role==="GESTOR_GERAL");
   const shared=params.view==="shared",sent=params.view==="sent",sharedPerspective=shared||sent;
   const options={search:params.search,mimeType:params.type,sortBy:params.sort,direction:params.direction,limit:100};

@@ -1,5 +1,5 @@
 import { describe,expect,it } from "vitest";
-import { parseDocumentInformation,parseLibraryListing,parseSearchPage,parseSentListing,parseSharedListing,parseTrashListing,parseVersionPage,resourceOwnerLabel,type DocumentIdentity } from "./library-contracts";
+import { parseDocumentInformation,parseLibraryListing,parseSentListing,parseSharedListing,parseTrashListing,parseVersionPage,resourceOwnerLabel,type DocumentIdentity } from "./library-contracts";
 
 const folder={id:"11111111-1111-4111-8111-111111111111",parentId:null,name:"Meus arquivos",color:"#D6A432",kind:"PERSONAL",
   systemKey:null,ownerId:"22222222-2222-4222-8222-222222222222",ownerName:"Integrante",projectId:null,createdByName:"Integrante",
@@ -54,13 +54,12 @@ describe("contratos da biblioteca documental",()=>{
     expect(parseSharedListing({items:[{id:file.id,type:"DOCUMENT",name:file.title}],nextCursor:null,hasMore:false})).toBeNull();
   });
 
-  it("valida compartilhamentos enviados, Lixeira, pesquisa e versões sem confiar em campos incompletos",()=>{
+  it("valida compartilhamentos enviados, Lixeira e versões sem confiar em campos incompletos",()=>{
     const grant={id:"44444444-4444-4444-8444-444444444444",memberId:folder.ownerId,memberName:"Integrante",permission:"VIEW",grantedBy:folder.ownerId,grantedByName:"Gestão",createdAt:file.createdAt,revokedAt:null};
     expect(parseSentListing({items:[{id:file.id,type:"DOCUMENT",name:file.title,sharedAt:file.createdAt,recipients:[grant],identity,capabilities}],nextCursor:null,hasMore:false})?.items[0]?.recipients[0]?.permission).toBe("VIEW");
     expect(parseSentListing({items:[{id:file.id,type:"DOCUMENT",name:file.title,sharedAt:file.createdAt,recipients:[{...grant,permission:"ADMIN"}],identity,capabilities}],nextCursor:null,hasMore:false})).toBeNull();
     const trash={id:file.id,name:file.title,type:"DOCUMENT",resourceOwnerKind:"MEMBER",createdBy:folder.ownerId,createdByName:"Integrante",createdAt:file.createdAt,deletedBy:folder.ownerId,deletedByName:"Integrante",deletedAt:file.modifiedAt,originalFolderId:folder.id,originalFolderName:folder.name,origin:"PERSONAL_CREATED",protection:"NONE",retentionHold:false,size:file.size,subtreeItems:0,batchId:null};
     expect(parseTrashListing({items:[{item:trash,capabilities}],limit:50,offset:0,hasMore:false})?.items[0]?.item.id).toBe(file.id);
-    expect(parseSearchPage({items:[{id:file.id,type:"DOCUMENT",name:file.title,mimeType:file.mimeType,size:file.size,createdAt:file.createdAt,modifiedAt:file.modifiedAt,identity,capabilities}],nextCursor:"cursor",hasMore:true})?.nextCursor).toBe("cursor");
     expect(parseVersionPage({items:[{id:grant.id,revision:1,size:10,createdBy:folder.ownerId,createdAt:file.createdAt,current:false}],nextBeforeRevision:1,hasMore:true})?.items[0]?.revision).toBe(1);
   });
 

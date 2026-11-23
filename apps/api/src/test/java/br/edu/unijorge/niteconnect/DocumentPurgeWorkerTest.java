@@ -19,16 +19,25 @@ class DocumentPurgeWorkerTest {
     private final UUID operationId=UUID.randomUUID();
 
     @Test void workerIsFailClosedByDefaultAndDoesNotReadOrDeleteObjects() {
-        var worker=new DocumentPurgeWorker(repository,store,false);
+        var worker=new DocumentPurgeWorker(repository,store,false,false);
         assertThatThrownBy(()->worker.runOnce(operationId)).hasMessageContaining("desabilitado");
         verifyNoInteractions(repository,store);
     }
 
     @Test void workerRequiresAnApprovedEffectivePolicyBeforeClaimingWork() {
+        when(repository.operation(operationId)).thenReturn(new DocumentPurgeRepository.Operation(operationId,UUID.randomUUID(),"ITEM","PENDING",1,100,Instant.now(),null,null,null));
         when(repository.hasApprovedPolicy(operationId)).thenReturn(false);
-        var worker=new DocumentPurgeWorker(repository,store,true);
+        var worker=new DocumentPurgeWorker(repository,store,true,false);
         assertThatThrownBy(()->worker.runOnce(operationId)).hasMessageContaining("política");
         verify(repository,never()).claimObject(operationId);
+        verifyNoInteractions(store);
+    }
+
+    @Test void automaticRetentionCannotRunWhenOnlyTheManualWorkerIsEnabled() {
+        when(repository.operation(operationId)).thenReturn(new DocumentPurgeRepository.Operation(operationId,UUID.randomUUID(),"AUTO","PENDING",1,100,Instant.now(),null,null,null));
+        assertThatThrownBy(()->new DocumentPurgeWorker(repository,store,true,false).runOnce(operationId))
+                .hasMessageContaining("automático");
+        verify(repository,never()).hasApprovedPolicy(operationId);
         verifyNoInteractions(store);
     }
 
@@ -40,7 +49,7 @@ class DocumentPurgeWorkerTest {
         when(repository.claimObject(operationId)).thenReturn(Optional.of(object));
         when(repository.hasExternalReference(object)).thenReturn(false);
 
-        assertThat(new DocumentPurgeWorker(repository,store,true).runOnce(operationId)).isTrue();
+        assertThat(new DocumentPurgeWorker(repository,store,true,false).runOnce(operationId)).isTrue();
 
         verify(store).purge(object.objectId(),false);
         verify(repository).finishObject(object.id(),"PURGED",null);
@@ -56,7 +65,7 @@ class DocumentPurgeWorkerTest {
         when(repository.hasExternalReference(object)).thenReturn(false);
         doThrow(new IllegalStateException("endpoint details must not escape")).when(store).purge(object.objectId(),true);
 
-        new DocumentPurgeWorker(repository,store,true).runOnce(operationId);
+        new DocumentPurgeWorker(repository,store,true,false).runOnce(operationId);
 
         verify(repository).finishObject(object.id(),"RETRY","OBJECT_STORE_FAILURE");
         verify(repository).finishOperationIfDone(operationId);
@@ -70,7 +79,7 @@ class DocumentPurgeWorkerTest {
         when(repository.claimObject(operationId)).thenReturn(Optional.of(object));
         when(repository.hasExternalReference(object)).thenReturn(true);
 
-        new DocumentPurgeWorker(repository,store,true).runOnce(operationId);
+        new DocumentPurgeWorker(repository,store,true,false).runOnce(operationId);
 
         verify(repository).finishObject(object.id(),"BLOCKED_REFERENCE","REFERENCE_EXISTS");
         verifyNoInteractions(store);

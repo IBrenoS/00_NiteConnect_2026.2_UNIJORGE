@@ -39,7 +39,7 @@ describe("lista pessoal de atividades", () => {
     expect(badges).toContain("Em execução");
     expect(badges).toContain("Concluída");
     expect(badges).toContain("Cancelada");
-    expect(badges).not.toContain("status-cancelled-border");
+    expect(badges).toContain("status-cancelled-border");
     expect(badges).toContain("status-cancelled-soft");
     expect(badges).toContain("text-status-cancelled");
     expect(badges).not.toContain("Em atraso");

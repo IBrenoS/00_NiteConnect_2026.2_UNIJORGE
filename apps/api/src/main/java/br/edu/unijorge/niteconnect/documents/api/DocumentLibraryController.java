@@ -3,7 +3,6 @@ package br.edu.unijorge.niteconnect.documents.api;
 import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryService;
 import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryOperationsService;
 import br.edu.unijorge.niteconnect.documents.application.DocumentInformationService;
-import br.edu.unijorge.niteconnect.documents.application.DocumentSearchService;
 import br.edu.unijorge.niteconnect.documents.application.DocumentLibraryService.*;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentLibraryRepository;
 import br.edu.unijorge.niteconnect.documents.infrastructure.DocumentSharingRepository.Share;
@@ -21,7 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
-import java.time.Instant;
 
 /** All operations use the same document IDs and authorization boundaries as the WOPI editor. */
 @RestController
@@ -32,23 +30,9 @@ public class DocumentLibraryController {
     private final IdentityDirectory identities;
     private final DocumentLibraryOperationsService operations;
     private final DocumentInformationService information;
-    private final DocumentSearchService search;
     public DocumentLibraryController(DocumentLibraryService library,DocumentLibraryRepository folders,IdentityDirectory identities,
-                                     DocumentLibraryOperationsService operations,DocumentInformationService information,DocumentSearchService search) {
-        this.library=library;this.folders=folders;this.identities=identities;this.operations=operations;this.information=information;this.search=search;
-    }
-    @GetMapping("/api/v1/library/search")
-    DocumentSearchService.Page search(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required=false) String search,@RequestParam(required=false) String type,
-            @RequestParam(required=false) String mimeType,@RequestParam(required=false) Instant modifiedFrom,
-            @RequestParam(required=false) Instant modifiedTo,@RequestParam(required=false) UUID createdBy,
-            @RequestParam(required=false) UUID modifiedBy,@RequestParam(required=false) String ownerKind,
-            @RequestParam(required=false) UUID ownerId,@RequestParam(required=false) String origin,
-            @RequestParam(required=false) String shared,@RequestParam(required=false) String permission,
-            @RequestParam(defaultValue="modifiedAt") String sortBy,@RequestParam(defaultValue="desc") String direction,
-            @RequestParam(required=false) String cursor,@RequestParam(defaultValue="50") int limit) {
-        return this.search.search(identities.member(jwt),new DocumentSearchService.Filter(search,type,mimeType,modifiedFrom,
-                modifiedTo,createdBy,modifiedBy,ownerKind,ownerId,origin,shared,permission,sortBy,direction),cursor,limit);
+                                     DocumentLibraryOperationsService operations,DocumentInformationService information) {
+        this.library=library;this.folders=folders;this.identities=identities;this.operations=operations;this.information=information;
     }
     @GetMapping("/api/v1/library/documents/{id}/info")
     DocumentInformationService.Information documentInfo(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {

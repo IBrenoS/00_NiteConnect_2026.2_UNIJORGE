@@ -56,6 +56,10 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V49 | [`V49__optional_institutional_role_reason.sql`](V49__optional_institutional_role_reason.sql) | B08.6B: motivo opcional em atribuições de papel e eventos MEMBER de concessão/revogação; os demais eventos continuam exigindo motivo. |
 | V50 | [`V50__invitations_and_last_access.sql`](V50__invitations_and_last_access.sql) | B08.7A: papel inicial, estado de envio Resend, vínculo Entra no aceite e último acesso efetivo. |
 | V51 | [`V51__project_creation_covers_and_request_history.sql`](V51__project_creation_covers_and_request_history.sql) | B09.1A: associação de capas ao armazenamento documental e histórico imutável de solicitações de participação, preservando estados e manifestações existentes. |
+| V51.1 | [`V51_1__invitation_identity_on_accept.sql`](V51_1__invitation_identity_on_accept.sql) | B08.7A: vincula a identidade Microsoft quando o destinatário aceita o convite pelo e-mail institucional. |
+| V51.2 | [`V51_2__invitation_delivery_events.sql`](V51_2__invitation_delivery_events.sql) | B08.7B: armazena estado de entrega reportado pelos webhooks assinados da Resend. |
+| V52 | [`V52__voluntary_personal_document_purge.sql`](V52__voluntary_personal_document_purge.sql) | B10.0C: registra exclusão voluntária pessoal como intenção distinta do expurgo automático, sem alterar as políticas institucionais de retenção. |
+| V53 | [`V53__voluntary_empty_document_purge.sql`](V53__voluntary_empty_document_purge.sql) | B10.0C-F: distingue pedidos idempotentes de esvaziamento voluntário de pedidos de item único. |
 
 ## Aplicação
 

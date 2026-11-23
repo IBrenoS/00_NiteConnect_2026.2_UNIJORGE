@@ -15,9 +15,9 @@ Todos os endpoints abaixo exigem JWT de integrante ativo. A autorização é rec
 
 As rotas existentes `POST/PATCH/DELETE /api/v1/library/.../shares` continuam gerenciando grants. A revogação invalida sessões e locks WOPI afetados.
 
-## Pesquisa
+## Pesquisa transversal descontinuada
 
-`GET /api/v1/library/search` aceita `search`, `type` (`DOCUMENT` ou `FOLDER`), `mimeType`, `modifiedFrom`, `modifiedTo` (instantes ISO 8601), `createdBy`, `modifiedBy`, `ownerKind`, `ownerId`, `origin`, `shared` (`SHARED` ou `NOT_SHARED`), `permission` (`VIEW` ou `EDIT`), `sortBy` (`name`, `size`, `createdAt`, `modifiedAt`), `direction` (`asc` ou `desc`), `cursor` e `limit` (1 a 100). Retorna `items`, `nextCursor` e `hasMore`. A ordenação usa ID e tipo como desempate. A consulta aplica filtros no PostgreSQL e revalida as capacidades dos resultados. `shared` representa grant direto ativo no recurso.
+O endpoint `GET /api/v1/library/search` e a interface de Pesquisa avançada foram removidos no Bloco 10.0B. Permanecem as pesquisas simples e os filtros locais de cada explorador documental, que continuam usando suas rotas e autorizações próprias.
 
 ## Solicitação de arquivos
 
