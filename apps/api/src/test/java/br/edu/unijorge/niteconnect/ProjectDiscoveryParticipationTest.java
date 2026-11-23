@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
     @Test void pausedOrLeaderlessProjectsUseFormalRequestsAndGlobalAdministration() throws Exception {
         UUID paused=project();
+        mvc.perform(post("/api/v1/projects/"+paused+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isConflict());
         mvc.perform(patch("/api/v1/projects/"+paused+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"ATIVO\",\"expectedVersion\":"+version(paused)+",\"reason\":\"Início\"}" )).andExpect(status().isOk());
         mvc.perform(patch("/api/v1/projects/"+paused+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
@@ -50,6 +52,62 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
                 .andExpect(jsonPath("$.leadershipVacant").value(true)).andExpect(jsonPath("$.membershipRequestState").value("APROVADA"));
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=? and ended_at is null",Integer.class,vacant,OTHER)).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?",Integer.class,vacant)).isZero();
+    }
+
+    @Test void pausedApprovalExplicitRoleGrantLeadershipAndResumeRemainSeparateAndSynchronized() throws Exception {
+        mvc.perform(post("/api/v1/projects").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Ciclo pausado\",\"description\":\"Homologação integrada\",\"initialStatus\":\"PAUSADO\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PAUSADO"));
+        UUID id=jdbc.queryForObject("select id from nite_connect.projects order by created_at desc limit 1",UUID.class);
+        mvc.perform(patch("/api/v1/projects/"+id+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}" )).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/projects/"+id+"/membership-requests").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Solicitação controlada\"}" )).andExpect(status().isCreated()).andExpect(jsonPath("$.state").value("PENDENTE"));
+        UUID request=jdbc.queryForObject("select id from nite_connect.project_membership_requests where project_id=? and member_id=?",UUID.class,id,MEMBER);
+        mvc.perform(post("/api/v1/projects/"+id+"/membership-requests").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/projects/"+id+"/membership-requests/"+request+"/decision").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approve\":true,\"expectedVersion\":0}" )).andExpect(status().isOk()).andExpect(jsonPath("$.state").value("APROVADA"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select status from nite_connect.projects where id=?",String.class,id)).isEqualTo("PAUSADO");
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=? and ended_at is null",Integer.class,id,MEMBER)).isEqualTo(1);
+        mvc.perform(get("/api/v1/projects/"+id+"/membership-requests/"+request+"/history").with(token(MEMBER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2));
+        mvc.perform(post("/api/v1/members/"+MEMBER+"/roles").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"role\":\"GESTOR_PROJETO\",\"expectedVersion\":0,\"reason\":\"Concessão explícita de homologação\"}" ))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/projects/"+id+"/leadership-transfers").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content(transferBody(MEMBER,version(id)))).andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select status from nite_connect.projects where id=?",String.class,id)).isEqualTo("PAUSADO");
+        mvc.perform(patch("/api/v1/projects/"+id+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ATIVO\",\"expectedVersion\":"+version(id)+",\"reason\":\"Retomada autorizada\"}" ))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ATIVO"));
+        mvc.perform(get("/api/v1/project-catalog/"+id).with(token(MEMBER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ATIVO")).andExpect(jsonPath("$.membershipRequestState").value("APROVADA"))
+                .andExpect(jsonPath("$.leaderName").value("Teste"));
+        mvc.perform(get("/api/v1/me/projects").with(token(MEMBER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
+        mvc.perform(get("/api/v1/projects/"+id+"/workspace").with(token(MEMBER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ATIVO")).andExpect(jsonPath("$.leaderId").value(MEMBER.toString()));
+        mvc.perform(get("/api/v1/projects/"+id+"/history").with(token(ADMIN))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_membership_request_events where request_id=?",Integer.class,request)).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?",Integer.class,id)).isEqualTo(1);
+    }
+
+    @Test void rejectionIsVisibleToRequesterAndDoesNotCreateParticipation() throws Exception {
+        UUID id=project();
+        mvc.perform(patch("/api/v1/projects/"+id+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}" )).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/projects/"+id+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Pedido para homologação de rejeição\"}" )).andExpect(status().isCreated());
+        UUID request=jdbc.queryForObject("select id from nite_connect.project_membership_requests where project_id=? and member_id=?",UUID.class,id,OTHER);
+        mvc.perform(post("/api/v1/projects/"+id+"/membership-requests/"+request+"/decision").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"approve\":false,\"message\":\"Equipe completa\",\"expectedVersion\":0}" ))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.state").value("REJEITADA"))
+                .andExpect(jsonPath("$.decisionMessage").value("Equipe completa"));
+        mvc.perform(get("/api/v1/me/project-membership-requests").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].state").value("REJEITADA"));
+        mvc.perform(get("/api/v1/projects/"+id+"/membership-requests/"+request+"/history").with(token(OTHER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2)).andExpect(jsonPath("$.items[1].type").value("REJEITADA"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=? and ended_at is null",Integer.class,id,OTHER)).isZero();
     }
     @Test void activeMemberCanDiscoverButCannotReadWorkspaceBeforeApproval() throws Exception {
         UUID id=project(); join(id,LEADER); transfer(id,LEADER);

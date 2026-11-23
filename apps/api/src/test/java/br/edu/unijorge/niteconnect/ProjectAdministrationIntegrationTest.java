@@ -37,7 +37,19 @@ class ProjectAdministrationIntegrationTest extends ProjectTestSupport {
             mvc.perform(get("/api/v1/me/projects").with(token(ADMIN))).andExpect(jsonPath("$.total").value(0));
             assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=?", Integer.class,id)).isZero();
             assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?", Integer.class,id)).isZero();
-            mvc.perform(get("/api/v1/project-catalog/" + id).with(token(MEMBER))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PLANEJAMENTO"));
+            mvc.perform(patch("/api/v1/projects/" + id).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                    .content(updateBody(version(id)))).andExpect(status().isOk());
+            mvc.perform(patch("/api/v1/projects/" + id + "/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"acceptingMembers\":true,\"expectedVersion\":" + version(id) + "}"))
+                    .andExpect(status().isOk());
+            mvc.perform(patch("/api/v1/projects/" + id + "/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"status\":\"ATIVO\",\"expectedVersion\":" + version(id) + ",\"reason\":\"Início de homologação\"}"))
+                    .andExpect(status().isOk());
+            mvc.perform(patch("/api/v1/projects/" + id + "/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"status\":\"PAUSADO\",\"expectedVersion\":" + version(id) + ",\"reason\":\"Homologação\"}"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAUSADO"));
+            mvc.perform(get("/api/v1/me/projects").with(token(ADMIN))).andExpect(jsonPath("$.total").value(0));
+            mvc.perform(get("/api/v1/project-catalog/" + id).with(token(MEMBER))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAUSADO"));
         }
     }
     @Test void editingTransitionsAvailabilityAndAuditPersistWithOptimisticVersions() throws Exception {

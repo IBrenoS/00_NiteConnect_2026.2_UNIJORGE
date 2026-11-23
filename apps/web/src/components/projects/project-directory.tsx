@@ -12,14 +12,14 @@ import { Button, FilterSelect, SearchField, buttonClassName } from "../ui";
 import { FilterToolbar } from "../patterns/filter-toolbar";
 import styles from "./projects.module.css";
 
-export function ProjectDirectory({ personal = false, projects, ownProjectIds, canAdminister = false, canCreate = false, leadershipProjectIds = [], requests = [], interests = [], requestEvents = [], requestHistoryIssue = null, participationIssue = null }: {
+export function ProjectDirectory({ personal = false, projects, ownProjectIds, canAdminister = false, canCreate = false, leadershipProjectIds = [], requests = [], interests = [], requestEvents = [], requestHistoryIssue = null, participationIssue = null, initialTab = "all" }: {
   personal?: boolean; projects: CatalogProject[]; ownProjectIds: string[]; canAdminister?: boolean; canCreate?: boolean; leadershipProjectIds?: string[];
-  requests?: MembershipRequest[]; interests?: InterestSignal[]; requestEvents?: ProjectRequestEvent[]; requestHistoryIssue?: string | null; participationIssue?: string | null;
+  requests?: MembershipRequest[]; interests?: InterestSignal[]; requestEvents?: ProjectRequestEvent[]; requestHistoryIssue?: string | null; participationIssue?: string | null; initialTab?: "all" | "requests";
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [availability, setAvailability] = useState("all");
-  const [tab, setTab] = useState("all");
+  const [tab, setTab] = useState<"all" | "admin" | "requests">(initialTab);
   const [sort, setSort] = useState("name");
   const [page, setPage] = useState(0);
   const [withdrawal, setWithdrawal] = useState<MembershipRequest | null>(null);

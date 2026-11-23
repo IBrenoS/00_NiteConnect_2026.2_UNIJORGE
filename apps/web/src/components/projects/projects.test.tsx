@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectDirectory } from "./project-directory";
+import { ProjectMark, ProjectProperties } from "./project-ui";
 import { ProjectPresentation } from "./project-presentation";
 import { ProjectOverview, ProjectWorkspaceShell } from "./project-workspace";
 import { ProjectTeam } from "./project-team";
@@ -19,6 +20,14 @@ const workspace = { projectId: "p1", name: project.name, description: "Descriç�
 const members = [{ id: "membership", memberId: "leader", memberName: "Liderança real", responsibility: "Responsabilidade persistida", startedAt: "2026-11-18T12:00:00Z" }];
 
 describe("interfaces integradas de projetos", () => {
+  it("exibe iniciais maiúsculas no fallback de capa", () => {
+    expect(renderToStaticMarkup(<ProjectMark title="Novo projeto"/>)).toContain(">NP</span>");
+  });
+  it("distingue participação vigente da disponibilidade de ingresso", () => {
+    const html = renderToStaticMarkup(<ProjectProperties project={projectFromTest()} participates/>);
+    expect(html).toContain("Você já participa deste projeto");
+    expect(html).not.toContain("Indisponível para sua conta");
+  });
   it("renderiza somente dados recebidos e separa vínculo de acompanhamento administrativo", () => {
     const html = renderToStaticMarkup(<ProjectDirectory projects={[project]} ownProjectIds={["p1"]} personal canAdminister={false}/>);
     expect(html).toContain("Projeto persistido");
@@ -124,6 +133,17 @@ describe("interfaces integradas de projetos", () => {
     expect(html).not.toContain("/api/library/");
     expect(html).not.toContain("Criar ou carregar arquivo");
   });
+});
+
+function projectFromTest() {
+  return { id: "p1", title: "Projeto persistido", publicSummary: "Resumo autorizado", status: "ATIVO" as const, imageUrl: null, leaderId: null, leaderName: null, leadershipVacant: true, teamSize: 0, acceptingMembers: true, startsOn: null, endsOn: null, canRequestMembership: false, canExpressInterest: false };
+}
+
+it("abre Meus pedidos quando a rota inclui tab=requests", () => {
+ const html = renderToStaticMarkup(<ProjectDirectory projects={[project]} ownProjectIds={[]} initialTab="requests"/>);
+ expect(html).toContain('aria-label="Seus pedidos e manifestações"');
+ expect(html).toContain("Nenhum pedido por aqui");
+ expect(html).not.toContain("Pesquisa e filtros atuais");
 });
 
 it("Novo projeto depende de autoridade efetiva e não aparece em Meus Projetos", () => {

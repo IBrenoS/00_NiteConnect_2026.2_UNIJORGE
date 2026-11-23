@@ -20,7 +20,7 @@ class DocumentPurgeInfrastructureMigrationTest {
         flyway.migrate();
         var jdbc=new JdbcTemplate(new DriverManagerDataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword()));
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("50");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("51");
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_retention_policies where enabled",Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select enabled from nite_connect.document_purge_activation where id=true",Boolean.class)).isFalse();
         assertThat(jdbc.queryForObject("select pg_get_constraintdef(oid) from pg_constraint where conname='document_protection_check'",String.class)).contains("ACADEMIC_NITE");

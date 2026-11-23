@@ -164,7 +164,7 @@
 .teamList{margin-top:22px}
 .personRow{display:flex;gap:14px;align-items:center;padding:18px 0;border-bottom:1px solid var(--nite-border-soft)}
 .personRow>div{flex:1;min-width:0}
-.personRow>div h3,.personRow>div p{overflow-wrap:anywhere}
+.personRow>div h3,.personRow>div p{overflow-wrap:break-word;word-break:normal}
 .personRow h3{font-size:1rem;font-weight:500}
 .personRow p{font-size:.9375rem;margin-top:4px}
 .personRow>.avatar{width:48px;height:48px}
@@ -246,8 +246,10 @@
 .peopleSummary{gap:16px}
 .planningGrid{grid-template-columns:1fr}
 .sectionHeader .primaryButton{width:100%}
-.personRow{flex-wrap:wrap}
-.personRow>.badge{margin-left:62px}
+.personRow{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:start;column-gap:14px;row-gap:5px}
+.personRow>.avatar{grid-column:1;grid-row:1 / span 2}
+.personRow>div{grid-column:2;grid-row:1;min-width:0}
+.personRow>.badge{grid-column:2;grid-row:2;justify-self:start;margin-left:0}
 .properties>div{grid-template-columns:115px 1fr}
 .taskViews>nav{gap:14px}
 .requestContent small{display:block;margin:4px 0 0}
@@ -373,7 +375,7 @@
 .coverEditorPreview{width:160px;aspect-ratio:16/10}
 .coverEditorBody{align-items:center}
 .coverEditorBody>div{width:100%}
-@media(max-width:1000px){.creationGrid{grid-template-columns:minmax(270px,.88fr) minmax(360px,1.12fr)}.creationIdentity,.creationSettings{padding:24px}.statusChoices{grid-template-columns:1fr}.statusChoices label{min-height:0}.statusChoices small{font-size:.75rem}}
+@media(max-width:1000px){.creationGrid{grid-template-columns:1fr}.creationIdentity{border-right:0;border-bottom:1px solid var(--nite-border-soft)}.creationIdentity,.creationSettings{padding:24px}.statusChoices{grid-template-columns:1fr}.statusChoices label{min-height:0}.statusChoices small{font-size:.75rem}}
 @media(max-width:760px){.creationGrid{grid-template-columns:1fr}.creationIdentity{border-right:0;border-bottom:1px solid var(--nite-border-soft)}.creationIdentity,.creationSettings{padding:22px 18px}.requestCards{grid-template-columns:1fr}.coverEditor{grid-template-columns:120px minmax(0,1fr)}.coverEditorPreview{width:120px}}
 @media(max-width:480px){.creationIdentity,.creationSettings{padding:20px 15px}.coverUpload{align-items:flex-start;flex-direction:column}.coverPreview{width:min(100%,260px)}.creationDates{grid-template-columns:minmax(0,1fr)}.creationDates [data-slot=date-picker]{max-width:220px}.creationFooter{justify-content:stretch;padding:14px 15px}.creationFooter>*{flex:1}.requestCard{padding:16px}.requestCardHeader{flex-direction:column}.coverEditor{grid-template-columns:1fr}.coverEditorPreview{width:min(100%,260px)}}
 
