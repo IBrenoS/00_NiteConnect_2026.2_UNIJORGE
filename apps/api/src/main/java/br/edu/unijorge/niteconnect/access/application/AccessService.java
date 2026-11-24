@@ -9,6 +9,8 @@ import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import br.edu.unijorge.niteconnect.shared.security.AdministrativeTransactions;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -17,6 +19,7 @@ import java.util.UUID;
 
 @Service
 public class AccessService {
+    private static final Logger log = LoggerFactory.getLogger(AccessService.class);
     private final JdbcTemplate jdbc;
     private final MemberDirectory members;
     private final AuditTrail audit;
@@ -27,7 +30,10 @@ public class AccessService {
     }
     public Member requireActive(UUID id) {
         Member member = members.require(id);
-        if (member.status() != MemberStatus.ATIVO) throw ApiException.forbidden();
+        if (member.status() != MemberStatus.ATIVO) {
+            log.warn("NITE authorization denied: member is not active");
+            throw ApiException.forbidden();
+        }
         return member;
     }
     public boolean isAdministrator(UUID id) {
@@ -38,7 +44,10 @@ public class AccessService {
     }
     public void requireAdministrator(UUID id) {
         requireActive(id);
-        if (!isAdministrator(id)) throw ApiException.forbidden();
+        if (!isAdministrator(id)) {
+            log.warn("NITE authorization denied: administrative role is missing");
+            throw ApiException.forbidden();
+        }
     }
     public List<String> effectiveRoles(UUID id) {
         requireActive(id);

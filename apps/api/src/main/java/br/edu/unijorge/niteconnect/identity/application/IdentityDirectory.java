@@ -4,23 +4,32 @@ import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.UUID;
 import java.util.Optional;
 
 @Service
 public class IdentityDirectory {
+    private static final Logger log = LoggerFactory.getLogger(IdentityDirectory.class);
     private final JdbcTemplate jdbc;
     public IdentityDirectory(JdbcTemplate jdbc) { this.jdbc = jdbc; }
     public UUID member(Jwt jwt) {
         return jdbc.query("select member_id from nite_connect.identity_accounts where tenant_id=? and object_id=?",
                 (rs, row) -> rs.getObject(1, UUID.class), tenant(jwt), object(jwt))
-                .stream().findFirst().orElseThrow(ApiException::forbidden);
+                .stream().findFirst().orElseThrow(() -> {
+                    log.warn("NITE authorization denied: identity is not linked");
+                    return ApiException.forbidden();
+                });
     }
     public UUID tenant(Jwt jwt) { return identifier(jwt, "tid"); }
     public UUID object(Jwt jwt) { return identifier(jwt, "oid"); }
     private UUID identifier(Jwt jwt, String claim) {
         try { return UUID.fromString(jwt.getClaimAsString(claim)); }
-        catch (IllegalArgumentException | NullPointerException ex) { throw ApiException.forbidden(); }
+        catch (IllegalArgumentException | NullPointerException ex) {
+            log.warn("NITE authorization denied: invalid identity claim {}", claim);
+            throw ApiException.forbidden();
+        }
     }
     public void link(UUID tenant, UUID object, UUID member) {
         jdbc.update("insert into nite_connect.identity_accounts(tenant_id,object_id,member_id) values (?,?,?)", tenant, object, member);

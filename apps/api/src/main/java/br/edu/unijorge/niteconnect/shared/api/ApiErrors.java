@@ -11,15 +11,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import br.edu.unijorge.niteconnect.meetings.application.MeetingProviderApiException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.servlet.HandlerMapping;
 
 @RestControllerAdvice
 public class ApiErrors {
+    private static final Logger log = LoggerFactory.getLogger(ApiErrors.class);
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     ProblemDetail uploadTooLarge(Exception ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, "Anexo excede o limite permitido");
     }
     @ExceptionHandler(ApiException.class)
-    ProblemDetail domain(ApiException ex) {
+    ProblemDetail domain(ApiException ex, HttpServletRequest request) {
+        if (ex.status() == HttpStatus.FORBIDDEN) {
+            Object route = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+            log.warn("NITE API denied method={} route={}", request.getMethod(), route == null ? "unmatched" : route);
+        }
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
         if (ex.code() != null) problem.setProperty("code", ex.code());
         return problem;
