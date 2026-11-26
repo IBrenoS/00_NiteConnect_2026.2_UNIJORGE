@@ -33,7 +33,7 @@ export function ProjectProperties({ project, participates = false }: { project: 
     <div><dt>Integrantes</dt><dd>{project.teamSize} {project.teamSize === 1 ? "integrante" : "integrantes"}</dd></div>
     <div><dt>Início</dt><dd>{date(project.startsOn)}</dd></div>
     <div><dt>Previsão de término</dt><dd>{date(project.endsOn)}</dd></div>
-    <div><dt>Ingresso</dt><dd>{participates ? "Você já participa deste projeto" : project.canRequestMembership ? project.status === "PAUSADO" ? "Recebendo pedidos durante a pausa" : "Recebendo pedidos de acesso" : project.canExpressInterest ? "Aceita manifestações futuras" : project.status === "CONCLUIDO" ? "Projeto concluído" : !project.acceptingMembers ? "Fechado pela gestão" : "Indisponível para sua conta"}</dd></div>
+    <div><dt>Ingresso</dt><dd>{participates ? "Você já participa deste projeto" : project.status === "CONCLUIDO" ? "Projeto concluído" : project.canRequestMembership ? "Recebendo solicitações formais" : "Novas solicitações indisponíveis"}</dd></div>
   </dl>;
 }
 export function ProjectBreadcrumb({ personal = false }: { title?: string; personal?: boolean }) {

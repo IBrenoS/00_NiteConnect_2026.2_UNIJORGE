@@ -19,7 +19,7 @@ class InstitutionalProjectRoleTest extends ProjectTestSupport {
                 .andExpect(jsonPath("$.total").value(0));
         mvc.perform(get("/api/v1/projects/" + project).with(token(LEADER))).andExpect(status().isNotFound());
         mvc.perform(patch("/api/v1/projects/" + project).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
-                .content(updateBody(version(project)))).andExpect(status().isNotFound());
+                .content(updateBody(version(project)))).andExpect(status().isForbidden());
         for (String path : java.util.List.of("/api/v1/members", "/api/v1/invitations",
                 "/api/v1/attendance/frequency/summary?from=2026-11-01&to=2026-11-07",
                 "/api/v1/analytics/dashboard?from=2026-11-01&to=2026-11-07", "/api/v1/management/activities",
@@ -41,9 +41,9 @@ class InstitutionalProjectRoleTest extends ProjectTestSupport {
                 .andExpect(status().isConflict());
         transfer(own, LEADER);
         mvc.perform(patch("/api/v1/projects/" + own).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
-                .content(updateBody(version(own)))).andExpect(status().isOk());
+                .content(updateBody(version(own)))).andExpect(status().isForbidden());
         mvc.perform(patch("/api/v1/projects/" + other).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
-                .content(updateBody(version(other)))).andExpect(status().isNotFound());
+                .content(updateBody(version(other)))).andExpect(status().isForbidden());
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=? and ended_at is null", Integer.class, own)).isEqualTo(1);
     }
 

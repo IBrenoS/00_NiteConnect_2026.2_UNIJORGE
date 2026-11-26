@@ -59,9 +59,10 @@ class Block02IntegrityTest extends ProjectTestSupport {
             jdbc.execute("drop function nite_connect.fail_project_audit_test()");
         }
     }
-    @Test void unimplementedAndDestructiveRoutesStayDenied() throws Exception {
+    @Test void unimplementedRoutesStayDeniedAndProjectDeletionRequiresGlobalAuthority() throws Exception {
         UUID id = project();
-        mvc.perform(delete("/api/v1/projects/" + id).with(token(ADMIN))).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/projects/" + id).with(token(LEADER))).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select deleted_at is not null from nite_connect.projects where id=?", Boolean.class, id)).isFalse();
         mvc.perform(post("/api/v1/projects/" + id + "/tasks").with(token(ADMIN))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/projects")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/projects?size=101").with(token(ADMIN))).andExpect(status().isBadRequest());

@@ -46,6 +46,11 @@ public class ProjectService {
         return projects.list(!ownOnly && access.isAdministrator(actor) ? null : actor, status, page, size);
     }
     @Transactional(readOnly=true)
+    public PageResult<ProjectDirectory.CurrentLeadership> currentLeadership(UUID actor, int page, int size) {
+        access.requireActive(actor);
+        return projects.currentLeadership(actor, page, size);
+    }
+    @Transactional(readOnly=true)
     public Project read(UUID actor, UUID id) { permissions.requireRead(actor, id); return projects.require(id); }
     @Transactional
     public Project create(UUID actor, String title, String description, LocalDate start, LocalDate end, String reason) {
@@ -80,7 +85,7 @@ public class ProjectService {
 
     @Transactional
     public Project replaceCover(UUID actor, UUID id, byte[] image, String declaredType, long version) {
-        transactions.lock(); permissions.requireManage(actor,id); Project project=projects.require(id); projects.checkVersion(project,version);
+        transactions.lock(); access.requireAdministrator(actor); Project project=projects.require(id); projects.checkVersion(project,version);
         String type=imageType(image);
         if(!type.equals(declaredType)) throw br.edu.unijorge.niteconnect.shared.api.ApiException.invalid("O formato da imagem não corresponde ao arquivo");
         validateImage(image);
@@ -97,7 +102,7 @@ public class ProjectService {
 
     @Transactional
     public Project removeCover(UUID actor,UUID id,long version) {
-        transactions.lock();permissions.requireManage(actor,id);Project project=projects.require(id);projects.checkVersion(project,version);
+        transactions.lock();access.requireAdministrator(actor);Project project=projects.require(id);projects.checkVersion(project,version);
         UUID old=projects.removeCover(id,version); if(old!=null) afterCoverCompletion(objectStore(),null,old);
         audit.recordEntity(actor,"PROJECT",id,"PROJECT_COVER_REMOVED",old==null?null:old.toString(),null,"Imagem de capa removida");
         return projects.require(id);
@@ -134,12 +139,23 @@ public class ProjectService {
         });
     }
     @Transactional
+    public Project update(UUID actor, UUID id, String title, String description, LocalDate start, LocalDate end, long version) {
+        return update(actor, id, title, description, start, end, version, null);
+    }
+    @Transactional
     public Project update(UUID actor, UUID id, String title, String description, LocalDate start, LocalDate end, long version, String reason) {
-        transactions.lock(); permissions.requireManage(actor, id);
+        transactions.lock(); access.requireAdministrator(actor);
         Project before = projects.require(id);
         Project after = projects.update(id, title, description, start, end, version);
-        audit.recordEntity(actor, "PROJECT", id, "PROJECT_UPDATED", before.toString(), after.toString(), reason);
+        audit.recordEntity(actor, "PROJECT", id, "PROJECT_UPDATED", before.toString(), after.toString(), optionalReason(reason));
         return after;
+    }
+    @Transactional
+    public void delete(UUID actor, UUID id) {
+        transactions.lock(); access.requireAdministrator(actor);
+        Project before=projects.require(id);
+        projects.delete(actor,id,before.version());
+        audit.recordEntity(actor,"PROJECT",id,"PROJECT_DELETED",before.toString(),"deleted",null);
     }
     @Transactional
     public Project changeStatus(UUID actor, UUID id, ProjectStatus next, long version, String reason) {
@@ -147,13 +163,10 @@ public class ProjectService {
         Project before = projects.require(id); projects.checkVersion(before, version);
         if (!before.status().canTransitionTo(next)) throw ApiException.conflict("Transição de projeto não permitida");
         Project after = projects.status(id, next, version);
-        projects.recordStatus(actor, id, before.status(), next, reason);
-        audit.recordEntity(actor, "PROJECT", id, "PROJECT_STATUS_CHANGED", before.status().name(), next.name(), reason);
+        String optionalReason = optionalReason(reason);
+        projects.recordStatus(actor, id, before.status(), next, optionalReason);
+        audit.recordEntity(actor, "PROJECT", id, "PROJECT_STATUS_CHANGED", before.status().name(), next.name(), optionalReason);
         return after;
-    }
-    @Transactional(readOnly=true)
-    public PageResult<ProjectDirectory.StatusEvent> history(UUID actor, UUID id, int page, int size) {
-        permissions.requireManage(actor, id); return projects.history(id, page, size);
     }
     @Transactional(readOnly=true)
     public PageResult<TeamMember> team(UUID actor, UUID id, int page, int size) {
@@ -169,26 +182,15 @@ public class ProjectService {
         permissions.requireManage(actor, id);
         return members.candidates(id, query, page, size);
     }
-    @Transactional(readOnly=true)
-    public PageResult<ProjectDirectory.Participation> participationHistory(UUID actor, UUID id, int page, int size) {
-        permissions.requireManage(actor, id); return projects.participationHistory(id, page, size);
-    }
-    @Transactional(readOnly=true)
-    public PageResult<ProjectDirectory.PersonalParticipation> personalHistory(UUID actor, int page, int size) {
-        access.requireActive(actor); return projects.personalHistory(actor, page, size);
-    }
-    @Transactional(readOnly=true)
-    public PageResult<ProjectDirectory.PersonalLeadership> personalLeadershipHistory(UUID actor, int page, int size) {
-        access.requireActive(actor); return projects.personalLeadershipHistory(actor, page, size);
-    }
     @Transactional
     public ProjectDirectory.Participation join(UUID actor, UUID project, UUID member, String responsibility, long version, String reason) {
         transactions.lock(); permissions.requireManage(actor, project);
         projects.checkVersion(projects.require(project), version); access.requireActive(member);
         if (projects.participates(project, member)) throw ApiException.conflict("Participação já vigente");
-        var participation = projects.join(actor, project, member, responsibility, reason);
+        String optionalReason = optionalReason(reason);
+        var participation = projects.join(actor, project, member, responsibility, optionalReason);
         projects.touch(project, version);
-        audit.recordEntity(actor, "PROJECT", project, "PROJECT_MEMBER_JOINED", null, participation.toString(), reason);
+        audit.recordEntity(actor, "PROJECT", project, "PROJECT_MEMBER_JOINED", null, participation.toString(), optionalReason);
         return participation;
     }
     @Transactional
@@ -197,8 +199,9 @@ public class ProjectService {
         projects.checkVersion(projects.require(project), version);
         var participation = projects.currentParticipation(project, member);
         if (member.equals(projects.leader(project))) throw ApiException.conflict("Encerre ou transfira a liderança antes da saída");
-        projects.end(actor, participation, reason); projects.touch(project, version);
-        audit.recordEntity(actor, "PROJECT", project, "PROJECT_MEMBER_LEFT", participation.toString(), null, reason);
+        String optionalReason = optionalReason(reason);
+        projects.end(actor, participation, optionalReason); projects.touch(project, version);
+        audit.recordEntity(actor, "PROJECT", project, "PROJECT_MEMBER_LEFT", participation.toString(), null, optionalReason);
     }
     @Transactional(readOnly=true)
     public Leadership leadership(UUID actor, UUID project) {
@@ -220,15 +223,15 @@ public class ProjectService {
             if (!access.canLeadProject(target)) throw ApiException.conflict("Integrante sem papel institucional elegível para liderança");
             membership = projects.currentParticipation(project, target);
         }
-        projects.transfer(actor, project, membership, reason); projects.touch(project, version);
+        String optionalReason = optionalReason(reason);
+        projects.transfer(actor, project, membership, optionalReason); projects.touch(project, version);
         audit.recordEntity(actor, "PROJECT", project, "PROJECT_LEADERSHIP_TRANSFERRED",
-                before == null ? null : before.toString(), target == null ? null : target.toString(), reason);
+                before == null ? null : before.toString(), target == null ? null : target.toString(), optionalReason);
         return currentLeadership(project);
-    }
-    @Transactional(readOnly=true)
-    public PageResult<ProjectDirectory.LeadershipPeriod> leadershipHistory(UUID actor, UUID project, int page, int size) {
-        permissions.requireManage(actor, project); return projects.leadershipHistory(project, page, size);
     }
     public record Leadership(UUID memberId, boolean effective) {}
     public record TeamMember(UUID id, UUID memberId, String memberName, String responsibility, java.time.Instant startedAt) {}
+    private static String optionalReason(String reason) {
+        return reason == null || reason.isBlank() ? null : reason.trim();
+    }
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAuthenticatedNiteSession } from "../auth/server-session";
 import { resolveApiUrl } from "../api/server";
-import { initialRoles, getMember, getMemberHistory, type InitialRole } from "./data";
+import { initialRoles, getMember, type InitialRole } from "./data";
 
 type Outcome = { ok: boolean; message: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,6 +69,6 @@ export async function getRoleDetails(id: string) {
   if (!uuid.test(id)) return null;
   const session = await requireAuthenticatedNiteSession();
   if (!session.roles.some(role => role === "GESTOR_GERAL" || role === "COORDENADOR")) return null;
-  const [detail, history] = await Promise.all([getMember(session.bearer, id), getMemberHistory(session.bearer, id, 0)]);
-  return detail.data ? { detail: detail.data, history: history.data?.items ?? [], historyUnavailable: !history.data } : null;
+  const detail = await getMember(session.bearer, id);
+  return detail.data ? { detail: detail.data } : null;
 }

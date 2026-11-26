@@ -8,6 +8,7 @@ import br.edu.unijorge.niteconnect.projects.application.ProjectParticipationServ
 import br.edu.unijorge.niteconnect.projects.domain.Project;
 import br.edu.unijorge.niteconnect.projects.domain.ProjectStatus;
 import br.edu.unijorge.niteconnect.shared.api.PageResult;
+import br.edu.unijorge.niteconnect.shared.api.ApiException;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,11 +36,6 @@ public class ProjectController {
     ProjectParticipationService.CatalogProject presentation(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
         return participation.presentation(identities.member(jwt),id);
     }
-    @GetMapping("/api/v1/me/project-interest-signals")
-    PageResult<ProjectParticipationService.InterestSignal> myInterests(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) {
-        return participation.myInterests(identities.member(jwt),page,size);
-    }
     @GetMapping("/api/v1/projects/{id}/workspace")
     ProjectParticipationService.WorkspaceOverview overview(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) { return participation.overview(identities.member(jwt),id); }
     @GetMapping("/api/v1/projects")
@@ -52,18 +48,13 @@ public class ProjectController {
                            @RequestParam(defaultValue="20") int size, @RequestParam(required=false) ProjectStatus status) {
         return projects.list(identities.member(jwt), true, status, page, size);
     }
-    @GetMapping("/api/v1/me/projects/history")
-    PageResult<ProjectDirectory.PersonalParticipation> personalHistory(@AuthenticationPrincipal Jwt jwt,
+    @GetMapping("/api/v1/me/projects/leadership")
+    PageResult<ProjectDirectory.CurrentLeadership> currentLeadership(@AuthenticationPrincipal Jwt jwt,
             @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return projects.personalHistory(identities.member(jwt), page, size);
+        return projects.currentLeadership(identities.member(jwt), page, size);
     }
     @GetMapping("/api/v1/projects/{id}")
     Project read(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) { return projects.read(identities.member(jwt), id); }
-    @GetMapping("/api/v1/me/projects/leadership/history")
-    PageResult<ProjectDirectory.PersonalLeadership> personalLeadershipHistory(@AuthenticationPrincipal Jwt jwt,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return projects.personalLeadershipHistory(identities.member(jwt), page, size);
-    }
     @PostMapping("/api/v1/projects") @ResponseStatus(HttpStatus.CREATED)
     Project create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ProjectContracts.Create input) {
         return projects.create(identities.member(jwt), input.title(), input.description(), input.startsOn(), input.endsOn(),
@@ -97,14 +88,13 @@ public class ProjectController {
     Project update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody ProjectContracts.Update input) {
         return projects.update(identities.member(jwt), id, input.title(), input.description(), input.startsOn(), input.endsOn(), input.expectedVersion(), input.reason());
     }
+    @DeleteMapping("/api/v1/projects/{id}")
+    void delete(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        projects.delete(identities.member(jwt),id);
+    }
     @PatchMapping("/api/v1/projects/{id}/status")
     Project status(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody ProjectContracts.StatusChange input) {
         return projects.changeStatus(identities.member(jwt), id, input.status(), input.expectedVersion(), input.reason());
-    }
-    @GetMapping("/api/v1/projects/{id}/history")
-    PageResult<ProjectDirectory.StatusEvent> history(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return projects.history(identities.member(jwt), id, page, size);
     }
     @GetMapping("/api/v1/projects/{id}/members")
     PageResult<ProjectService.TeamMember> team(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
@@ -124,11 +114,6 @@ public class ProjectController {
     @DeleteMapping("/api/v1/projects/{id}/members/{memberId}") @ResponseStatus(HttpStatus.NO_CONTENT)
     void end(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @PathVariable UUID memberId, @Valid @RequestBody ProjectContracts.End input) {
         projects.end(identities.member(jwt), id, memberId, input.expectedVersion(), input.reason());
-    }
-    @GetMapping("/api/v1/projects/{id}/members/history")
-    PageResult<ProjectDirectory.Participation> participationHistory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return projects.participationHistory(identities.member(jwt), id, page, size);
     }
     @GetMapping("/api/v1/projects/{id}/leadership")
     ProjectService.Leadership leadership(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) { return projects.leadership(identities.member(jwt), id); }
@@ -160,13 +145,11 @@ public class ProjectController {
     @GetMapping("/api/v1/projects/{id}/membership-requests/{requestId}/history")
     PageResult<ProjectParticipationService.RequestEvent> membershipRequestHistory(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@PathVariable UUID requestId,
             @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) { return participation.requestHistory(identities.member(jwt),id,requestId,page,size); }
-    @PostMapping("/api/v1/projects/{id}/interest-signals") @ResponseStatus(HttpStatus.CREATED)
-    ProjectParticipationService.InterestSignal interest(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@Valid @RequestBody ProjectContracts.Interest input) {
-        return participation.interest(identities.member(jwt),id,input.message());
+    @PostMapping("/api/v1/projects/{id}/interest-signals")
+    void interest(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        identities.member(jwt);
+        throw ApiException.gone("Manifestações de interesse futuro foram descontinuadas. Use uma solicitação formal de acesso.");
     }
-    @GetMapping("/api/v1/projects/{id}/interest-signals")
-    PageResult<ProjectParticipationService.InterestSignal> interests(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,
-            @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) { return participation.interests(identities.member(jwt),id,page,size); }
     @PatchMapping("/api/v1/projects/{id}/availability")
     void availability(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@Valid @RequestBody ProjectContracts.Availability input) {
         participation.availability(identities.member(jwt),id,input.acceptingMembers(),input.expectedVersion());
@@ -176,9 +159,4 @@ public class ProjectController {
             @RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size) { return participation.notifications(identities.member(jwt),page,size); }
     @PostMapping("/api/v1/me/project-participation-notifications/{notificationId}/read")
     void markNotificationRead(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID notificationId) { participation.markRead(identities.member(jwt),notificationId); }
-    @GetMapping("/api/v1/projects/{id}/leadership/history")
-    PageResult<ProjectDirectory.LeadershipPeriod> leadershipHistory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return projects.leadershipHistory(identities.member(jwt), id, page, size);
-    }
 }

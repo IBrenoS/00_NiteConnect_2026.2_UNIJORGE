@@ -32,9 +32,4 @@ public class AdministrativeMemberController {
         return directory.detail(identities.member(jwt), id);
     }
 
-    @GetMapping("/{id}/history")
-    PageResult<AdministrativeMemberDirectory.Event> history(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return directory.history(identities.member(jwt), id, page, size);
-    }
 }

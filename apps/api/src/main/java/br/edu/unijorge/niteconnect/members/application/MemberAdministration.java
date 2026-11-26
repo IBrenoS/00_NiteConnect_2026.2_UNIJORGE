@@ -12,7 +12,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -75,19 +74,9 @@ public class MemberAdministration {
         audit.record(actor, target, "MEMBER_STATUS_CHANGED", before.status().name(), next.name(), reason);
         return after;
     }
-    @Transactional(readOnly = true)
-    public PageResult<StatusEvent> history(UUID actor, UUID target, int page, int size) {
-        access.requireAdministrator(actor); members.require(target); PageResult.validate(page, size);
-        return new PageResult<>(jdbc.query("select * from nite_connect.member_status_history where member_id=? order by occurred_at desc,id limit ? offset ?",
-                (rs, row) -> new StatusEvent(rs.getObject("id", UUID.class), rs.getObject("actor_id", UUID.class),
-                        rs.getString("previous_status"), rs.getString("new_status"), rs.getString("reason"), rs.getTimestamp("occurred_at").toInstant()),
-                target, size, (long) page * size), page, size,
-                jdbc.queryForObject("select count(*) from nite_connect.member_status_history where member_id=?", Long.class, target));
-    }
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
     public void recordStatus(UUID actor, UUID target, MemberStatus before, MemberStatus after, String reason) {
         jdbc.update("insert into nite_connect.member_status_history(id,member_id,actor_id,previous_status,new_status,reason) values (?,?,?,?,?,?)",
                 UUID.randomUUID(), target, actor, before == null ? null : before.name(), after.name(), reason);
     }
-    public record StatusEvent(UUID id, UUID actorId, String previousStatus, String newStatus, String reason, Instant occurredAt) {}
 }

@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertDialog, Button, Dialog, TextField } from "../ui";
 import { QrScanner } from "./qr-scanner";
-import { cancelFrequencyList, changeFrequencyParticipant, finalizeFrequencyList, openFrequencyList, renewFrequencyListQr } from "../../lib/frequency/actions";
+import { cancelFrequencyList, changeFrequencyParticipant, deleteFrequencyList, finalizeFrequencyList, openFrequencyList, renewFrequencyListQr } from "../../lib/frequency/actions";
 import type { CollectiveSummaryRow, FrequencyList, FrequencyPage, FrequencySummary, HistoryEntry, Participant, ParticipantPage, PersonalOpenList } from "../../lib/frequency/contracts";
 import { frequencySelectionLabel, isRegularFrequencyMeeting, stepFrequencySelection, switchFrequencyGroup, type FrequencyGroupBy } from "../../lib/frequency/query";
 import type { AgendaEvent } from "../../lib/frequency/data";
@@ -500,6 +500,33 @@ function CancelListAction({ list, synthetic }: { list: FrequencyList; synthetic?
   </>;
 }
 
+function DeleteListAction({ list, synthetic }: { list: FrequencyList; synthetic?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const impactsFrequency = list.status === "CONCLUIDA" && list.outcome === "REALIZADA_CONTABILIZAVEL" && list.countsForFrequency;
+  return <>
+    <Button size="compact" type="button" variant="destructive" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>Excluir lista</Button>
+    <AlertDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Excluir lista?"
+      description="Tem certeza de que deseja excluir esta lista de frequência?"
+      confirmLabel="Excluir"
+      cancelLabel="Cancelar"
+      className="max-w-md"
+      onConfirm={() => {
+        setOpen(false);
+        if (!synthetic) formRef.current?.requestSubmit();
+      }}
+    >
+      {impactsFrequency ? <p className="text-type-body-compact text-nite-text-secondary">Esta lista será removida dos indicadores pessoais e coletivos de frequência.</p> : null}
+    </AlertDialog>
+    <form ref={formRef} action={synthetic ? undefined : deleteFrequencyList} hidden onSubmit={(event) => { if (synthetic) event.preventDefault(); }}>
+      <input type="hidden" name="listId" value={list.listId} />
+    </form>
+  </>;
+}
+
 function participantState(participant: Participant, list: FrequencyList, now: number | null): { label: string; tone: StateTone } {
   if (list.status === "ABERTA") {
     if (participant.status === "PRESENTE") return { label: "Presente", tone: "success" };
@@ -706,7 +733,7 @@ function MeetingDetail({ props, now }: { props: WorkspaceProps; now: number | nu
         </form>
         <FinalizeListAction list={list} defaultOutcome={outcomeDefault} synthetic={props.synthetic} />
         <CancelListAction list={list} synthetic={props.synthetic} />
-      </div> : null}
+      </div> : <div className="mt-3 flex flex-wrap items-center gap-2"><DeleteListAction list={list} synthetic={props.synthetic} /></div>}
     </header>
     {open ? <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-type-body-compact">
       <StateLabel tone={remaining !== null && remaining === 0 ? "warning" : "info"}>{remaining === null ? "Tempo restante —:—" : remaining === 0 ? "Janela encerrada · aguardando conclusão" : "Tempo restante " + remainingLabel(remaining)}</StateLabel>
@@ -739,6 +766,7 @@ function MeetingMode({ props }: { props: WorkspaceProps }) {
     {props.notice ? <TransientFeedback messageKey={props.notice} queryParam="notice" occurrenceKey={props}><p role="status" className="text-type-body-compact text-status-done">{({
       finalized: "Lista concluída.",
       canceled: "Lista cancelada.",
+      deleted: "Lista de frequência excluída.",
       justified: "Ausência marcada como justificada.",
       "absence-corrected": "Situação corrigida para ausência.",
     } as Record<string, string>)[props.notice] ?? "Operação concluída."}</p></TransientFeedback> : null}

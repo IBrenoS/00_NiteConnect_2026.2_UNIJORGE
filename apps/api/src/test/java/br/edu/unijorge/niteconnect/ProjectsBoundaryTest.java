@@ -23,9 +23,9 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
     @Test void contextualLeaderManagesOnlyOwnProjectWithoutAccessToPersonalData() throws Exception {
         UUID own = project(); UUID other = project(); join(own, LEADER); transfer(own, LEADER);
         mvc.perform(patch("/api/v1/projects/" + own).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
-                .content(updateBody(version(own)))).andExpect(status().isOk());
+                .content(updateBody(version(own)))).andExpect(status().isForbidden());
         mvc.perform(patch("/api/v1/projects/" + other).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
-                .content(updateBody(version(other)))).andExpect(status().isNotFound());
+                .content(updateBody(version(other)))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/members/" + ADMIN).with(token(LEADER))).andExpect(status().isNotFound());
         mvc.perform(get("/api/v1/projects").with(token(LEADER))).andExpect(jsonPath("$.total").value(1));
         mvc.perform(get("/api/v1/audit-events").with(token(LEADER))).andExpect(status().isForbidden());
@@ -39,8 +39,7 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
         mvc.perform(delete("/api/v1/projects/" + first + "/members/" + MEMBER).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"expectedVersion\":" + version(first) + ",\"reason\":\"Saída\"}")).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/projects/" + first).with(token(MEMBER))).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/me/projects/history").with(token(MEMBER))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].description").doesNotExist()).andExpect(jsonPath("$.total").value(2));
+        mvc.perform(get("/api/v1/me/projects/history").with(token(MEMBER))).andExpect(status().isForbidden());
         join(first, MEMBER);
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=?", Integer.class, first, MEMBER)).isEqualTo(2);
         mvc.perform(get("/api/v1/projects/" + first + "/members/history").with(token(MEMBER))).andExpect(status().isForbidden());
@@ -83,9 +82,9 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
                     .content("{\"status\":\"" + state + "\",\"expectedVersion\":" + version(id) + ",\"reason\":\"Decisão\"}"))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state));
         }
-        mvc.perform(get("/api/v1/projects/" + id + "/history").with(token(ADMIN))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(6));
+        mvc.perform(get("/api/v1/projects/" + id + "/history").with(token(ADMIN))).andExpect(status().isForbidden());
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_status_history where project_id=? and new_status='CONCLUIDO'", Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_status_history where project_id=?", Integer.class, id)).isEqualTo(6);
     }
     @Test void staleVersionInvalidPeriodAndInvalidMemberLeaveNoPartialChanges() throws Exception {
         UUID id = project(); join(id, MEMBER);
@@ -105,6 +104,17 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
                 .andExpect(status().isBadRequest());
         assertThat(version(id)).isEqualTo(1);
     }
+    @Test void currentLeadershipEndpointReturnsOnlyEffectiveLeadership() throws Exception {
+        UUID id = project(); join(id, LEADER); transfer(id, LEADER);
+        mvc.perform(get("/api/v1/me/projects/leadership").with(token(LEADER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].projectId").value(id.toString()))
+                .andExpect(jsonPath("$.items[0].title").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].endedAt").doesNotExist());
+        transfer(id, null);
+        mvc.perform(get("/api/v1/me/projects/leadership").with(token(LEADER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+    }
     @Test void simultaneousLeadershipTransfersHaveOneWinnerAndPreserveHistory() throws Exception {
         UUID id = project(); join(id, LEADER); join(id, MEMBER); long version = version(id);
         jdbc.update("insert into nite_connect.role_assignments(member_id,role,granted_by,reason) values (?,'GESTOR_PROJETO',?,'Fixture')", MEMBER, ADMIN);
@@ -120,10 +130,7 @@ class ProjectsBoundaryTest extends ProjectTestSupport {
     @Test void formerLeaderCanConsultOwnLeadershipPeriodsWithoutManagerialReasons() throws Exception {
         UUID id = project(); join(id, LEADER); transfer(id, LEADER); transfer(id, null);
         mvc.perform(get("/api/v1/projects/" + id + "/leadership/history").with(token(LEADER))).andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/me/projects/leadership/history").with(token(LEADER))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].projectId").value(id.toString()))
-                .andExpect(jsonPath("$.items[0].endedAt").isNotEmpty()).andExpect(jsonPath("$.items[0].startReason").doesNotExist());
-        mvc.perform(get("/api/v1/me/projects/leadership/history").with(token(OTHER))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/me/projects/leadership/history").with(token(LEADER))).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?", Integer.class, id)).isEqualTo(1);
     }
 }

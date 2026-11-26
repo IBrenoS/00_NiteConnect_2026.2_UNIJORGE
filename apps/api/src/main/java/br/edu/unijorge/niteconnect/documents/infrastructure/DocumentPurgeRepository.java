@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,6 +51,16 @@ public class DocumentPurgeRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("select exists(select 1 from nite_connect.document_purge_operation_items where operation_id=? and resource_id=? and resource_type in ("+marks+"))",Boolean.class,args));
     }
 
+    public java.util.Optional<Operation> inFlightRequest(UUID actor,UUID resourceId) {
+        return jdbc.query("""
+                select o.* from nite_connect.document_purge_operations o
+                join nite_connect.document_purge_operation_items i on i.operation_id=o.id
+                where o.actor_id=? and i.resource_id=? and o.operation_type in ('ITEM','VOLUNTARY')
+                  and o.status in ('PENDING','PROCESSING','PARTIAL')
+                order by o.requested_at limit 1
+                """,OPERATION,actor,resourceId).stream().findFirst();
+    }
+
     public List<DocumentLibraryRepository.TrashItem> trashItems(UUID spaceOwner,boolean administrative,int limit) {
         return library.trash(spaceOwner,null,administrative,null,"deletedAt","desc",limit,0);
     }
@@ -64,6 +75,17 @@ public class DocumentPurgeRepository {
         if(total>5_000) throw ApiException.conflict("Subárvore excede o limite operacional de 5.000 recursos");
         if(total!=documents.size()+folders.size()) throw ApiException.conflict("Subárvore contém recursos fora da Lixeira");
         return java.util.stream.Stream.concat(documents.stream().map(library::trashItem),folders.stream().map(library::trashItem)).toList();
+    }
+
+    public UUID trashBatchRoot(UUID batchId) {
+        if(batchId==null) return null;
+        return jdbc.query("""
+                select f.id from nite_connect.document_folders f
+                left join nite_connect.document_folders parent on parent.id=f.parent_id
+                where f.trash_batch_id=? and f.lifecycle_state='TRASHED' and f.archived_at is null
+                  and (parent.id is null or parent.trash_batch_id is distinct from f.trash_batch_id)
+                order by f.id limit 1
+                """,(rs,row)->rs.getObject(1,UUID.class),batchId).stream().findFirst().orElse(null);
     }
 
     public Preview preview(DocumentLibraryRepository.TrashItem item,String reason) {
@@ -143,6 +165,21 @@ public class DocumentPurgeRepository {
                     """,Boolean.class,previous.get().id(),item.id(),item.type())));
             if(!matches||previous.get().itemCount()!=items.size()) throw ApiException.conflict("Chave de idempotência já utilizada em outra solicitação");
             return previous.get();
+        }
+        if(List.of("ITEM","VOLUNTARY").contains(operationType)) {
+            String tuples=String.join(",",java.util.Collections.nCopies(items.size(),"(?,?)"));
+            String matching="""
+                    select o.* from nite_connect.document_purge_operations o
+                    where o.actor_id=? and o.operation_type in ('ITEM','VOLUNTARY') and o.status in ('PENDING','PROCESSING','PARTIAL')
+                      and (select count(*) from nite_connect.document_purge_operation_items i where i.operation_id=o.id)=?
+                      and not exists(select 1 from nite_connect.document_purge_operation_items i where i.operation_id=o.id
+                        and (i.resource_type,i.resource_id) not in (%s))
+                    order by o.requested_at limit 1
+                    """.formatted(tuples);
+            List<Object> args=new ArrayList<>();args.add(actor);args.add(items.size());
+            for(var item:items) {args.add(item.type());args.add(item.id());}
+            var inFlight=jdbc.query(matching,OPERATION,args.toArray()).stream().findFirst();
+            if(inFlight.isPresent()) return inFlight.get();
         }
         List<UUID> documentIds=items.stream().filter(item->"DOCUMENT".equals(item.type())).map(DocumentLibraryRepository.TrashItem::id).toList();
         if(hasExternalReferences(documentIds)) throw ApiException.conflict("Há referências documentais fora do lote; descarte bloqueado");

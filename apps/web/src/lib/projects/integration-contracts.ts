@@ -1,10 +1,11 @@
 export const projectStatuses = ["PLANEJAMENTO", "ATIVO", "PAUSADO", "CONCLUIDO"] as const;
 export type ProjectStatus = typeof projectStatuses[number];
 export type ProjectCapabilities = {
-  canViewPresentation: boolean; canRequestMembership: boolean; canExpressInterest: boolean; canDecideRequests: boolean;
+  canViewPresentation: boolean; canRequestMembership: boolean; canDecideRequests: boolean;
   canAccessWorkspace: boolean; canViewActivities: boolean; canViewDocuments: boolean; canManageMembers: boolean; canManageAvailability: boolean;
+  canEditProject: boolean; canDeleteProject: boolean;
 };
-type SharedCapabilities = Pick<ProjectCapabilities, "canAccessWorkspace" | "canManageMembers" | "canViewActivities" | "canViewDocuments" | "canManageAvailability">;
+type SharedCapabilities = Pick<ProjectCapabilities, "canAccessWorkspace" | "canManageMembers" | "canViewActivities" | "canViewDocuments" | "canManageAvailability" | "canEditProject" | "canDeleteProject">;
 export type WorkspaceCapabilities = SharedCapabilities & { canDecideRequests: boolean; canCreatePlanning: boolean; canTransferLeadership: boolean };
 export type CatalogProject = {
   id: string; name: string; summary: string; status: ProjectStatus; image: string | null; leaderName: string | null;
@@ -23,7 +24,6 @@ export type MembershipRequest = {
   decidedBy: string | null; decisionMessage: string | null; version: number;
 };
 export type ProjectRequestEvent = { id: string; requestId: string; actorId: string; type: "SOLICITACAO_CRIADA" | "APROVADA" | "REJEITADA" | "DESISTIDA" | "ENCERRADA"; fromState: string | null; toState: string; message: string | null; occurredAt: string };
-export type InterestSignal = { id: string; projectId: string; memberId: string; createdAt: string; message: string | null; withdrawnAt: string | null };
 export const projectIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function record(v: unknown): v is Record<string, unknown> { return typeof v === "object" && v !== null && !Array.isArray(v); }
 function text(v: unknown): v is string { return typeof v === "string"; }
@@ -35,16 +35,16 @@ function nullableDate(v: unknown): v is string | null { return v === null || dat
 function instant(v: unknown): v is string { return text(v) && /^\d{4}-\d{2}-\d{2}T/.test(v) && Number.isFinite(Date.parse(v)); }
 function status(v: unknown): v is ProjectStatus { return projectStatuses.some((s) => s === v); }
 function workspaceCapabilities(v: unknown): SharedCapabilities | null {
-  if (!record(v) || typeof v.canAccessWorkspace !== "boolean" || typeof v.canManageMembers !== "boolean" || typeof v.canViewActivities !== "boolean" || typeof v.canViewDocuments !== "boolean" || typeof v.canManageAvailability !== "boolean") return null;
-  return { canAccessWorkspace: v.canAccessWorkspace, canManageMembers: v.canManageMembers, canViewActivities: v.canViewActivities, canViewDocuments: v.canViewDocuments, canManageAvailability: v.canManageAvailability };
+  if (!record(v) || typeof v.canAccessWorkspace !== "boolean" || typeof v.canManageMembers !== "boolean" || typeof v.canViewActivities !== "boolean" || typeof v.canViewDocuments !== "boolean" || typeof v.canManageAvailability !== "boolean" || typeof v.canEditProject !== "boolean" || typeof v.canDeleteProject !== "boolean") return null;
+  return { canAccessWorkspace: v.canAccessWorkspace, canManageMembers: v.canManageMembers, canViewActivities: v.canViewActivities, canViewDocuments: v.canViewDocuments, canManageAvailability: v.canManageAvailability, canEditProject: v.canEditProject, canDeleteProject: v.canDeleteProject };
 }
 export function parseCatalogProject(v: unknown): CatalogProject | null {
   if (!record(v) || !id(v.id) || !text(v.name) || !text(v.summary) || !status(v.status) || !nullableText(v.image) || !nullableText(v.leaderName) || typeof v.leadershipVacant !== "boolean" || !count(v.memberCount) || typeof v.acceptingMembers !== "boolean" || !nullableDate(v.startsOn) || !nullableDate(v.endsOn)) return null;
   const c = v.capabilities; const w = workspaceCapabilities(c);
-  if (!w || !record(c) || typeof c.canViewPresentation !== "boolean" || typeof c.canRequestMembership !== "boolean" || typeof c.canExpressInterest !== "boolean" || typeof c.canDecideRequests !== "boolean") return null;
+  if (!w || !record(c) || typeof c.canViewPresentation !== "boolean" || typeof c.canRequestMembership !== "boolean" || typeof c.canDecideRequests !== "boolean") return null;
   const requestState = v.membershipRequestState;
   if (!(requestState === null || requestState === "PENDENTE" || requestState === "APROVADA" || requestState === "REJEITADA" || requestState === "ENCERRADA")) return null;
-  return { id: v.id, name: v.name, summary: v.summary, status: v.status, image: v.image, leaderName: v.leaderName, leadershipVacant: v.leadershipVacant, memberCount: v.memberCount, acceptingMembers: v.acceptingMembers, startsOn: v.startsOn, endsOn: v.endsOn, membershipRequestState: requestState, capabilities: { ...w, canViewPresentation: c.canViewPresentation, canRequestMembership: c.canRequestMembership, canExpressInterest: c.canExpressInterest, canDecideRequests: c.canDecideRequests } };
+  return { id: v.id, name: v.name, summary: v.summary, status: v.status, image: v.image, leaderName: v.leaderName, leadershipVacant: v.leadershipVacant, memberCount: v.memberCount, acceptingMembers: v.acceptingMembers, startsOn: v.startsOn, endsOn: v.endsOn, membershipRequestState: requestState, capabilities: { ...w, canViewPresentation: c.canViewPresentation, canRequestMembership: c.canRequestMembership, canDecideRequests: c.canDecideRequests } };
 }
 export function parseWorkspaceOverview(v: unknown): WorkspaceOverview | null {
   if (!record(v) || !id(v.projectId) || !text(v.name) || !text(v.description) || !status(v.status) || !nullableDate(v.startsOn) || !nullableDate(v.endsOn) || !(v.leaderId === null || id(v.leaderId)) || !nullableText(v.leaderName) || typeof v.leadershipVacant !== "boolean" || !count(v.memberCount) || !count(v.activityCount) || !count(v.version) || typeof v.acceptingMembers !== "boolean") return null;
@@ -65,7 +65,4 @@ export function parseProjectRequestEvent(v: unknown): ProjectRequestEvent | null
   return record(v) && id(v.id) && id(v.requestId) && id(v.actorId) && types.some(type => type === v.type) && (v.fromState === null || text(v.fromState)) && text(v.toState) && nullableText(v.message) && instant(v.occurredAt)
     ? { id: v.id, requestId: v.requestId, actorId: v.actorId, type: v.type as ProjectRequestEvent["type"], fromState: v.fromState, toState: v.toState, message: v.message, occurredAt: v.occurredAt }
     : null;
-}
-export function parseInterestSignal(v: unknown): InterestSignal | null {
-  return record(v) && id(v.id) && id(v.projectId) && id(v.memberId) && instant(v.createdAt) && nullableText(v.message) && (v.withdrawnAt === null || instant(v.withdrawnAt)) ? { id: v.id, projectId: v.projectId, memberId: v.memberId, createdAt: v.createdAt, message: v.message, withdrawnAt: v.withdrawnAt } : null;
 }

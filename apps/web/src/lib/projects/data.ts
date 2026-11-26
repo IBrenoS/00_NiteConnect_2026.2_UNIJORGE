@@ -2,16 +2,16 @@ import "server-only";
 
 import { cache } from "react";
 import { parseNiteIdentity } from "../auth/identity";
-import { parseProjectCandidate, parseProjectStatusEvent, parseProjectPeriod } from "./administration-contracts";
+import { parseProjectCandidate } from "./administration-contracts";
 import { getApiJson } from "../api/server";
 import { parseLeadershipProjects, type LeadershipProject } from "./contracts";
 import { parsePage, type Page } from "../activities/contracts";
 import { getAllMyProjects } from "../activities/data";
 import type { ApiResult } from "../api/contracts";
-import { parseCatalogProject, parseInterestSignal, parseMembershipRequest, parseProjectRequestEvent, parseProjectTeamMember, parseWorkspaceOverview, projectIdPattern } from "./integration-contracts";
+import { parseCatalogProject, parseMembershipRequest, parseProjectRequestEvent, parseProjectTeamMember, parseWorkspaceOverview, projectIdPattern } from "./integration-contracts";
 
 export const getLeadershipProjects = cache(async (bearer: string) => getApiJson(
-  "/api/v1/me/projects/leadership/history?page=0&size=100",
+  "/api/v1/me/projects/leadership?page=0&size=100",
   bearer,
   parseLeadershipProjects,
 ));
@@ -66,9 +66,6 @@ export function getProjectRequestHistory(bearer: string, projectId: string, requ
   if (!projectIdPattern.test(projectId) || !projectIdPattern.test(requestId)) return Promise.resolve({ data: null, issue: "invalid" } as const);
   return allPages(bearer, `/api/v1/projects/${encodeURIComponent(projectId)}/membership-requests/${encodeURIComponent(requestId)}/history`, parseProjectRequestEvent);
 }
-export function getMyProjectInterests(bearer: string) {
-  return allPages(bearer, "/api/v1/me/project-interest-signals", parseInterestSignal);
-}
 export async function getAllMyProjectIds(bearer: string): Promise<ApiResult<string[]>> {
   const result = await getAllMyProjects(bearer);
   return result.issue ? result : { data: result.data.map((project) => project.id), issue: null };
@@ -81,6 +78,3 @@ export async function getProjectAuthority(bearer: string): Promise<ApiResult<{ c
   return result.issue ? result : { data: { canCreate: result.data.roles.some(role => role === "COORDENADOR" || role === "GESTOR_GERAL") }, issue: null };
 }
 export function getProjectCandidates(bearer: string, id: string, query: string) { return allPages(bearer, `/api/v1/projects/${encodeURIComponent(id)}/member-candidates`, parseProjectCandidate, { query }); }
-export function getProjectStatusHistory(bearer: string, id: string) { return allPages(bearer, `/api/v1/projects/${encodeURIComponent(id)}/history`, parseProjectStatusEvent); }
-export function getProjectParticipationHistory(bearer: string, id: string) { return allPages(bearer, `/api/v1/projects/${encodeURIComponent(id)}/members/history`, parseProjectPeriod); }
-export function getProjectLeadershipHistory(bearer: string, id: string) { return allPages(bearer, `/api/v1/projects/${encodeURIComponent(id)}/leadership/history`, parseProjectPeriod); }

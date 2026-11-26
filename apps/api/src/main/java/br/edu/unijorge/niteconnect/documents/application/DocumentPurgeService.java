@@ -35,7 +35,7 @@ public class DocumentPurgeService {
 
     public DocumentPurgeRepository.Preview preview(UUID actor,UUID resourceId) {
         access.requireActive(actor);
-        var item=repository.trashItem(resourceId);
+        var item=unitRoot(repository.trashItem(resourceId));
         requireTrashVisibility(actor,item);
         var evaluation=evaluate(actor,resources(item));
         return repository.preview(item,evaluation.reason().isEmpty()?"ELIGIBLE":evaluation.reason());
@@ -43,6 +43,7 @@ public class DocumentPurgeService {
 
     public String eligibilityReason(UUID actor,DocumentLibraryRepository.TrashItem item) {
         access.requireActive(actor);
+        item=unitRoot(item);
         if(!actor.equals(item.spaceOwnerId())&&!access.isAdministrator(actor)) return "OUT_OF_SCOPE";
         return evaluate(actor,resources(item)).reason();
     }
@@ -59,7 +60,9 @@ public class DocumentPurgeService {
                 throw ApiException.conflict("Chave de idempotência já utilizada em outra solicitação");
             return operation;
         }
-        var item=repository.trashItem(resourceId);
+        var inFlight=repository.inFlightRequest(actor,resourceId);
+        if(inFlight.isPresent()) return inFlight.get();
+        var item=unitRoot(repository.trashItem(resourceId));
         requireTrashVisibility(actor,item);
         var resources=resources(item);
         var evaluation=evaluate(actor,resources);
@@ -112,8 +115,12 @@ public class DocumentPurgeService {
         return repository.recordBlockedEmptyRequest(actor,idempotencyKey,preview.items());
     }
 
+    private DocumentLibraryRepository.TrashItem unitRoot(DocumentLibraryRepository.TrashItem item) {
+        UUID root=repository.trashBatchRoot(item.batchId());
+        return root==null?item:repository.trashItem(root);
+    }
     private List<DocumentLibraryRepository.TrashItem> resources(DocumentLibraryRepository.TrashItem item) {
-        return "FOLDER".equals(item.type())?repository.trashBatchItems(item.batchId()):List.of(item);
+        return repository.trashBatchRoot(item.batchId())==null?List.of(item):repository.trashBatchItems(item.batchId());
     }
 
     private Evaluation evaluate(UUID actor,List<DocumentLibraryRepository.TrashItem> items) {

@@ -40,7 +40,7 @@ class AdministrativeMemberDirectoryTest extends ProjectTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].lastAccessAt").isNotEmpty());
     }
 
-    @Test void institutionalHistoryUsesActorNamesAndTechnicalMarker() throws Exception {
+    @Test void memberHistoryReadRoutesAreRemovedAndSourceRecordsRemain() throws Exception {
         jdbc.update("update nite_connect.members set name='Administradora Completa' where id=?", ADMIN);
         jdbc.update("insert into nite_connect.member_status_history(id,member_id,actor_id,previous_status,new_status,reason) values (?,?,?,null,'ATIVO','Ingresso')",
                 UUID.randomUUID(), MEMBER, ADMIN);
@@ -50,15 +50,11 @@ class AdministrativeMemberDirectoryTest extends ProjectTestSupport {
         jdbc.update("insert into nite_connect.audit_events(id,actor_id,member_id,action,after_value,reason) values (?,?,?,'ROLE_GRANTED','GESTOR_PROJETO','Regularização técnica B08.6-0')",
                 UUID.randomUUID(), ADMIN, MEMBER);
         mvc.perform(get("/api/v1/administrative/members/" + MEMBER + "/history").with(token(ADMIN)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3));
-        mvc.perform(get("/api/v1/administrative/members/" + MEMBER + "/history").with(token(ADMIN))
-                .param("page", "1").param("size", "1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(3))
-                .andExpect(jsonPath("$.items.length()").value(1));
-        String body = mvc.perform(get("/api/v1/administrative/members/" + MEMBER + "/history").with(token(ADMIN)))
-                .andReturn().getResponse().getContentAsString();
-        assertThat(body).contains("Administradora Completa", "Regularização técnica", "GESTOR_PROJETO");
-        assertThat(body).doesNotContain("MEMBER_UPDATED");
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/members/" + MEMBER + "/history").with(token(ADMIN)))
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.member_status_history where member_id=?", Integer.class, MEMBER)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where member_id=? and action='ROLE_GRANTED'", Integer.class, MEMBER)).isEqualTo(2);
     }
 
     @Test void onlyGlobalAdministratorsCanReadOrChangeStatusAndEmailIsImmutable() throws Exception {
@@ -68,7 +64,6 @@ class AdministrativeMemberDirectoryTest extends ProjectTestSupport {
         for (UUID actor : java.util.List.of(LEADER, MEMBER)) {
             mvc.perform(get("/api/v1/administrative/members").with(token(actor))).andExpect(status().isForbidden());
             mvc.perform(get("/api/v1/administrative/members/" + MEMBER).with(token(actor))).andExpect(status().isForbidden());
-            mvc.perform(get("/api/v1/administrative/members/" + MEMBER + "/history").with(token(actor))).andExpect(status().isForbidden());
             mvc.perform(patch("/api/v1/members/" + MEMBER + "/status").with(token(actor)).contentType(MediaType.APPLICATION_JSON)
                     .content("{\"status\":\"AFASTADO\",\"expectedVersion\":0,\"reason\":\"Teste\"}"))
                     .andExpect(status().isForbidden());
@@ -81,7 +76,6 @@ class AdministrativeMemberDirectoryTest extends ProjectTestSupport {
                 .andExpect(status().isOk());
         mvc.perform(get("/api/v1/administrative/members/" + MEMBER).with(token(ADMIN)))
                 .andExpect(jsonPath("$.status").value("AFASTADO"));
-        mvc.perform(get("/api/v1/administrative/members/" + MEMBER + "/history").with(token(ADMIN)))
-                .andExpect(jsonPath("$.items[0].reason").value("Licença"));
+        assertThat(jdbc.queryForObject("select reason from nite_connect.member_status_history where member_id=?", String.class, MEMBER)).isEqualTo("Licença");
     }
 }

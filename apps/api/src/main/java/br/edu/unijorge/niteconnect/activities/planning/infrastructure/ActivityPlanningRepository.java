@@ -60,7 +60,7 @@ public class ActivityPlanningRepository {
         String searchFilter=query==null||query.isBlank()?"":" and (personal_cards.title ilike ? escape '!' or personal_cards.description ilike ? escape '!' or (personal_cards.kind='PLANNING' and exists(select 1 from nite_connect.activities a where a.planning_id=personal_cards.id and (a.title ilike ? escape '!' or a.description ilike ? escape '!'))))";
         String cards="""
                 with visible_plannings as (
-                  select p.id from nite_connect.activity_plannings p where 1=1
+                  select p.id from nite_connect.activity_plannings p where (p.project_id is null or exists(select 1 from nite_connect.projects active_project where active_project.id=p.project_id and active_project.deleted_at is null))
                 """+scope+"""
                     and (p.created_by=? or exists(select 1 from nite_connect.activities a where a.planning_id=p.id and
                         (a.created_by=? or exists(select 1 from nite_connect.activity_assignments x where x.activity_id=a.id and x.member_id=? and x.ended_at is null))))
@@ -82,7 +82,8 @@ public class ActivityPlanningRepository {
                          a.status,a.start_on,a.due_on,a.priority,0::bigint task_count,0::bigint completed_count,0::bigint in_progress_count,0::double precision completion_rate
                   from nite_connect.activities a
                   left join nite_connect.projects pr on pr.id=a.project_id
-                  where (a.planning_id is null or not exists(select 1 from visible_plannings v where v.id=a.planning_id))
+                  where (a.project_id is null or exists(select 1 from nite_connect.projects active_project where active_project.id=a.project_id and active_project.deleted_at is null))
+                    and (a.planning_id is null or not exists(select 1 from visible_plannings v where v.id=a.planning_id))
                     and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments x where x.activity_id=a.id and x.member_id=? and x.ended_at is null))
                 """+(admin?"":" and ((a.project_id is null and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments x where x.activity_id=a.id and x.member_id=? and x.ended_at is null)))"+
                         (projectIds.isEmpty()?"":" or a.project_id in ("+String.join(",",Collections.nCopies(projectIds.size(),"?"))+")")+")")+"""
@@ -108,7 +109,7 @@ public class ActivityPlanningRepository {
     }
     public PageResult<ActivityPlanning> list(UUID actor,boolean admin,List<UUID> projectIds,UUID projectId,String q,int page,int size,boolean personal) {
         PageResult.validate(page,size);
-        var where=new StringBuilder(" where 1=1"); var args=new ArrayList<Object>();
+        var where=new StringBuilder(" where (project_id is null or exists(select 1 from nite_connect.projects active_project where active_project.id=activity_plannings.project_id and active_project.deleted_at is null))"); var args=new ArrayList<Object>();
         if(!admin) {
             where.append(" and ((project_id is null and created_by=?)"); args.add(actor);
             if(!projectIds.isEmpty()) { where.append(" or project_id in (").append(String.join(",",Collections.nCopies(projectIds.size(),"?"))).append(")");args.addAll(projectIds); }
@@ -133,7 +134,7 @@ public class ActivityPlanningRepository {
         return stats("a.project_id=? and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments s where s.activity_id=a.id and s.member_id=? and s.ended_at is null))",List.of(project,member,member),today);
     }
     public ActivityStatistics personalStats(UUID actor,boolean admin,List<UUID> projectIds,LocalDate today) {
-        var where=new StringBuilder("(a.created_by=? or exists(select 1 from nite_connect.activity_assignments s where s.activity_id=a.id and s.member_id=? and s.ended_at is null))");
+        var where=new StringBuilder("(a.project_id is null or exists(select 1 from nite_connect.projects active_project where active_project.id=a.project_id and active_project.deleted_at is null)) and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments s where s.activity_id=a.id and s.member_id=? and s.ended_at is null))");
         var args=new ArrayList<Object>();args.add(actor);args.add(actor);
         if(!admin) {
             where.append(" and (a.project_id is null");
@@ -151,7 +152,7 @@ public class ActivityPlanningRepository {
                   count(distinct a.id) filter(where a.status='CONCLUIDA') completed,
                   count(distinct a.id) filter(where a.status='CANCELADA') cancelled,
                   count(distinct a.id) filter(where a.status in ('PLANEJADA','EM_EXECUCAO') and a.due_on<?) overdue
-                from nite_connect.activities a where """+" "+predicate,args.toArray());
+                from nite_connect.activities a where (a.project_id is null or exists(select 1 from nite_connect.projects active_project where active_project.id=a.project_id and active_project.deleted_at is null)) and """+" "+predicate,args.toArray());
         long total=((Number)row.get("total")).longValue(),planned=((Number)row.get("planned")).longValue(),inProgress=((Number)row.get("in_progress")).longValue();
         long completed=((Number)row.get("completed")).longValue(),cancelled=((Number)row.get("cancelled")).longValue(),overdue=((Number)row.get("overdue")).longValue();
         long denominator=total-cancelled;

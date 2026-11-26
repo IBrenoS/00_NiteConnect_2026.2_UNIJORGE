@@ -42,6 +42,14 @@ public class DocumentLibraryController {
     DocumentInformationService.Information folderInfo(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
         return information.folder(identities.member(jwt),id);
     }
+    @GetMapping("/api/v1/library/projects/{projectId}/archive")
+    Listing archivedProject(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID projectId,
+            @RequestParam(required=false) UUID folderId,@RequestParam(required=false) String search,
+            @RequestParam(required=false) String mimeType,@RequestParam(defaultValue="name") String sortBy,
+            @RequestParam(defaultValue="asc") String direction,@RequestParam(required=false) String cursor,
+            @RequestParam(defaultValue="50") int limit) {
+        return library.archivedProject(identities.member(jwt),projectId,folderId,search,mimeType,sortBy,direction,cursor,limit);
+    }
     @GetMapping("/api/v1/library/links/{type}/{id}")
     DocumentInformationService.Link link(@AuthenticationPrincipal Jwt jwt,@PathVariable String type,@PathVariable UUID id) {
         return information.link(identities.member(jwt),type.toUpperCase(java.util.Locale.ROOT),id);

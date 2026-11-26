@@ -1,9 +1,9 @@
 import "server-only";
 import { getApiJson } from "../api/server";
 import { parsePage } from "../activities/contracts";
-import { getMembers, getMember, getMemberHistory } from "../members/administrative";
+import { getMembers, getMember } from "../members/administrative";
 
-export { getMembers, getMember, getMemberHistory };
+export { getMembers, getMember };
 
 export const initialRoles = ["INTEGRANTE", "GESTOR_PROJETO", "GESTOR_GERAL", "COORDENADOR"] as const;
 export type InitialRole = typeof initialRoles[number];

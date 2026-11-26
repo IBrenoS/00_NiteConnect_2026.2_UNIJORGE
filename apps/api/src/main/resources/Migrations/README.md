@@ -27,9 +27,9 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V21 | [`V21__remove_retired_participation_scope.sql`](V21__remove_retired_participation_scope.sql) | Remove tabelas e dados legados de horas, políticas, solicitações, justificativas, comprovantes e auditorias B04; migra segmentos e auditoria de Agenda/presença para tabelas próprias. Falha se eventos de período não puderem ser classificados. |
 | V22 | [`V22__frequency_attendance_lists.sql`](V22__frequency_attendance_lists.sql) | B04 Frequência: listas e snapshots imutáveis, QR temporário e handoff, trilha administrativa, corte oficial `activated_at` e suporte a eventos rápidos com término nulo. Preserva encontros e presenças legados, revogando QRs de sessão anteriores. |
 | V23 | [`V23__frequency_handoff_retention_index.sql`](V23__frequency_handoff_retention_index.sql) | B04 Frequência: índice por expiração para o expurgo global, limitado e concorrente de handoffs após o período de retenção. |
+| V24 | [`V24__meetings_module.sql`](V24__meetings_module.sql) | Novo domínio de reuniões Teams: calendário Microsoft, convites internos, operações idempotentes, notificações, histórico e preparação para relatórios de participação; não altera Agenda/B04/B06. |
 | V25 | [`V25__meetings_mutation_versions.sql`](V25__meetings_mutation_versions.sql) | Reuniões: versão otimista por convite e índice de exclusão mútua para operações Graph em andamento/indeterminadas. |
 | V26 | [`V26__meeting_teams_link_provider.sql`](V26__meeting_teams_link_provider.sql) | Reuniões: provedor `TEAMS_LINK`, preparação aguardando ação no Teams, vínculo manual do link oficial e estado explícito de sincronização local. |
-| V24 | [`V24__meetings_module.sql`](V24__meetings_module.sql) | Novo domínio de reuniões Teams: calendário Microsoft, convites internos, operações idempotentes, notificações, histórico e preparação para relatórios de participação; não altera Agenda/B04/B06. |
 
 | V27 | [`V27__document_wopi_foundation.sql`](V27__document_wopi_foundation.sql) | B05.1: sessões de acesso WOPI temporárias (hash do token) e bloqueios concorrentes por documento, preservando as versões históricas de V6/V7/V10. |
 | V28 | [`V28__document_library.sql`](V28__document_library.sql) | B05.2: pastas, biblioteca única e metadados documentais, preservando UUIDs e versões históricas. |
@@ -60,6 +60,9 @@ Este diretório é a fonte de execução do Flyway, configurada em `application.
 | V51.2 | [`V51_2__invitation_delivery_events.sql`](V51_2__invitation_delivery_events.sql) | B08.7B: armazena estado de entrega reportado pelos webhooks assinados da Resend. |
 | V52 | [`V52__voluntary_personal_document_purge.sql`](V52__voluntary_personal_document_purge.sql) | B10.0C: registra exclusão voluntária pessoal como intenção distinta do expurgo automático, sem alterar as políticas institucionais de retenção. |
 | V53 | [`V53__voluntary_empty_document_purge.sql`](V53__voluntary_empty_document_purge.sql) | B10.0C-F: distingue pedidos idempotentes de esvaziamento voluntário de pedidos de item único. |
+| V54 | [`V54__logical_project_deletion.sql`](V54__logical_project_deletion.sql) | B10.0D: registra exclusão lógica de projetos com responsável e instante, mantendo vínculos e histórico preservados. |
+| V55 | [`V55__logical_frequency_list_deletion.sql`](V55__logical_frequency_list_deletion.sql) | B10.1B: exclusão lógica auditada de listas de Frequência, preservando registros relacionados. |
+| V56 | [`V56__simplify_project_administration_reasons.sql`](V56__simplify_project_administration_reasons.sql) | B10.1D: torna opcionais justificativas em ações administrativas de projeto, preservando trilhas, atores, datas e regras de integridade; auditoria continua restrita a ações explicitamente permitidas. |
 
 ## Aplicação
 

@@ -14,12 +14,11 @@ export function parseLeadershipProjects(value: unknown): LeadershipProject[] | n
     if (
       !isRecord(item) ||
       typeof item.projectId !== "string" ||
-      typeof item.title !== "string" ||
-      !(item.endedAt === null || typeof item.endedAt === "string")
+      typeof item.title !== "string"
     ) {
       return null;
     }
-    if (item.endedAt === null) projects.push({ projectId: item.projectId, title: item.title });
+    projects.push({ projectId: item.projectId, title: item.title });
   }
   return projects;
 }

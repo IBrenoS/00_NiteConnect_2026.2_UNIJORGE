@@ -34,9 +34,9 @@ describe("vistas pessoais de atividades", () => {
     const withoutResume = renderToStaticMarkup(<ActivityWorkspace {...props} activities={[activity]} capabilities={{ [activity.id]: pausedCapabilities }} view="status"/>);
     expect(withoutResume).toContain("Atividades de projetos pausados não podem mudar de situação");
     expect(withoutResume).toContain("peça a um administrador para retomar o projeto");
-    expect(withoutResume).not.toContain("retome o projeto em Administração");
+    expect(withoutResume).not.toContain("retome o projeto em Configurações");
     const withResume = renderToStaticMarkup(<ActivityWorkspace {...props} activities={[activity]} capabilities={{ [activity.id]: { ...pausedCapabilities, canResumeProject: true } }} view="priority"/>);
-    expect(withResume).toContain("retome o projeto em Administração");
+    expect(withResume).toContain("retome o projeto em Configurações");
   });
 
   it("agrupa os cards nas quatro situações e mantém propriedades editáveis acessíveis", () => {

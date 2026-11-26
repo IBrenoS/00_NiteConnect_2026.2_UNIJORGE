@@ -5,18 +5,21 @@ import { ProjectMark, ProjectProperties } from "./project-ui";
 import { ProjectPresentation } from "./project-presentation";
 import { ProjectOverview, ProjectWorkspaceShell } from "./project-workspace";
 import { ProjectTeam } from "./project-team";
+import { ProjectContextMenu } from "./project-context-menu";
+import { ProjectSettingsAdministration, ProjectTeamAdministration } from "./project-administration-contexts";
 import { LibraryExplorer } from "../documents/library-explorer";
 import { getVisualDocuments } from "../../lib/projects/visual-documents";
 import { PlanningForm, StatsPanel, TaskBoard, type PreviewTask } from "../activity-planning-preview/activity-planning-preview";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/meus-projetos/p1", useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
-vi.mock("../../lib/projects/actions", () => ({ requestProjectMembershipAction: vi.fn(), expressProjectInterestAction: vi.fn(), decideProjectMembershipAction: vi.fn(), setProjectAvailabilityAction: vi.fn() }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/meus-projetos/p1", useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
+vi.mock("../../lib/projects/actions", () => ({ requestProjectMembershipAction: vi.fn(), decideProjectMembershipAction: vi.fn(), setProjectAvailabilityAction: vi.fn() }));
+vi.mock("../../lib/projects/administration-actions", () => ({ deleteProjectAction: vi.fn() }));
 vi.mock("../../lib/documents/library-actions", () => ({ archiveLibraryFile: vi.fn(), archiveLibraryFolder: vi.fn(), createLibraryFolder: vi.fn(), organizeLibraryFile: vi.fn(), updateLibraryFolder: vi.fn(), setProjectDocumentEditGrant: vi.fn() }));
 vi.mock("../documents/library-upload-form", () => ({ LibraryUploadForm: () => null }));
 
-const caps = { canViewPresentation: true, canRequestMembership: false, canExpressInterest: false, canDecideRequests: false, canAccessWorkspace: true, canViewActivities: true, canViewDocuments: true, canManageMembers: false, canManageAvailability: false };
+const caps = { canViewPresentation: true, canRequestMembership: false, canDecideRequests: false, canAccessWorkspace: true, canViewActivities: true, canViewDocuments: true, canManageMembers: false, canManageAvailability: false, canEditProject: false, canDeleteProject: false };
 const project = { id: "p1", name: "Projeto persistido", summary: "Resumo autorizado", status: "ATIVO" as const, image: null, leaderName: "Liderança real", leadershipVacant: false, memberCount: 2, acceptingMembers: true, startsOn: null, endsOn: null, membershipRequestState: null, capabilities: caps };
-const workspace = { projectId: "p1", name: project.name, description: "Descrição privada autorizada", status: project.status, startsOn: null, endsOn: null, leaderId: "leader", leaderName: project.leaderName, leadershipVacant: false, memberCount: 2, activityCount: 7, version: 3, acceptingMembers: true, capabilities: { canAccessWorkspace: true, canManageMembers: false, canViewActivities: true, canViewDocuments: true, canManageAvailability: false, canDecideRequests: false, canCreatePlanning: false, canTransferLeadership: false } };
+const workspace = { projectId: "p1", name: project.name, description: "Descrição privada autorizada", status: project.status, startsOn: null, endsOn: null, leaderId: "leader", leaderName: project.leaderName, leadershipVacant: false, memberCount: 2, activityCount: 7, version: 3, acceptingMembers: true, capabilities: { canAccessWorkspace: true, canManageMembers: false, canViewActivities: true, canViewDocuments: true, canManageAvailability: false, canEditProject: false, canDeleteProject: false, canDecideRequests: false, canCreatePlanning: false, canTransferLeadership: false } };
 const members = [{ id: "membership", memberId: "leader", memberName: "Liderança real", responsibility: "Responsabilidade persistida", startedAt: "2026-11-18T12:00:00Z" }];
 
 describe("interfaces integradas de projetos", () => {
@@ -42,8 +45,8 @@ describe("interfaces integradas de projetos", () => {
     expect(html).toContain("Gestor do projeto");
   });
   it("usa capacidades públicas para ações e nunca inclui conteúdo privado na apresentação", () => {
-    const html = renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canAccessWorkspace: false, canRequestMembership: true } }} requests={[]} interests={[]}/>);
-    expect(html).toContain("Solicitar acesso");
+    const html = renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canAccessWorkspace: false, canRequestMembership: true } }} requests={[]}/>);
+    expect(html).toContain("Solicitar participação");
     expect(html).not.toContain("Abrir workspace");
     expect(html).not.toContain(workspace.description);
     expect(html).not.toContain("Dados de exemplo");
@@ -72,10 +75,11 @@ describe("interfaces integradas de projetos", () => {
     expect(html).toContain("Projeto pausado, mas recebendo pedidos para formar ou recompor a equipe.");
     expect(html).toContain("Desativar solicitações");
   });
-  it("diferencia interesse futuro de solicitações na apresentação do projeto", () => {
-    const html = renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canExpressInterest: true } }} requests={[]} interests={[]}/>);
-    expect(html).toContain("Aceita manifestações futuras");
-    expect(html).not.toContain("Recebendo solicitações");
+  it("não oferece manifestações futuras quando solicitações formais estão fechadas", () => {
+    const html = renderToStaticMarkup(<ProjectPresentation project={project} requests={[]}/>);
+    expect(html).toContain("Solicitações de participação indisponíveis");
+    expect(html).not.toContain("manifestação");
+    expect(html).not.toContain("Registrar interesse futuro");
   });
   it("não oferece limpar filtros quando a lista de projetos está realmente vazia", () => {
     const html = renderToStaticMarkup(<ProjectDirectory projects={[]} ownProjectIds={[]}/>);
@@ -112,8 +116,8 @@ describe("interfaces integradas de projetos", () => {
   it("distingue a administração institucional sem oferecer navegação duplicada", () => {
     const administrative = { ...workspace, capabilities: { ...workspace.capabilities, canManageMembers: true } };
     const html = renderToStaticMarkup(<ProjectWorkspaceShell workspace={administrative} participates={false}><p>Conteúdo real</p></ProjectWorkspaceShell>);
-    expect(html).toContain("Administrar institucionalmente");
-    expect(html).toContain('href="/projetos/p1/administrar"');
+    expect(html).toContain("Gerenciar equipe");
+    expect(html).toContain('href="/projetos/p1/equipe"');
     expect(html).not.toContain("Consultar apresentação pública");
     expect(html).not.toContain("Voltar para Meus projetos");
   });
@@ -136,7 +140,7 @@ describe("interfaces integradas de projetos", () => {
 });
 
 function projectFromTest() {
-  return { id: "p1", title: "Projeto persistido", publicSummary: "Resumo autorizado", status: "ATIVO" as const, imageUrl: null, leaderId: null, leaderName: null, leadershipVacant: true, teamSize: 0, acceptingMembers: true, startsOn: null, endsOn: null, canRequestMembership: false, canExpressInterest: false };
+  return { id: "p1", title: "Projeto persistido", publicSummary: "Resumo autorizado", status: "ATIVO" as const, imageUrl: null, leaderId: null, leaderName: null, leadershipVacant: true, teamSize: 0, acceptingMembers: true, startsOn: null, endsOn: null, canRequestMembership: false };
 }
 
 it("abre Meus pedidos quando a rota inclui tab=requests", () => {
@@ -153,6 +157,37 @@ it("Novo projeto depende de autoridade efetiva e não aparece em Meus Projetos",
  expect(renderToStaticMarkup(<ProjectDirectory {...base} canCreate personal/>)).not.toContain('href="/projetos/novo"');
 });
 it("administração no detalhe respeita capacidades recebidas do backend", () => {
- expect(renderToStaticMarkup(<ProjectPresentation project={project} requests={[]} interests={[]}/>)).not.toContain("Administrar projeto");
- expect(renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canManageMembers: true } }} requests={[]} interests={[]}/>)).toContain('href="/projetos/p1/administrar"');
+    expect(renderToStaticMarkup(<ProjectPresentation project={project} requests={[]}/>)).not.toContain("Administrar projeto");
+    expect(renderToStaticMarkup(<ProjectPresentation project={{ ...project, capabilities: { ...caps, canManageMembers: true } }} requests={[]}/>)).toContain('href="/projetos/p1/equipe"');
+});
+it("menu contextual não aparece vazio e separa a exclusão das ações comuns",()=>{
+ const empty=renderToStaticMarkup(<ProjectContextMenu projectId="p1" name="Projeto" canEdit={false} canManageTeam={false} canConfigure={false} canDelete={false}/>);
+ expect(empty).toBe("");
+ const menu=renderToStaticMarkup(<ProjectContextMenu projectId="p1" name="Projeto" canEdit canManageTeam canConfigure canDelete/>);
+ expect(menu).toContain("Editar projeto");expect(menu).toContain("Gerenciar equipe");expect(menu).toContain("Configurações do projeto");
+ expect(menu).toContain("Excluir projeto?");expect(menu).toContain("Projeto");expect(menu).toContain("deixará de aparecer nas áreas ativas");
+ expect(menu).not.toContain("justificativa");expect(menu).not.toContain("checkbox");
+});
+it("liga cada ação do menu ao contexto aprovado",()=>{
+ const menu=renderToStaticMarkup(<ProjectContextMenu projectId="p1" name="Projeto" canEdit canManageTeam canConfigure canDelete/>);
+ expect(menu).toContain('href="/projetos/p1?dialog=edit"');
+ expect(menu).toContain('href="/projetos/p1/equipe"');
+ expect(menu).toContain('href="/projetos/p1/configuracoes"');
+});
+it("equipe mostra apenas dados contratuais e liderança contextual",()=>{
+ const adminWorkspace={...workspace,capabilities:{...workspace.capabilities,canManageMembers:true,canTransferLeadership:true}};
+ const html=renderToStaticMarkup(<ProjectTeamAdministration workspace={adminWorkspace} members={members} requests={[]}/>);
+ expect(html).toContain("Responsabilidade persistida");
+ expect(html).toContain("Liderança do projeto");
+ expect(html).toContain("Gestor do projeto");
+ expect(html).not.toContain("Gestão geral");
+ expect(html).not.toContain("email");
+});
+it("configurações usa transições contratuais, switch e zona de risco",()=>{
+ const adminWorkspace={...workspace,capabilities:{...workspace.capabilities,canManageMembers:true,canManageAvailability:true,canDeleteProject:true}};
+ const html=renderToStaticMarkup(<ProjectSettingsAdministration workspace={adminWorkspace} canChangeStatus/>);
+ expect(html).toContain('role="switch"');
+ expect(html).toContain("Transições disponíveis");
+ expect(html).toContain("Zona de risco");
+ expect(html).not.toContain("Arquivar projeto");
 });

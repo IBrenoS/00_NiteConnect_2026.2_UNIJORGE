@@ -5,7 +5,7 @@ import { requireAuthenticatedNiteSession } from "../auth/server-session";
 import { mutateActivity } from "../activities/mutations";
 import type { ApiIssue } from "../api/contracts";
 import { getCatalogProject, getProjectWorkspace } from "./data";
-import { parseInterestSignal, parseMembershipRequest, projectIdPattern, type InterestSignal, type MembershipRequest } from "./integration-contracts";
+import { parseMembershipRequest, projectIdPattern, type MembershipRequest } from "./integration-contracts";
 
 export type ProjectMutationIssue = ApiIssue | "conflict";
 export type ProjectActionResult<T = null> = { data: T | null; issue: ProjectMutationIssue | null; issueText: string | null };
@@ -47,15 +47,6 @@ export async function withdrawProjectMembershipAction(projectId: string, request
   const session = await requireAuthenticatedNiteSession();
   if (!projectIdPattern.test(projectId) || !projectIdPattern.test(requestId) || !version(expectedVersion)) return failure("invalid");
   return mutate(projectId, session.bearer, `membership-requests/${encodeURIComponent(requestId)}/withdraw`, "POST", { expectedVersion }, parseMembershipRequest);
-}
-
-export async function expressProjectInterestAction(projectId: string, message?: string | null): Promise<ProjectActionResult<InterestSignal>> {
-  const session = await requireAuthenticatedNiteSession();
-  if (!projectIdPattern.test(projectId) || !validMessage(message)) return failure("invalid");
-  const current = await getCatalogProject(session.bearer, projectId);
-  if (current.issue) return failure(current.issue);
-  if (!current.data.capabilities.canExpressInterest) return failure("access");
-  return mutate(projectId, session.bearer, "interest-signals", "POST", { message: message?.trim() || null }, parseInterestSignal);
 }
 
 export async function decideProjectMembershipAction(projectId: string, requestId: string, input: { approve: boolean; message?: string | null; expectedVersion: number }): Promise<ProjectActionResult<MembershipRequest>> {

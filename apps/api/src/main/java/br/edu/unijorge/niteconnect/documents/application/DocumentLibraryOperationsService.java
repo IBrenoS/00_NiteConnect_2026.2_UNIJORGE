@@ -87,6 +87,30 @@ public class DocumentLibraryOperationsService {
         }
         return List.copyOf(set);
     }
+    private List<Resource> normalizeOverlaps(String action,List<Resource> selected) {
+        if(action==null) return selected;
+        if(!Set.of("TRASH","RESTORE").contains(action)) return selected;
+        Set<Resource> descendants=new HashSet<>();
+        for(Resource parent:selected) {
+            if(!"FOLDER".equals(parent.type())) continue;
+            UUID parentBatch="RESTORE".equals(action)?folders.trashItem(parent.id()).batchId():null;
+            for(Resource candidate:selected) {
+                if(candidate.equals(parent)) continue;
+                UUID childFolder;
+                UUID childBatch=null;
+                if("FOLDER".equals(candidate.type())) {
+                    childFolder=candidate.id();
+                    if("RESTORE".equals(action)) childBatch=folders.trashItem(candidate.id()).batchId();
+                } else if("RESTORE".equals(action)) {
+                    var item=folders.trashItem(candidate.id());
+                    childFolder=item.originalFolderId();childBatch=item.batchId();
+                } else childFolder=documents.require(candidate.id()).folderId();
+                if((!"RESTORE".equals(action)||Objects.equals(parentBatch,childBatch))
+                        &&folders.descendant(parent.id(),childFolder)) descendants.add(candidate);
+            }
+        }
+        return selected.stream().filter(item->!descendants.contains(item)).toList();
+    }
     private void requireCopy(UUID actor,Resource item) {
         if("DOCUMENT".equals(item.type())) {
             var doc=core.require(actor,item.id());
@@ -216,7 +240,7 @@ public class DocumentLibraryOperationsService {
     public Preview preview(UUID actor,BatchRequest request) {
         access.requireActive(actor);
         if(request==null) throw ApiException.invalid("Lote obrigatório");
-        List<Resource> items=unique(request.items());
+        List<Resource> items=normalizeOverlaps(request.action(),unique(request.items()));
         if(request.action()==null||!Set.of("COPY","MOVE","TRASH","RESTORE","FAVORITE","UNFAVORITE").contains(request.action()))
             throw ApiException.invalid("Ação inválida");
         if("MOVE".equals(request.action())&&request.destinationId()==null) throw ApiException.invalid("Destino obrigatório");
@@ -282,9 +306,16 @@ public class DocumentLibraryOperationsService {
             return json.readValue(prior.getFirst()[1],BatchResult.class);
         }
         Preview preview=preview(actor,request);
-        if(!preview.blockers().isEmpty()) throw ApiException.conflict("Lote contém itens não autorizados ou indisponíveis");
+        if(!preview.blockers().isEmpty()) {
+            if("RESTORE".equals(request.action())) {
+                boolean unavailable=preview.blockers().stream().anyMatch(blocker->blocker.endsWith(":403"));
+                if(unavailable) throw ApiException.conflict("Um ou mais itens não estão disponíveis para restauração nesta Lixeira");
+                throw ApiException.conflict("Conflito de nome ou pasta original indisponível");
+            }
+            throw ApiException.conflict("Lote contém itens não autorizados ou indisponíveis");
+        }
         List<CopyResult> results=new ArrayList<>();
-        for(Resource item:unique(request.items())) {
+        for(Resource item:normalizeOverlaps(request.action(),unique(request.items()))) {
             switch(request.action()) {
                 case "COPY" -> results.add(copy(actor,item,request.destinationId(),item.name()));
                 case "MOVE" -> {

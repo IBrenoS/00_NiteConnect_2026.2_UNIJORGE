@@ -77,6 +77,42 @@ class DocumentInternalRetentionPolicyTest {
                 """,id,"Teste "+days,member,member,member,member,days,member,UUID.randomUUID());
     }
 
+    @Test void purgeRequestsForFolderAndDescendantReuseOneDeletionUnitOperation() {
+        Flyway.configure().dataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword())
+                .locations("classpath:Migrations").load().migrate();
+        var dataSource=new DriverManagerDataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword());
+        var jdbc=new JdbcTemplate(dataSource);
+        UUID actor=UUID.randomUUID(),document=UUID.randomUUID(),version=UUID.randomUUID(),object=UUID.randomUUID(),batch=UUID.randomUUID();
+        jdbc.update("insert into nite_connect.members(id,name,institutional_email,status) values (?,'Integrante','purge-unit-test@unijorge.com.br','ATIVO')",actor);
+        var identities=new DocumentIdentityRepository(jdbc);
+        var library=new DocumentLibraryRepository(jdbc,identities);
+        var home=library.ensurePersonal(actor);
+        var root=library.addFolder(home.id(),"Unidade de descarte","#D6A432",actor);
+        jdbc.update("update nite_connect.document_folders set lifecycle_state='TRASHED',deleted_at=clock_timestamp(),deleted_by=?,trash_batch_id=? where id=?",actor,batch,root.id());
+        jdbc.update("""
+                insert into nite_connect.documents(id,title,context,owner_id,official,created_by,space_owner_id,resource_owner_kind,
+                  resource_owner_id,origin,protection,protection_revision,folder_id,lifecycle_state,deleted_at,deleted_by,trash_batch_id)
+                values (?,'Descendente.docx','PERSONAL',?,false,?,?,'MEMBER',?,'PERSONAL_CREATED','NONE',0,?,'TRASHED',clock_timestamp(),?,?)
+                """,document,actor,actor,actor,actor,root.id(),actor,batch);
+        jdbc.update("""
+                insert into nite_connect.document_versions(id,document_id,revision,object_id,size,sha256,status,created_by)
+                values (?,?,1,?,100,repeat('a',64),'AVAILABLE',?)
+                """,version,document,object,actor);
+        jdbc.update("update nite_connect.documents set current_version_id=? where id=?",version,document);
+        var repository=new DocumentPurgeRepository(jdbc,library);
+        var access=mock(AccessService.class);
+        var capabilities=new DocumentCapabilityService(access,mock(ProjectAccess.class),mock(DocumentSharingRepository.class),library,identities);
+        var service=new DocumentPurgeService(access,capabilities,repository,true,false,
+                new TransactionTemplate(new DataSourceTransactionManager(dataSource)));
+
+        var descendantRequest=service.request(actor,document,"purge-descendant");
+        var rootRequest=service.request(actor,root.id(),"purge-root");
+
+        assertThat(rootRequest.id()).isEqualTo(descendantRequest.id());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_purge_operations where actor_id=?",Integer.class,actor)).isEqualTo(1);
+        assertThat(rootRequest.itemCount()).isEqualTo(2);
+    }
+
     @Test void projectLeaderRequestsInstitutionalTrashAndOneAdministratorDecides() {
         Flyway.configure().dataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword())
                 .locations("classpath:Migrations").load().migrate();

@@ -265,7 +265,8 @@
 }
 
 
-.projectMenu{position:relative}.projectMenu summary{cursor:pointer;list-style:none;padding:7px 10px;border:1px solid var(--nite-border-control);border-radius:6px}.projectMenu summary::-webkit-details-marker{display:none}.projectMenu>div{position:absolute;right:0;top:42px;z-index:20;display:grid;width:230px;padding:6px;border:1px solid var(--nite-border-soft);border-radius:8px;background:var(--nite-surface-elevated);box-shadow:var(--nite-shadow-floating)}.projectMenu a{padding:10px;font-size:.875rem;border-radius:4px}.projectMenu a:hover{background:var(--nite-surface-subtle)}
+.projectMenu{position:relative;margin-left:auto}.projectMenu summary{cursor:pointer;list-style:none;min-width:42px;min-height:42px;display:grid;place-items:center;padding:7px 10px;border:1px solid var(--nite-border-control);border-radius:10px;color:var(--nite-text-secondary);transition:background .16s,border-color .16s,color .16s}.projectMenu summary:hover,.projectMenu[open] summary{background:var(--nite-surface-subtle);color:var(--nite-text-primary)}.projectMenu summary:focus-visible{outline:2px solid var(--nite-focus);outline-offset:2px}.projectMenu summary::-webkit-details-marker{display:none}.projectMenu>div{position:absolute;right:0;top:calc(100% + 8px);z-index:40;display:grid;gap:2px;width:248px;padding:7px;border:1px solid var(--nite-border-soft);border-radius:12px;background:var(--nite-surface-elevated);box-shadow:var(--nite-shadow-floating)}.projectMenu a,.projectMenuDanger{display:flex;align-items:center;min-height:40px;padding:0 11px;font:inherit;font-size:.875rem;text-align:left;text-decoration:none;color:var(--nite-text-primary);border-radius:7px;background:transparent}.projectMenu a:hover,.projectMenuDanger:hover{background:var(--nite-surface-subtle)}.projectMenu hr{width:calc(100% - 12px);margin:5px 6px;border:0;border-top:1px solid var(--nite-border-soft)}.projectMenuDanger{color:var(--status-error,#b42318);cursor:pointer}.projectMenuDanger:focus-visible{outline:2px solid var(--nite-focus);outline-offset:1px}
+.projectDeleteDialog{display:grid;gap:16px}.projectDeleteDialog>p{margin:0;color:var(--status-error,#b42318);font-size:.875rem}.projectDeleteDialog>div{display:flex;justify-content:flex-end;gap:8px}.projectDeleteCancel,.projectDeleteConfirm{min-height:40px;padding:0 15px;border-radius:9px;font-size:.875rem;font-weight:600}.projectDeleteCancel{border:1px solid var(--nite-border-control);background:var(--nite-surface);color:var(--nite-text-primary)}.projectDeleteConfirm{background:var(--status-error,#b42318);color:white}.projectDeleteConfirm:hover{filter:brightness(.94)}.projectDeleteCancel:focus-visible,.projectDeleteConfirm:focus-visible{outline:2px solid var(--nite-focus);outline-offset:2px}.projectDeleteCancel:disabled,.projectDeleteConfirm:disabled{opacity:.55}
 
 /* Refine the existing planning and library components only inside this module. */
 .workspace :global(.text-type-metadata){font-size:.75rem;line-height:1.5}
@@ -277,7 +278,6 @@
 .workspaceHeader>.mark{width:42px;height:42px;font-size:.875rem}
 .documentSection :global(.document-explorer){height:calc(100dvh - 18.75rem);min-height:22rem;margin-bottom:0}
 .documentSection :global(.document-project-trash){height:calc(100dvh - 18.75rem);min-height:22rem}
-.projectMenu summary{min-width:42px;min-height:42px;display:grid;place-items:center}
 @media(max-width:1050px) and (min-width:801px){.detailLayout{grid-template-columns:minmax(0,1fr)}.overviewAside{position:static;max-height:none;overflow:visible}.propertyPanel .properties,.overviewAside .properties{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:800px){.propertyPanel .properties,.overviewAside .properties{grid-template-columns:1fr}}
 @media(max-width:520px){.workspaceHeader h1{min-width:0;flex-basis:calc(100% - 80px)}.workspaceHeader>.projectStatus{margin-right:auto}.overviewAside{padding:20px 16px}.toolbar>label{max-width:100%}.toolbar select,.toolbar input,.search input,.field input,.field textarea{font-size:1rem}.personRow>.avatar{width:48px;height:48px}.rowActions{margin-left:58px}.projectCard footer{align-items:flex-start}}
@@ -306,9 +306,6 @@
 .adminForm select{width:100%;min-height:44px;padding:10px;border:1px solid var(--nite-border-control);border-radius:6px;background:var(--nite-surface);color:var(--nite-text-primary);font:inherit}
 .adminDisclosure{padding:18px 0;border-top:1px solid var(--nite-border-soft)}
 .adminDisclosure summary,.adminMember summary{cursor:pointer;font-weight:500;line-height:1.6}
-.adminHistory{border-top:1px solid var(--nite-border-soft);padding:16px 0;font-size:.9375rem}
-.adminHistory time{display:block;color:var(--nite-text-secondary);margin-top:6px}
-.adminHistory p{margin:8px 0}
 .adminMember{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:20px 0;border-bottom:1px solid var(--nite-border-soft)}
 .adminMember>details{max-width:420px;flex:1}
 .adminMember .projectName{min-width:0}

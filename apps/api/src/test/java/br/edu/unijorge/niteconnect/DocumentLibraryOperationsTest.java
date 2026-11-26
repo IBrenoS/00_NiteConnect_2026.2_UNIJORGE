@@ -110,6 +110,99 @@ class DocumentLibraryOperationsTest extends ProjectTestSupport {
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,first)).isEqualTo("ACTIVE");
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,second)).isEqualTo("ACTIVE");
     }
+    @Test void trashListsOnlyEachDeletionUnitRootAndCountsItsContentsOnce() throws Exception {
+        UUID home=home(MEMBER),root=folder(MEMBER,home,"Pasta da unidade"),nested=folder(MEMBER,root,"Subpasta");
+        UUID descendant=upload(MEMBER,nested,"Dentro.docx"),standalone=upload(MEMBER,home,"Separado.docx");
+        long expectedBytes=jdbc.queryForObject("select v.size from nite_connect.documents d join nite_connect.document_versions v on v.id=d.current_version_id where d.id=?",Long.class,descendant);
+        mvc.perform(post("/api/v1/library/folders/"+root+"/trash").queryParam("recursive","true").with(token(MEMBER))).andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/library/documents/"+standalone+"/trash").with(token(MEMBER))).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/v1/me/trash").with(token(MEMBER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[1].item.id").value(root.toString()))
+                .andExpect(jsonPath("$.items[1].item.subtreeItems").value(2))
+                .andExpect(jsonPath("$.items[1].item.size").value(expectedBytes))
+                .andExpect(jsonPath("$.items[0].item.id").value(standalone.toString()));
+    }
+    @Test void batchTrashAndRestoreNormalizeOverlappingResources() throws Exception {
+        UUID home=home(MEMBER),root=folder(MEMBER,home,"Unidade selecionada"),nested=folder(MEMBER,root,"Subpasta selecionada");
+        UUID descendant=upload(MEMBER,nested,"Selecionado junto.docx");
+        String trash="{\"action\":\"TRASH\",\"items\":[{\"type\":\"FOLDER\",\"id\":\""+root
+                +"\"},{\"type\":\"DOCUMENT\",\"id\":\""+descendant+"\"}]}";
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","trash-overlap")
+                        .contentType(MediaType.APPLICATION_JSON).content(trash))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+        String restore="{\"action\":\"RESTORE\",\"items\":[{\"type\":\"FOLDER\",\"id\":\""+root
+                +"\"},{\"type\":\"DOCUMENT\",\"id\":\""+descendant+"\"}]}";
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","restore-overlap")
+                        .contentType(MediaType.APPLICATION_JSON).content(restore))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.document_folders where id=?",String.class,nested)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,descendant)).isEqualTo("ACTIVE");
+    }
+    @Test void batchRestorePreservesOriginalTreeVersionsObjectsAndReplaysIdempotently() throws Exception {
+        UUID home=home(MEMBER),root=folder(MEMBER,home,"Pasta restaurável"),nested=folder(MEMBER,root,"Subpasta");
+        UUID descendant=upload(MEMBER,nested,"Dentro.docx"),individual=upload(MEMBER,home,"Individual.docx");
+        UUID version=jdbc.queryForObject("select current_version_id from nite_connect.documents where id=?",UUID.class,descendant);
+        UUID object=jdbc.queryForObject("select object_id from nite_connect.document_versions where id=?",UUID.class,version);
+        byte[] original=store.get(object);
+        mvc.perform(post("/api/v1/library/folders/"+root+"/trash").queryParam("recursive","true").with(token(MEMBER))).andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/library/documents/"+individual+"/trash").with(token(MEMBER))).andExpect(status().isNoContent());
+        String request="{\"action\":\"RESTORE\",\"items\":[{\"type\":\"FOLDER\",\"id\":\""+root
+                +"\"},{\"type\":\"DOCUMENT\",\"id\":\""+individual+"\"}]}";
+        String first=mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","restore-tree-once")
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(2)).andReturn().getResponse().getContentAsString();
+        String retry=mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","restore-tree-once")
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(retry).isEqualTo(first);
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.document_folders where id=?",String.class,root)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select parent_id from nite_connect.document_folders where id=?",UUID.class,root)).isEqualTo(home);
+        assertThat(jdbc.queryForObject("select parent_id from nite_connect.document_folders where id=?",UUID.class,nested)).isEqualTo(root);
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,descendant)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select folder_id from nite_connect.documents where id=?",UUID.class,descendant)).isEqualTo(nested);
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,individual)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select current_version_id from nite_connect.documents where id=?",UUID.class,descendant)).isEqualTo(version);
+        assertThat(jdbc.queryForObject("select object_id from nite_connect.document_versions where id=?",UUID.class,version)).isEqualTo(object);
+        assertThat(store.get(object)).isEqualTo(original);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_operation_receipts where actor_id=? and idempotency_key=?",Integer.class,MEMBER,"restore-tree-once")).isEqualTo(1);
+    }
+    @Test void batchRestoreRejectsNameConflictWithoutRenamingOrPartialChange() throws Exception {
+        UUID home=home(MEMBER),partial=upload(MEMBER,home,"Sem conflito.docx"),original=upload(MEMBER,home,"Conflito.docx");
+        mvc.perform(post("/api/v1/library/documents/"+partial+"/trash").with(token(MEMBER))).andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/library/documents/"+original+"/trash").with(token(MEMBER))).andExpect(status().isNoContent());
+        UUID replacement=upload(MEMBER,home,"Conflito.docx");
+        String request="{\"action\":\"RESTORE\",\"items\":[{\"type\":\"DOCUMENT\",\"id\":\""+partial
+                +"\"},{\"type\":\"DOCUMENT\",\"id\":\""+original+"\"}]}";
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","restore-conflict")
+                        .contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,partial)).isEqualTo("TRASHED");
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,original)).isEqualTo("TRASHED");
+        assertThat(jdbc.queryForObject("select title from nite_connect.documents where id=?",String.class,original)).isEqualTo("Conflito.docx");
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,replacement)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_operation_receipts where actor_id=? and idempotency_key=?",Integer.class,MEMBER,"restore-conflict")).isZero();
+    }
+    @Test void batchRestoreRejectsUnavailableOriginalFolderWithoutMovingTheDocument() throws Exception {
+        UUID home=home(MEMBER),parent=folder(MEMBER,home,"Destino original"),document=upload(MEMBER,parent,"Preservado.docx");
+        mvc.perform(post("/api/v1/library/folders/"+parent+"/trash").queryParam("recursive","true").with(token(MEMBER))).andExpect(status().isNoContent());
+        String request="{\"action\":\"RESTORE\",\"items\":[{\"type\":\"DOCUMENT\",\"id\":\""+document+"\"}]}";
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","restore-missing-parent")
+                        .contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,document)).isEqualTo("TRASHED");
+        assertThat(jdbc.queryForObject("select folder_id from nite_connect.documents where id=?",UUID.class,document)).isEqualTo(parent);
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.document_folders where id=?",String.class,parent)).isEqualTo("TRASHED");
+    }
+    @Test void batchRestoreDoesNotGrantAnotherMembersTrashPermission() throws Exception {
+        UUID document=upload(ADMIN,home(ADMIN),"Privado.docx");
+        mvc.perform(post("/api/v1/library/documents/"+document+"/trash").with(token(ADMIN))).andExpect(status().isNoContent());
+        String request="{\"action\":\"RESTORE\",\"items\":[{\"type\":\"DOCUMENT\",\"id\":\""+document+"\"}]}";
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","restore-forbidden")
+                        .contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,document)).isEqualTo("TRASHED");
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.document_operation_receipts where actor_id=? and idempotency_key=?",Integer.class,MEMBER,"restore-forbidden")).isZero();
+    }
     @Test void batchCopyUsesNamesAndReplaysSameResult() throws Exception {
         UUID home=home(MEMBER),doc=upload(MEMBER,home,"Lote.docx");
         String body="{\"action\":\"COPY\",\"items\":[{\"type\":\"DOCUMENT\",\"id\":\""+doc

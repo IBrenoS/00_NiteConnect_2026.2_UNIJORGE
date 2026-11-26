@@ -8,6 +8,37 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class ProjectAdministrationIntegrationTest extends ProjectTestSupport {
+    @Test void currentLeadershipSummaryUsesOnlyActiveProjects() throws Exception {
+        UUID id = project();
+        join(id, LEADER);
+        transfer(id, LEADER);
+        mvc.perform(get("/api/v1/me/projects/leadership").with(token(LEADER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].projectId").value(id.toString()));
+    }
+
+    @Test void optionalLegacyUpdateReasonIsStillRecordedWhenProvided() throws Exception {
+        UUID id = project();
+        mvc.perform(patch("/api/v1/projects/" + id).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Projeto atualizado\",\"description\":\"Descrição\",\"expectedVersion\":0,\"reason\":\"Ajuste institucional\"}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where entity_id=? and action='PROJECT_UPDATED' and reason='Ajuste institucional'", Integer.class, id)).isEqualTo(1);
+    }
+
+    @Test void statusAndMembershipCanBeChangedWithoutManualReasons() throws Exception {
+        UUID id = project();
+        mvc.perform(patch("/api/v1/projects/" + id + "/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ATIVO\",\"expectedVersion\":0}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ATIVO"));
+        mvc.perform(post("/api/v1/projects/" + id + "/members").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"memberId\":\"" + MEMBER + "\",\"responsibility\":\"Pesquisa\",\"expectedVersion\":1}"))
+                .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_status_history where project_id=? and reason is null", Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and start_reason is null", Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where entity_id=? and action in ('PROJECT_STATUS_CHANGED','PROJECT_MEMBER_JOINED') and reason is null", Integer.class, id)).isEqualTo(2);
+    }
+
     @Test void createsDirectlyInEachPermittedInitialStateWithoutManualReason() throws Exception {
         for (String initial : java.util.List.of("PLANEJAMENTO", "ATIVO", "PAUSADO")) {
             mvc.perform(post("/api/v1/projects").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
@@ -56,11 +87,11 @@ class ProjectAdministrationIntegrationTest extends ProjectTestSupport {
         UUID id = project();
         mvc.perform(patch("/api/v1/projects/"+id).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
             .content("""
-                {"title":"Projeto editado","description":"Descrição persistida","startsOn":"2026-11-18","endsOn":"2026-12-18","expectedVersion":0,"reason":"Correção administrativa"}
+                {"title":"Projeto editado","description":"Descrição persistida","startsOn":"2026-11-18","endsOn":"2026-12-18","expectedVersion":0}
                 """)).andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
         mvc.perform(get("/api/v1/projects/"+id).with(token(ADMIN))).andExpect(jsonPath("$.title").value("Projeto editado"))
             .andExpect(jsonPath("$.startsOn").value("2026-11-18"));
-        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where entity_id=? and action='PROJECT_UPDATED' and reason='Correção administrativa'",Integer.class,id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where entity_id=? and action='PROJECT_UPDATED' and reason is null",Integer.class,id)).isEqualTo(1);
         mvc.perform(patch("/api/v1/projects/"+id).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON).content(updateBody(0))).andExpect(status().isConflict());
         for (String state : java.util.List.of("ATIVO","PAUSADO","CONCLUIDO","ATIVO")) {
             mvc.perform(patch("/api/v1/projects/"+id+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
@@ -73,9 +104,72 @@ class ProjectAdministrationIntegrationTest extends ProjectTestSupport {
         mvc.perform(patch("/api/v1/projects/"+id+"/availability").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
             .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/projects/"+id+"/workspace").with(token(ADMIN))).andExpect(jsonPath("$.acceptingMembers").value(true));
-        mvc.perform(get("/api/v1/projects/"+id+"/history").with(token(ADMIN))).andExpect(jsonPath("$.total").value(5));
+        mvc.perform(get("/api/v1/projects/"+id+"/history").with(token(ADMIN))).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_status_history where project_id=?",Integer.class,id)).isEqualTo(5);
         mvc.perform(get("/api/v1/me/projects").with(token(ADMIN))).andExpect(jsonPath("$.total").value(0));
         assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?",Integer.class,id)).isEqualTo(1);
+    }
+    @Test void contextualProjectManagerCannotEditInstitutionalFields() throws Exception {
+        UUID id=project(); join(id,LEADER); transfer(id,LEADER); long before=version(id);
+        mvc.perform(patch("/api/v1/projects/"+id).with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody(version(id)))).andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select version from nite_connect.projects where id=?",Long.class,id)).isEqualTo(before);
+    }
+    @Test void editAndDeleteAreRestrictedToTheTwoGlobalAdministratorRoles() throws Exception {
+        UUID id=project();
+        for(UUID actor:java.util.List.of(MEMBER,LEADER)) {
+            mvc.perform(patch("/api/v1/projects/"+id).with(token(actor)).contentType(MediaType.APPLICATION_JSON).content(updateBody(version(id))))
+                    .andExpect(status().isForbidden());
+            mvc.perform(delete("/api/v1/projects/"+id).with(token(actor)))
+                    .andExpect(status().isForbidden());
+        }
+        for(String role:java.util.List.of("COORDENADOR","GESTOR_GERAL")) {
+            jdbc.update("update nite_connect.role_assignments set role=? where member_id=?",role,ADMIN);
+            mvc.perform(patch("/api/v1/projects/"+id).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON).content(updateBody(version(id))))
+                    .andExpect(status().isOk());
+        }
+        mvc.perform(delete("/api/v1/projects/"+id).with(token(ADMIN))).andExpect(status().isOk());
+    }
+    @Test void deletionIsLogicalAtomicAuthorizedAndHidesProjectFromActiveLists() throws Exception {
+        UUID id=project(); join(id,LEADER); transfer(id,LEADER);
+        mvc.perform(post("/api/v1/activities").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Atividade histórica\",\"description\":\"Preservada\",\"projectId\":\""+id+"\",\"primaryExecutorId\":\""+LEADER+"\",\"reason\":\"Fixture\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(get("/api/v1/me/activities").with(token(LEADER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
+        mvc.perform(get("/api/v1/me/activity-items").with(token(LEADER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
+        mvc.perform(delete("/api/v1/projects/"+id).with(token(ADMIN))).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("select deleted_by from nite_connect.projects where id=?",UUID.class,id)).isEqualTo(ADMIN);
+        assertThat(jdbc.queryForObject("select deleted_at from nite_connect.projects where id=?",java.time.OffsetDateTime.class,id)).isNotNull();
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=?",Integer.class,id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?",Integer.class,id)).isEqualTo(1);
+        mvc.perform(get("/api/v1/projects").with(token(ADMIN))).andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/project-catalog").with(token(MEMBER))).andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/me/activities").with(token(LEADER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/me/activity-items").with(token(LEADER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/projects/"+id).with(token(ADMIN))).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/projects/"+id).with(token(ADMIN))).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where entity_id=? and action='PROJECT_DELETED' and reason is null",Integer.class,id)).isEqualTo(1);
+        mvc.perform(post("/api/v1/projects/"+id+"/members").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"memberId\":\""+MEMBER+"\",\"responsibility\":\"Teste\",\"expectedVersion\":"+version(id)+",\"reason\":\"Novo vínculo\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/activity-plannings").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Planejamento bloqueado\",\"description\":\"Teste\",\"projectId\":\""+id+"\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/activities").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Atividade bloqueada\",\"description\":\"Teste\",\"projectId\":\""+id+"\",\"primaryExecutorId\":\""+ADMIN+"\",\"reason\":\"Teste\"}"))
+                .andExpect(status().isNotFound());
+    }
+    @Test void concurrentAndRepeatedDeletionNeverReplaysOrPartiallyDeletes() throws Exception {
+        UUID id=project();
+        try(var executor=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var start=new java.util.concurrent.CountDownLatch(1);
+            var first=executor.submit(()->{start.await();return mvc.perform(delete("/api/v1/projects/"+id).with(token(ADMIN))).andReturn().getResponse().getStatus();});
+            var second=executor.submit(()->{start.await();return mvc.perform(delete("/api/v1/projects/"+id).with(token(ADMIN))).andReturn().getResponse().getStatus();});
+            start.countDown();
+            var statuses=java.util.List.of(first.get(),second.get());
+            assertThat(statuses).containsExactlyInAnyOrder(200,404);
+        }
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.audit_events where entity_id=? and action='PROJECT_DELETED'",Integer.class,id)).isEqualTo(1);
     }
     @Test void ordinaryMemberAndInactiveAdministratorCannotCreateOrAdminister() throws Exception {
         UUID id = project(); join(id,MEMBER);

@@ -54,21 +54,22 @@ public class DocumentCapabilityService {
         boolean admin=isActive&&access.isAdministrator(actor);
         String grant=isActive?sharing.documentPermission(document.id(),actor):null;
         boolean ownerSpace=isActive&&"PERSONAL".equals(document.context())&&actor.equals(identity.spaceOwnerId());
+        boolean projectOperational=!"PROJECT".equals(document.context())||projectRead(actor,document.projectId());
         boolean projectReader=isActive&&"PROJECT".equals(document.context())&&projectRead(actor,document.projectId());
         boolean projectManager=isActive&&"PROJECT".equals(document.context())&&projectManage(actor,document.projectId());
         boolean view=admin||ownerSpace||projectReader||grant!=null;
-        boolean edit=view&&(admin||ownerSpace||projectManager||"EDIT".equals(grant)
+        boolean edit=view&&projectOperational&&(admin||ownerSpace||projectManager||"EDIT".equals(grant)
                 ||("PROJECT".equals(document.context())&&folders.canEdit(document.id(),actor)));
         boolean own=identity.ownedAndCreatedBy(actor);
-        boolean manage=view&&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()));
-        boolean share=view&&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()));
+        boolean manage=view&&projectOperational&&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()));
+        boolean share=view&&projectOperational&&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()));
         boolean organize=manage&&(!identity.protectedResource()||admin);
-        boolean archive=view&&(admin||projectManager);
+        boolean archive=view&&projectOperational&&(admin||projectManager);
         boolean institutional=admin&&("INSTITUTION".equals(identity.resourceOwnerKind())
                 ||"PROJECT".equals(identity.resourceOwnerKind()));
-        boolean trash=view&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
+        boolean trash=view&&projectOperational&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
                 &&((ownerSpace&&own&&!identity.protectedResource())||institutional);
-        boolean copy=view&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
+        boolean copy=view&&projectOperational&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
                 &&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()));
         return result(isActive,view,view,edit,false,organize,organize,copy,share,
                 trash,false,false,archive,false,false,identity,grant,ownerSpace);
@@ -80,25 +81,26 @@ public class DocumentCapabilityService {
         boolean admin=isActive&&access.isAdministrator(actor);
         String grant=isActive?sharing.folderPermission(folder.id(),actor):null;
         boolean ownerSpace=isActive&&"PERSONAL".equals(scope.kind())&&actor.equals(scope.subject());
+        boolean projectOperational=!"PROJECT".equals(scope.kind())||projectRead(actor,scope.subject());
         boolean projectReader=isActive&&"PROJECT".equals(scope.kind())&&projectRead(actor,scope.subject());
         boolean projectManager=isActive&&"PROJECT".equals(scope.kind())&&projectManage(actor,scope.subject());
         boolean view=admin||ownerSpace||projectReader||grant!=null;
         boolean structural=!"CUSTOM".equals(folder.kind());
-        boolean add=view&&(admin||ownerSpace||projectManager
+        boolean add=view&&projectOperational&&(admin||ownerSpace||projectManager
                 ||("EDIT".equals(grant)&&!"INSTITUTION".equals(scope.kind())))
                 &&(structural||!identity.protectedResource()||admin);
         boolean own=identity.ownedAndCreatedBy(actor);
-        boolean rename=view&&(admin||!structural&&(projectManager||(ownerSpace&&own&&!identity.protectedResource())));
-        boolean move=view&&!structural&&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()))
+        boolean rename=view&&projectOperational&&(admin||!structural&&(projectManager||(ownerSpace&&own&&!identity.protectedResource())));
+        boolean move=view&&projectOperational&&!structural&&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()))
                 &&(!ownerSpace||admin||!folders.restrictedPersonalDescendant(folder.id(),actor));
-        boolean share=view&&(admin||projectManager||(ownerSpace&&(
+        boolean share=view&&projectOperational&&(admin||projectManager||(ownerSpace&&(
                 "PERSONAL".equals(folder.kind()) || own&&!identity.protectedResource())));
-        boolean archive=view&&!structural&&(admin||projectManager);
+        boolean archive=view&&projectOperational&&!structural&&(admin||projectManager);
         boolean institutional=admin&&("INSTITUTION".equals(identity.resourceOwnerKind())
                 ||"PROJECT".equals(identity.resourceOwnerKind()));
-        boolean trash=view&&!structural&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
+        boolean trash=view&&projectOperational&&!structural&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
                 &&((ownerSpace&&own&&!identity.protectedResource())||institutional);
-        boolean copy=view&&!structural&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
+        boolean copy=view&&projectOperational&&!structural&&!identity.retentionHold()&&!"UNKNOWN".equals(identity.resourceOwnerKind())
                 &&(admin||projectManager||(ownerSpace&&own&&!identity.protectedResource()));
         return result(isActive,view,false,false,add,rename,move,copy,share,
                 trash,false,false,archive,false,true,identity,grant,ownerSpace);

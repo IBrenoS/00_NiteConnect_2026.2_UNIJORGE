@@ -1,14 +1,14 @@
 import type { ProjectDisplay } from "./presentation";
 import type { ProjectStatus } from "./integration-contracts";
 
-/** V51 ProjectParticipationService.CatalogProject; public response projection. */
+/** ProjectParticipationService.CatalogProject; public response projection. */
 export type CatalogProjectContract = {
   id: string; name: string; summary: string; status: ProjectStatus; image: string | null;
   leaderName: string | null; leadershipVacant: boolean; memberCount: number;
   acceptingMembers: boolean; startsOn: string | null; endsOn: string | null; membershipRequestState: "PENDENTE" | "APROVADA" | "REJEITADA" | "ENCERRADA" | null;
-  capabilities: { canViewPresentation: boolean; canRequestMembership: boolean; canExpressInterest: boolean;
+  capabilities: { canViewPresentation: boolean; canRequestMembership: boolean;
     canDecideRequests: boolean; canAccessWorkspace: boolean; canViewActivities: boolean;
-    canViewDocuments: boolean; canManageMembers: boolean; canManageAvailability: boolean };
+    canViewDocuments: boolean; canManageMembers: boolean; canManageAvailability: boolean; canEditProject: boolean; canDeleteProject: boolean };
 };
 /** Explicit public projection. Cover bytes are served through the authenticated same-origin proxy. */
 export function projectFromCatalog(value: CatalogProjectContract): ProjectDisplay {
@@ -17,5 +17,5 @@ export function projectFromCatalog(value: CatalogProjectContract): ProjectDispla
     teamSize: value.memberCount, acceptingMembers: value.acceptingMembers,
     startsOn: value.startsOn, endsOn: value.endsOn,
     canRequestMembership: value.capabilities.canRequestMembership,
-    canExpressInterest: value.capabilities.canExpressInterest };
+  };
 }

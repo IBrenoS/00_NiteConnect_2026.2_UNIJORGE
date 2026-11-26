@@ -18,7 +18,7 @@ public class AnalyticsRepository {
     public AnalyticsRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     public List<List<String>> activities(UUID projectId, UUID memberId, Instant from, Instant to,String status) {
-        StringBuilder where = new StringBuilder(" where a.created_at < ? and a.created_at >= ?");
+        StringBuilder where = new StringBuilder(" where (a.project_id is null or p.deleted_at is null) and a.created_at < ? and a.created_at >= ?");
         var args = new ArrayList<Object>(List.of(Timestamp.from(to),Timestamp.from(from)));
         if (projectId != null) { where.append(" and a.project_id=?"); args.add(projectId); }
         if (memberId != null) { where.append(" and x.member_id=?"); args.add(memberId); }
@@ -37,7 +37,7 @@ public class AnalyticsRepository {
     }
 
     public long countActivities(UUID projectId,UUID memberId,Instant from,Instant to,String status) {
-        StringBuilder where=new StringBuilder(" where a.created_at>=? and a.created_at<?");
+        StringBuilder where=new StringBuilder(" where (a.project_id is null or exists(select 1 from nite_connect.projects p where p.id=a.project_id and p.deleted_at is null)) and a.created_at>=? and a.created_at<?");
         var args=new ArrayList<Object>(List.of(Timestamp.from(from),Timestamp.from(to)));
         if(projectId!=null){where.append(" and a.project_id=?");args.add(projectId);}
         if(memberId!=null){where.append(" and x.member_id=?");args.add(memberId);}
@@ -46,7 +46,7 @@ public class AnalyticsRepository {
     }
 
     public List<List<String>> projects(UUID projectId, UUID memberId, Instant from, Instant to,String status) {
-        StringBuilder where = new StringBuilder(" where true");
+        StringBuilder where = new StringBuilder(" where p.deleted_at is null");
         var args = new ArrayList<Object>();
         if (projectId != null) { where.append(" and p.id=?"); args.add(projectId); }
         if (memberId != null) {
@@ -67,7 +67,7 @@ public class AnalyticsRepository {
     }
 
     public long countProjects(UUID projectId,UUID memberId,Instant from,Instant to,String status) {
-        StringBuilder where=new StringBuilder(" where true");
+        StringBuilder where=new StringBuilder(" where p.deleted_at is null");
         var args=new ArrayList<Object>();
         if(projectId!=null){where.append(" and p.id=?");args.add(projectId);}
         if(memberId!=null){where.append(" and exists(select 1 from nite_connect.project_memberships pm where pm.project_id=p.id and pm.member_id=? and pm.started_at<? and (pm.ended_at is null or pm.ended_at>=?))");args.add(memberId);args.add(Timestamp.from(to));args.add(Timestamp.from(from));}
@@ -76,7 +76,7 @@ public class AnalyticsRepository {
     }
 
     public Map<String,Long> activityDashboardMetrics(UUID projectId,UUID memberId,Instant from,Instant to) {
-        StringBuilder where=new StringBuilder(" where a.created_at>=? and a.created_at<?");
+        StringBuilder where=new StringBuilder(" where (a.project_id is null or exists(select 1 from nite_connect.projects p where p.id=a.project_id and p.deleted_at is null)) and a.created_at>=? and a.created_at<?");
         var args=new ArrayList<Object>(List.of(Timestamp.from(from),Timestamp.from(to)));
         if(projectId!=null){where.append(" and a.project_id=?");args.add(projectId);}
         if(memberId!=null){where.append(" and x.member_id=?");args.add(memberId);}
@@ -95,7 +95,7 @@ public class AnalyticsRepository {
     }
 
     public Map<String,Long> projectDashboardMetrics(UUID projectId,UUID memberId,Instant from,Instant to,String status) {
-        StringBuilder where=new StringBuilder(" where true");
+        StringBuilder where=new StringBuilder(" where p.deleted_at is null");
         var args=new ArrayList<Object>();
         if(projectId!=null){where.append(" and p.id=?");args.add(projectId);}
         if(memberId!=null){

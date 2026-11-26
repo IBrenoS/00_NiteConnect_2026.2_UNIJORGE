@@ -31,7 +31,8 @@ function finish(form:FormData,outcome:string):never {
   const url=target(form);
   const project=url.match(/^\/meus-projetos\/([a-f0-9-]{36})\/documentos(?:[/?]|$)/i)?.[1];
   if(project){revalidatePath(`/meus-projetos/${project}/documentos`,"layout");revalidatePath(`/projetos/${project}/arquivos`);revalidatePath(`/meus-projetos/${project}`); }
-  redirect(`${url}${url.includes("?")?"&":"?"}${outcome==="ok"?`saved=${Date.now()}`:`error=${outcome}`}`);
+  const result=outcome==="trashed"?`trashed=${Date.now()}`:outcome==="ok"?`saved=${Date.now()}`:`error=${outcome}`;
+  redirect(`${url}${url.includes("?")?"&":"?"}${result}`);
 }
 export async function uploadLibraryFile(form:FormData):Promise<void> {
   const folderId=field(form,"folderId"), file=form.get("file"),name=field(form,"title");
@@ -74,12 +75,8 @@ export async function trashLibraryItem(form:FormData):Promise<void> {
   const id=field(form,"id"),kind=field(form,"type");
   if(!validUuid(id)||(kind!=="FOLDER"&&kind!=="DOCUMENT"))finish(form,"invalid");
   const path=kind==="FOLDER"?`/api/v1/library/folders/${id}/trash?recursive=true`:`/api/v1/library/documents/${id}/trash`;
-  finish(form,await request(path,"POST",null));
-}
-export async function restoreTrashItem(form:FormData):Promise<void> {
-  const id=field(form,"id");if(!validUuid(id))finish(form,"invalid");
-  const name=field(form,"name");
-  finish(form,await request(`/api/v1/me/trash/${id}/restore`,"POST",name?JSON.stringify({name}):null,name?"application/json":undefined));
+  const outcome=await request(path,"POST",null);
+  finish(form,outcome==="ok"?"trashed":outcome);
 }
 export async function copyLibraryItem(form:FormData):Promise<void> {
   const id=field(form,"id"),type=field(form,"type"),destinationId=field(form,"destinationId"),name=field(form,"name");

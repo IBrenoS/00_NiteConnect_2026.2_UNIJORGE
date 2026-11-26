@@ -70,7 +70,7 @@ class Block02RevocationTest extends ProjectTestSupport {
                 .content("{\"title\":\"Ideia\",\"description\":\"Teste\",\"reason\":\"Teste\"}"))
                 .andExpect(status().isForbidden());
         for (String path : java.util.List.of("history", "members/history", "leadership/history")) {
-            mvc.perform(get("/api/v1/projects/" + id + "/" + path).with(token(MEMBER))).andExpect(status().isNotFound());
+            mvc.perform(get("/api/v1/projects/" + id + "/" + path).with(token(MEMBER))).andExpect(status().isForbidden());
         }
     }
     @Test void concurrentJoinsCannotCreateTwoCurrentPeriods() throws Exception {

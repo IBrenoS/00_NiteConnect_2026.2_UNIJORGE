@@ -76,7 +76,7 @@ export function ActivityWorkspace({ activities: initialActivities, projectTitles
   const pauseNotice = pausedProjects.length ? <aside role="note" className="mb-3 rounded-control border border-status-warning-border bg-status-warning-soft px-3 py-2 text-type-body-compact text-nite-text-primary">
     <p>Atividades de projetos pausados não podem mudar de situação. A edição e a prioridade continuam disponíveis quando autorizadas.</p>
     {pausedProjects.map((projectId) => <p key={projectId} className="mt-1">{projectTitles[projectId] ?? "Projeto"}: {activities.some((activity) => activity.projectId === projectId && capabilities[activity.id]?.canResumeProject)
-      ? <Link className="font-medium underline" href={`/projetos/${encodeURIComponent(projectId)}/administrar`}>retome o projeto em Administração</Link>
+      ? <Link className="font-medium underline" href={`/projetos/${encodeURIComponent(projectId)}/configuracoes`}>retome o projeto em Configurações</Link>
       : "peça a um administrador para retomar o projeto"}.</p>)}
   </aside> : null;
   async function move(id: string, field: MoveField, value: ActivityStatus | ActivityPriority | null) {

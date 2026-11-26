@@ -49,7 +49,7 @@ describe("workspace de planejamento integrado", () => {
       query="" statusFilter="Todas" sort="Título" currentMember={{ id: "member-1", name: "Integrante" }}
       canCreateTasks={false} canDeletePlanning={false} projectContext={context}
     />);
-    expect(administrator).toContain('href="/projetos/projeto/administrar"');
+    expect(administrator).toContain('href="/projetos/projeto/configuracoes"');
   });
 
   it("mantém o contexto do projeto ao trocar visualização", () => {

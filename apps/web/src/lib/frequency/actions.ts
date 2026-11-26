@@ -60,6 +60,24 @@ async function mutate<T>(path: string, bearer: string | null, method: "POST" | "
   }
 }
 
+async function deleteRequest(path: string, bearer: string | null): Promise<MutationIssue | null> {
+  const url = resolveApiUrl(path);
+  if (!url) return "unavailable";
+  try {
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { Accept: "application/json", ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) },
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (response.status === 204) return null;
+    return response.status === 409 ? "conflict" : apiIssueFromStatus(response.status);
+  } catch {
+    return "unavailable";
+  }
+}
+
 function issueMessage(issue: MutationIssue | null): string {
   if (issue === "access") return "Esta operação não está autorizada para sua conta.";
   if (issue === "not-found") return "A lista não está disponível para esta conta.";
@@ -209,6 +227,15 @@ export async function cancelFrequencyList(form: FormData): Promise<never> {
   if (!uuid.test(listId) || expectedVersion === null || stringField(form, "confirmed") !== "true") redirect("/frequencia?view=management&mode=meeting&error=invalid");
   const result = await mutate(`/api/v1/attendance/lists/${encodeURIComponent(listId)}/cancel`, session.bearer, "POST", { expectedVersion, reason: "Reunião cancelada pela gestão", confirmed: true }, parseListView);
   redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}${result.issue ? `&error=${result.issue}` : "&notice=canceled"}`);
+}
+
+export async function deleteFrequencyList(form: FormData): Promise<never> {
+  const session = await authorizedManager();
+  const listId = stringField(form, "listId");
+  if (!uuid.test(listId)) redirect("/frequencia?view=management&mode=meeting&error=invalid");
+  const issue = await deleteRequest(`/api/v1/attendance/lists/${encodeURIComponent(listId)}`, session.bearer);
+  if (issue) redirect(`/frequencia?view=management&mode=meeting&list=${encodeURIComponent(listId)}&error=${issue}`);
+  redirect("/frequencia?view=management&mode=meeting&notice=deleted");
 }
 
 export async function changeFrequencyParticipant(form: FormData): Promise<never> {

@@ -8,6 +8,7 @@ vi.mock("./qr-scanner", () => ({ QrScanner: () => null }));
 vi.mock("../../lib/frequency/actions", () => ({
   cancelFrequencyList: vi.fn(),
   changeFrequencyParticipant: vi.fn(),
+  deleteFrequencyList: vi.fn(),
   finalizeFrequencyList: vi.fn(),
   openFrequencyList: vi.fn(),
   renewFrequencyListQr: vi.fn(),
@@ -171,5 +172,19 @@ describe("apresentação da Frequência", () => {
 
     expect(html).toContain("Concluída");
     expect(html).not.toContain("Excepcional");
+  });
+
+  it("disponibiliza exclusão no contexto de listas encerradas e omite a ação em listas abertas", () => {
+    const completed = renderToStaticMarkup(<FrequencyWorkspace {...props({
+      view: "management",
+      selectedList: { ...previewFrequencyList, status: "CONCLUIDA", outcome: "REALIZADA_CONTABILIZAVEL", closedAt: "2026-11-02T21:05:00Z" },
+    })} />);
+    const open = renderToStaticMarkup(<FrequencyWorkspace {...props({
+      view: "management",
+      selectedList: previewFrequencyList,
+    })} />);
+
+    expect(completed).toContain(">Excluir lista</button>");
+    expect(open).not.toContain(">Excluir lista</button>");
   });
 });

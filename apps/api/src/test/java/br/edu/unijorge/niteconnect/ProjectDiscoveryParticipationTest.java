@@ -19,7 +19,7 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
                 .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(paused)+"}" )).andExpect(status().isOk());
         mvc.perform(get("/api/v1/project-catalog/"+paused).with(token(OTHER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.capabilities.canRequestMembership").value(true))
-                .andExpect(jsonPath("$.capabilities.canExpressInterest").value(false));
+                .andExpect(jsonPath("$.capabilities.canExpressInterest").doesNotExist());
         mvc.perform(post("/api/v1/projects/"+paused+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.state").value("PENDENTE"));
         UUID pausedRequest=jdbc.queryForObject("select id from nite_connect.project_membership_requests where project_id=?",UUID.class,paused);
@@ -87,7 +87,7 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/me/projects").with(token(MEMBER))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
         mvc.perform(get("/api/v1/projects/"+id+"/workspace").with(token(MEMBER))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ATIVO")).andExpect(jsonPath("$.leaderId").value(MEMBER.toString()));
-        mvc.perform(get("/api/v1/projects/"+id+"/history").with(token(ADMIN))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(2));
+        mvc.perform(get("/api/v1/projects/"+id+"/history").with(token(ADMIN))).andExpect(status().isForbidden());
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_membership_request_events where request_id=?",Integer.class,request)).isEqualTo(2);
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_leadership_history where project_id=?",Integer.class,id)).isEqualTo(1);
     }
@@ -143,14 +143,20 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/projects/"+id+"/workspace").with(token(OTHER))).andExpect(status().isOk());
     }
 
-    @Test void interestDoesNotCreateMembershipAndCoordinatorCanConsultIt() throws Exception {
-        UUID id=project();
+    @Test void newInterestSignalsAreRejectedAndFormalRequestsRemainAvailable() throws Exception {
+        UUID id=project(); join(id,LEADER); transfer(id,LEADER);
+        mvc.perform(patch("/api/v1/projects/"+id+"/status").with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ATIVO\",\"expectedVersion\":"+version(id)+"}"))
+                .andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/projects/"+id+"/availability").with(token(LEADER)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"acceptingMembers\":true,\"expectedVersion\":"+version(id)+"}")).andExpect(status().isOk());
         mvc.perform(post("/api/v1/projects/"+id+"/interest-signals").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"Posso contribuir\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isGone());
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=? and member_id=?",Integer.class,id,OTHER)).isZero();
-        mvc.perform(get("/api/v1/projects/"+id+"/interest-signals").with(token(ADMIN))).andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1));
-        mvc.perform(get("/api/v1/projects/"+id+"/interest-signals").with(token(OTHER))).andExpect(status().isForbidden());
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_interest_signals where project_id=?",Integer.class,id)).isZero();
+        mvc.perform(post("/api/v1/projects/"+id+"/membership-requests").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.state").value("PENDENTE"));
     }
 
     @Test void pendingRequestSurvivesClosingAvailabilityUntilExplicitClosure() throws Exception {
@@ -191,26 +197,10 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/project-catalog/"+id).with(token(OTHER))).andExpect(status().isForbidden());
     }
 
-    @Test void ownInterestsArePersistedPaginatedAndIsolated() throws Exception {
+    @Test void interestReadEndpointsAreRemoved() throws Exception {
         UUID id=project();
-        mvc.perform(post("/api/v1/projects/"+id+"/interest-signals").with(token(OTHER)).contentType(MediaType.APPLICATION_JSON)
-                .content("{}" )).andExpect(status().isCreated());
-        mvc.perform(post("/api/v1/projects/"+id+"/interest-signals").with(token(MEMBER)).contentType(MediaType.APPLICATION_JSON)
-                .content("{}" )).andExpect(status().isCreated());
-        mvc.perform(get("/api/v1/me/project-interest-signals").with(token(OTHER)).param("size","1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
-                .andExpect(jsonPath("$.items[0].memberId").value(OTHER.toString()))
-                .andExpect(jsonPath("$.items[0].projectId").value(id.toString()));
-        mvc.perform(get("/api/v1/me/project-interest-signals").with(token(ADMIN)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
-        jdbc.update("update nite_connect.project_interest_signals set withdrawn_at=clock_timestamp() where member_id=?",OTHER);
-        mvc.perform(get("/api/v1/me/project-interest-signals").with(token(OTHER)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1)).andExpect(jsonPath("$.items[0].withdrawnAt").isNotEmpty());
-        mvc.perform(get("/api/v1/me/project-interest-signals").with(token(OTHER)).param("size","101"))
-                .andExpect(status().isBadRequest());
-        mvc.perform(get("/api/v1/me/project-interest-signals")).andExpect(status().isUnauthorized());
-        jdbc.update("update nite_connect.members set status='AFASTADO' where id=?",OTHER);
         mvc.perform(get("/api/v1/me/project-interest-signals").with(token(OTHER))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/projects/"+id+"/interest-signals").with(token(ADMIN))).andExpect(status().isForbidden());
     }
 
     @Test void requestNamesAreAvailableToContextualManagementAndRequesterOnly() throws Exception {
@@ -258,7 +248,7 @@ class ProjectDiscoveryParticipationTest extends ProjectTestSupport {
         jdbc.update("update nite_connect.projects set status='CONCLUIDO' where id=?",otherProject);
         transfer(otherProject,null);
         mvc.perform(get("/api/v1/project-catalog").with(token(MEMBER)).param("status","CONCLUIDO"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].capabilities.canExpressInterest").value(false));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].capabilities.canExpressInterest").doesNotExist());
     }
 
     @Test void planningMigrationPreservesSupportedAuditTypesAndEntityIntegrity() {

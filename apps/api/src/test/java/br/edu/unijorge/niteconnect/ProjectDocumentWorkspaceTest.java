@@ -147,7 +147,13 @@ class ProjectDocumentWorkspaceTest extends ProjectTestSupport {
         mvc.perform(get("/api/v1/me/trash").with(token(MEMBER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].item.id").value(personalDoc.toString()));
-        mvc.perform(post("/api/v1/me/trash/"+doc+"/restore").with(token(LEADER))).andExpect(status().isNoContent());
+        String restore="{\"action\":\"RESTORE\",\"items\":[{\"type\":\"DOCUMENT\",\"id\":\""+doc+"\"}]}";
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(MEMBER)).header("Idempotency-Key","project-restore-denied")
+                        .contentType(MediaType.APPLICATION_JSON).content(restore)).andExpect(status().isConflict());
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(LEADER)).header("Idempotency-Key","project-restore-once")
+                        .contentType(MediaType.APPLICATION_JSON).content(restore)).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+        mvc.perform(post("/api/v1/library/operations/batch").with(token(LEADER)).header("Idempotency-Key","project-restore-once")
+                        .contentType(MediaType.APPLICATION_JSON).content(restore)).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
         mvc.perform(get("/api/v1/library/documents/"+doc).with(token(MEMBER))).andExpect(status().isOk());
         assertThat(jdbc.queryForObject("select lifecycle_state from nite_connect.documents where id=?",String.class,foreignDoc)).isEqualTo("TRASHED");
     }
@@ -162,6 +168,9 @@ class ProjectDocumentWorkspaceTest extends ProjectTestSupport {
                 .andExpect(status().isNotFound());
         approve(request(LEADER,project,nested,"FOLDER"));
         mvc.perform(get("/api/v1/library/documents/"+doc).with(token(LEADER))).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/projects/"+project+"/trash").with(token(LEADER)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].item.id").value(nested.toString()));
         mvc.perform(post("/api/v1/me/trash/"+nested+"/restore").with(token(ADMIN))).andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/library/folders/"+nested).with(token(LEADER)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.files[0].id").value(doc.toString()));

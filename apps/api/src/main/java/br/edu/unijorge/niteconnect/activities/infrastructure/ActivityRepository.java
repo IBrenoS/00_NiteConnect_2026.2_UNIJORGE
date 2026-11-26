@@ -80,7 +80,7 @@ public class ActivityRepository {
                 jdbc.queryForObject("select count(*) from nite_connect.activity_assignments where member_id=?",Long.class,actor));
     }
     public PageResult<Activity> list(UUID actor,boolean admin,List<UUID> projects,boolean own,Filter f,LocalDate today,int page,int size) {
-        PageResult.validate(page,size); List<Object> args=new ArrayList<>(); StringBuilder w=new StringBuilder(" where 1=1");
+        PageResult.validate(page,size); List<Object> args=new ArrayList<>(); StringBuilder w=new StringBuilder(" where (a.project_id is null or exists(select 1 from nite_connect.projects active_project where active_project.id=a.project_id and active_project.deleted_at is null))");
         if(!admin) {
             w.append(" and ((a.project_id is null and (a.created_by=? or exists(select 1 from nite_connect.activity_assignments s where s.activity_id=a.id and s.member_id=? and s.ended_at is null)))");
             args.add(actor); args.add(actor);

@@ -2,6 +2,7 @@ package br.edu.unijorge.niteconnect.members.api;
 
 import br.edu.unijorge.niteconnect.members.application.InvitationService;
 import br.edu.unijorge.niteconnect.members.application.ResendWebhookVerifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
+@ConditionalOnProperty(name = "nite.entra.enabled", havingValue = "true")
 public class ResendWebhookController {
     private final ResendWebhookVerifier verifier;
     private final InvitationService invitations;

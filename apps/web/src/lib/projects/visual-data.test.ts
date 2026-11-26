@@ -53,7 +53,7 @@ describe("projetos temporários 08.4A", () => {
     expect(getVisualDocuments("exemplo-a", undefined, "objetivos").files).toHaveLength(1);
   });
   it("projeta os nomes reais do contrato V42 sem transportar campos extras", () => {
-    const response: CatalogProjectContract = { id: "id", name: "Nome", summary: "Resumo público", status: "ATIVO", image: null, leaderName: null, leadershipVacant: true, memberCount: 2, acceptingMembers: false, startsOn: null, endsOn: null, membershipRequestState: null, capabilities: { canViewPresentation: true, canRequestMembership: false, canExpressInterest: true, canDecideRequests: false, canAccessWorkspace: false, canViewActivities: false, canViewDocuments: false, canManageMembers: false, canManageAvailability: false } };
+    const response: CatalogProjectContract = { id: "id", name: "Nome", summary: "Resumo público", status: "ATIVO", image: null, leaderName: null, leadershipVacant: true, memberCount: 2, acceptingMembers: false, startsOn: null, endsOn: null, membershipRequestState: null, capabilities: { canViewPresentation: true, canRequestMembership: false, canDecideRequests: false, canAccessWorkspace: false, canViewActivities: false, canViewDocuments: false, canManageMembers: false, canManageAvailability: false, canEditProject: false, canDeleteProject: false } };
     expect(projectFromCatalog(response)).toMatchObject({ title: "Nome", publicSummary: "Resumo público", teamSize: 2, imageUrl: null });
     expect(projectFromCatalog(response)).not.toHaveProperty("capabilities");
   });

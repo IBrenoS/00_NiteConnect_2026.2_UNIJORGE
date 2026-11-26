@@ -59,7 +59,6 @@ public class DocumentCoreService {
     }
     public boolean canReadProjectContext(UUID actor,UUID projectId) {
         access.requireActive(actor);
-        if(access.isAdministrator(actor)) return true;
         try {projects.requireRead(actor,projectId);return true;}
         catch(ApiException ex) {return false;}
     }

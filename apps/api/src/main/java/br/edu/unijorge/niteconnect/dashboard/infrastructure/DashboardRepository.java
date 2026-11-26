@@ -17,8 +17,9 @@ public class DashboardRepository {
           select p.*,exists(select 1 from nite_connect.project_leadership_history l
             join nite_connect.project_memberships m on m.id=l.membership_id and m.ended_at is null
             where l.project_id=p.id and l.member_id=:actor and l.ended_at is null) leader
-          from nite_connect.projects p where :institutional or exists(
+          from nite_connect.projects p where p.deleted_at is null and (:institutional or exists(
             select 1 from nite_connect.project_memberships m where m.project_id=p.id and m.member_id=:actor and m.ended_at is null)
+          )
         ), activities_scope as (
           select a.*,p.status project_status,
             a.created_by=:actor created,
@@ -27,10 +28,10 @@ public class DashboardRepository {
             exists(select 1 from nite_connect.activity_assignments x where x.activity_id=a.id
               and x.member_id=:actor and x.role='COLLABORATOR' and x.ended_at is null) collaborator
           from nite_connect.activities a left join nite_connect.projects p on p.id=a.project_id
-          where :institutional or (
+          where (a.project_id is null or p.deleted_at is null) and (:institutional or (
             (a.project_id is null or :admin or exists(select 1 from projects_scope ps where ps.id=a.project_id))
             and (a.created_by=:actor or exists(select 1 from nite_connect.activity_assignments x
-              where x.activity_id=a.id and x.member_id=:actor and x.ended_at is null)))
+              where x.activity_id=a.id and x.member_id=:actor and x.ended_at is null))))
         ), signals as (
           select a.*,status in ('PLANEJADA','EM_EXECUCAO') and due_on<:today overdue,
             status in ('PLANEJADA','EM_EXECUCAO') and due_on between :today and :soon due_soon,
@@ -145,7 +146,7 @@ public class DashboardRepository {
             select (select count(*) from nite_connect.project_proposals where status='PENDENTE') proposals,
               (select count(*) from nite_connect.invitations where accepted_at is null and revoked_at is null and expires_at>:now and send_state<>'FAILED') invitations,
               (select count(*) from nite_connect.invitations where accepted_at is null and revoked_at is null and expires_at>:now and send_state='FAILED') failed,
-              (select count(*) from nite_connect.attendance_lists where status='ABERTA') attendance
+              (select count(*) from nite_connect.attendance_lists where status='ABERTA' and deleted_at is null) attendance
             """,args,(r,n)->new Administrative(r.getLong("proposals"),r.getLong("invitations"),r.getLong("failed"),r.getLong("attendance"))):null;
         return new Overview(institutional?"INSTITUTIONAL":"PERSONAL",now,today,zone.getId(),from,to,
             new Current(distribution,projectCounts,healthCounts),new Highlights<>(healthCounts.stream().filter(c->List.of("CRITICO","ATENCAO").contains(c.situation())).mapToLong(Count::total).sum(),risks),evolution,new Highlights<>(actionCount,tasks),

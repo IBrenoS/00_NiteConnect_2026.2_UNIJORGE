@@ -10,6 +10,7 @@ import br.edu.unijorge.niteconnect.attendance.infrastructure.AttendanceRepositor
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository;
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.AggregateCounts;
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.CollectiveAggregate;
+import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.DeletionSnapshot;
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.HistoryRecord;
 import br.edu.unijorge.niteconnect.attendance.infrastructure.FrequencyRepository.ParticipantQueryPage;
 import br.edu.unijorge.niteconnect.members.application.MemberDirectory;
@@ -87,6 +88,7 @@ public class FrequencyService {
 
         Optional<ListSnapshot> replay = repo.listByIdempotency(actor, idempotencyKey);
         if (replay.isPresent()) {
+            if (repo.isDeleted(replay.get().id())) throw ApiException.conflict("Esta lista de frequência foi excluída");
             if (!requestHash.equals(requestHashFor(replay.get().id()))) {
                 throw ApiException.conflict("Idempotency-Key já utilizado com outro conteúdo");
             }
@@ -99,7 +101,7 @@ public class FrequencyService {
         boolean countsForFrequency;
         if (command.calendarEventId() != null) {
             event = repo.lockEvent(command.calendarEventId());
-            if (repo.listByEvent(event.id(), true).isPresent()) {
+            if (repo.listEverExistsForEvent(event.id())) {
                 throw ApiException.conflict("Encontro já possui uma lista de frequência");
             }
             if (repo.countAttendance(event.id()) > 0) {
@@ -379,6 +381,23 @@ public class FrequencyService {
         checkVersion(list.version(), command.expectedVersion());
         if (!Boolean.TRUE.equals(command.confirmed())) throw ApiException.invalid("Confirmação explícita obrigatória");
         return cancelLocked(actor, list, command.reason());
+    }
+
+    @Transactional
+    public void deleteList(UUID actor, UUID listId) {
+        transactions.lock();
+        access.requireAdministrator(actor);
+        DeletionSnapshot list = repo.listForDeletion(listId);
+        if (list.deletedAt() != null) return;
+        if (list.status() == ListStatus.ABERTA) throw ApiException.conflict("Cancele a lista antes de excluí-la");
+
+        long nextVersion = list.version() + 1;
+        Instant deletedAt = clock.instant();
+        repo.insertListEvent(UUID.randomUUID(), listId, null, actor, "LIST_DELETED", nextVersion, null,
+                toJson(values("status", list.status(), "outcome", list.outcome(),
+                        "countsForFrequency", list.countsForFrequency())),
+                toJson(values("deleted", true)), "Exclusão lógica administrativa da lista de Frequência");
+        repo.markListDeleted(listId, list.version(), actor, deletedAt);
     }
 
     @Transactional

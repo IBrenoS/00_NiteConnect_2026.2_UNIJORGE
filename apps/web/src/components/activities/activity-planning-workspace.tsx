@@ -101,7 +101,7 @@ export function ActivityPlanningWorkspace({ projectContext, planning, tasks: ini
   const pauseNotice = pauseBlocked ? <aside role="note" className="mb-3 rounded-control border border-status-warning-border bg-status-warning-soft px-3 py-2 text-type-body-compact text-nite-text-primary">
     <p>O projeto está pausado. Operações de execução e mudanças de situação estão bloqueadas; edição e prioridade continuam disponíveis quando autorizadas.</p>
     <p className="mt-1">{canResumeProject && projectContext?.id
-      ? <Link className="font-medium underline" href={`/projetos/${encodeURIComponent(projectContext.id)}/administrar`}>Retome o projeto em Administração.</Link>
+      ? <Link className="font-medium underline" href={`/projetos/${encodeURIComponent(projectContext.id)}/configuracoes`}>Retome o projeto em Configurações.</Link>
       : "Peça a um administrador para retomar o projeto."}</p>
   </aside> : null;
 

@@ -32,7 +32,7 @@ class InstitutionalProjectRoleMigrationTest {
         UUID superiorLeadership = leader(jdbc, administrator, superior);
         var flyway = Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:Migrations").load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(12);
         flyway.validate();
         assertThat(jdbc.queryForObject("select role from nite_connect.role_assignments where member_id=?", String.class, regularized)).isEqualTo("GESTOR_PROJETO");
         assertThat(jdbc.queryForObject("select granted_by from nite_connect.role_assignments where member_id=?", UUID.class, regularized)).isEqualTo(administrator);

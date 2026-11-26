@@ -15,7 +15,7 @@ vi.mock("../api/server", () => ({ resolveApiUrl: (path: string) => new URL(path,
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 
-import { cancelFrequencyList, changeFrequencyParticipant, confirmFrequencyHandoff, confirmFrequencyQr, finalizeFrequencyList, openFrequencyList, pollFrequencyProjector, qrSvgFromProjectorCookie, renewFrequencyListQr } from "./actions";
+import { cancelFrequencyList, changeFrequencyParticipant, confirmFrequencyHandoff, confirmFrequencyQr, deleteFrequencyList, finalizeFrequencyList, openFrequencyList, pollFrequencyProjector, qrSvgFromProjectorCookie, renewFrequencyListQr } from "./actions";
 
 const listId = "93000000-0000-4000-8000-000000000001";
 const eventId = "93000000-0000-4000-8000-000000000002";
@@ -241,5 +241,30 @@ describe("ações server-side da Frequência", () => {
     mocks.fetch.mockResolvedValueOnce(jsonResponse({ memberId, displayName: "Ana Costa", status: "AUSENTE", confirmedAt: null, changedAt: "2026-11-05T21:04:00Z", changedBy: memberId, reason: "Correção administrativa" }));
     await expect(changeFrequencyParticipant(form({ listId, memberId, expectedVersion: "3", targetStatus: "AUSENTE" }))).rejects.toThrow(`redirect:/frequencia?view=management&mode=meeting&list=${listId}&notice=absence-corrected`);
     expect(JSON.parse(String((mocks.fetch.mock.calls[3]?.[1] as RequestInit).body))).toEqual({ expectedVersion: 3, targetStatus: "AUSENTE", reason: "CORRECAO_ADMINISTRATIVA" });
+  });
+
+  it("exclui lista encerrada sem solicitar motivo e volta à listagem atualizada", async () => {
+    mocks.fetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(deleteFrequencyList(form({ listId }))).rejects.toThrow(
+      "redirect:/frequencia?view=management&mode=meeting&notice=deleted",
+    );
+
+    const [url, init] = mocks.fetch.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe(`/api/v1/attendance/lists/${listId}`);
+    expect(init.method).toBe("DELETE");
+    expect(init.headers).toMatchObject({ Authorization: "Bearer server-only-bearer" });
+    expect(init.body).toBeUndefined();
+  });
+
+  it("mantém a lista selecionada quando o backend exige cancelamento ou recusa o acesso", async () => {
+    mocks.fetch.mockResolvedValueOnce(jsonResponse({ code: "OPEN_LIST" }, 409));
+    await expect(deleteFrequencyList(form({ listId }))).rejects.toThrow(
+      `redirect:/frequencia?view=management&mode=meeting&list=${listId}&error=conflict`,
+    );
+
+    mocks.getSession.mockResolvedValue({ bearer: "member-bearer", roles: ["GESTOR_PROJETO"] });
+    await expect(deleteFrequencyList(form({ listId }))).rejects.toThrow("redirect:/frequencia?error=access");
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
   });
 });

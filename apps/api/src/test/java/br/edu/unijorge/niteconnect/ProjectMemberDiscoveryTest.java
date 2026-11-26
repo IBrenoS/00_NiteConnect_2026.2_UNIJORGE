@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ProjectMemberDiscoveryTest extends ProjectTestSupport {
-    @Test void teamIncludesNamesWithoutChangingExistingFieldsOrHistory() throws Exception {
+    @Test void teamIncludesNamesAndNoLongerExposesHistoricalPeriods() throws Exception {
         UUID project = project();
         jdbc.update("update nite_connect.members set name='Ana Souza' where id=?", MEMBER);
         join(project, MEMBER);
@@ -32,8 +32,8 @@ class ProjectMemberDiscoveryTest extends ProjectTestSupport {
                 .content("{\"expectedVersion\":" + version(project) + ",\"reason\":\"Saída\"}"))
                 .andExpect(status().isNoContent());
         mvc.perform(get("/api/v1/projects/" + project + "/members/history").with(token(ADMIN)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))
-                .andExpect(jsonPath("$.items[0].memberId").value(MEMBER.toString()));
+                .andExpect(status().isForbidden());
+        assertThat(jdbc.queryForObject("select count(*) from nite_connect.project_memberships where project_id=?", Integer.class, project)).isEqualTo(1);
         mvc.perform(get("/api/v1/projects/" + project + "/member-candidates")
                         .with(token(ADMIN)).param("query", "Ana"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(1))

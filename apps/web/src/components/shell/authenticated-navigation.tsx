@@ -135,12 +135,13 @@ function NavigationGroup({ group, currentHref, onNavigate }: {
   </details>;
 }
 
-export function AuthenticatedNavigation({ groups, onNavigate }: {
+export function AuthenticatedNavigation({ groups, onNavigate, currentPath: selectedPath }: {
   groups: AuthenticatedNavigationGroup[];
   onNavigate?: () => void;
+  currentPath?: string;
 }) {
   const currentPath = usePathname();
-  const currentHref = currentNavigationHref(groups, currentPath);
+  const currentHref = currentNavigationHref(groups, selectedPath ?? currentPath);
   return <nav aria-label="Navegação principal" className={styles.navigation}>
     {groups.map((group) => <NavigationGroup key={group.label} group={group} currentHref={currentHref} onNavigate={onNavigate} />)}
   </nav>;

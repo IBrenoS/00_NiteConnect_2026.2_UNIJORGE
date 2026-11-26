@@ -76,7 +76,7 @@ abstract class ProjectTestSupport {
                 .content(transferBody(member, version(project)))).andExpect(status().isOk());
     }
     String updateBody(long version) {
-        return "{\"title\":\"Título atualizado\",\"description\":\"Objetivo atualizado\",\"expectedVersion\":" + version + ",\"reason\":\"Ajuste operacional\"}";
+        return "{\"title\":\"Título atualizado\",\"description\":\"Objetivo atualizado\",\"expectedVersion\":" + version + "}";
     }
     int transferAfter(java.util.concurrent.CountDownLatch start, UUID project, UUID member, long version) throws Exception {
         start.await();

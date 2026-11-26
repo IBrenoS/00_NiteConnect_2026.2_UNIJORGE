@@ -62,6 +62,9 @@ public class FrequencyRepository {
             r.getString("handoff_hash"), uuid(r, "list_id"), r.getString("token_hash"), r.getInt("qr_version"),
             instant(r, "expires_at"), instant(r, "consumed_at"), uuid(r, "consumed_by"));
 
+    public record DeletionSnapshot(UUID id, ListStatus status, Outcome outcome, boolean countsForFrequency,
+                                   long version, Instant deletedAt) {}
+
     private static final String LIST_FROM = """
             from nite_connect.attendance_lists l
             join nite_connect.members opener on opener.id=l.opened_by
@@ -132,12 +135,30 @@ public class FrequencyRepository {
     }
 
     public ListSnapshot list(UUID id, boolean lock) {
-        String sql = "select " + LIST_COLUMNS + LIST_FROM + " where l.id=?" + (lock ? " for update of l" : "");
+        String sql = "select " + LIST_COLUMNS + LIST_FROM + " where l.id=? and l.deleted_at is null" + (lock ? " for update of l" : "");
         return jdbc.query(sql, LIST, id).stream().findFirst().orElseThrow(ApiException::notFound);
     }
 
+    public DeletionSnapshot listForDeletion(UUID id) {
+        return jdbc.query("""
+                select id,status,outcome,counts_for_frequency,version,deleted_at
+                  from nite_connect.attendance_lists where id=? for update
+                """, (r, i) -> new DeletionSnapshot(uuid(r, "id"), ListStatus.valueOf(r.getString("status")),
+                r.getString("outcome") == null ? null : Outcome.valueOf(r.getString("outcome")),
+                r.getBoolean("counts_for_frequency"), r.getLong("version"), instant(r, "deleted_at")), id)
+                .stream().findFirst().orElseThrow(ApiException::notFound);
+    }
+
+    public void markListDeleted(UUID id, long expectedVersion, UUID actor, Instant deletedAt) {
+        changed(jdbc.update("""
+                update nite_connect.attendance_lists
+                   set deleted_at=?,deleted_by=?,version=version+1
+                 where id=? and version=? and deleted_at is null and status in ('CONCLUIDA','CANCELADA')
+                """, ts(deletedAt), actor, id, expectedVersion));
+    }
+
     public Optional<ListSnapshot> listByEvent(UUID eventId, boolean lock) {
-        String sql = "select " + LIST_COLUMNS + LIST_FROM + " where l.calendar_event_id=?" + (lock ? " for update of l" : "");
+        String sql = "select " + LIST_COLUMNS + LIST_FROM + " where l.calendar_event_id=? and l.deleted_at is null" + (lock ? " for update of l" : "");
         return jdbc.query(sql, LIST, eventId).stream().findFirst();
     }
 
@@ -146,11 +167,21 @@ public class FrequencyRepository {
                 LIST, actor, key).stream().findFirst();
     }
 
+    public boolean isDeleted(UUID id) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "select exists(select 1 from nite_connect.attendance_lists where id=? and deleted_at is not null)", Boolean.class, id));
+    }
+
     public String requestHash(UUID listId) {
         return jdbc.queryForObject("select request_hash from nite_connect.attendance_lists where id=?", String.class, listId);
     }
 
     public boolean listExistsForEvent(UUID eventId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "select exists(select 1 from nite_connect.attendance_lists where calendar_event_id=? and deleted_at is null)", Boolean.class, eventId));
+    }
+
+    public boolean listEverExistsForEvent(UUID eventId) {
         return Boolean.TRUE.equals(jdbc.queryForObject(
                 "select exists(select 1 from nite_connect.attendance_lists where calendar_event_id=?)", Boolean.class, eventId));
     }
@@ -269,7 +300,7 @@ public class FrequencyRepository {
                   from nite_connect.attendance_lists l
                   join nite_connect.calendar_events e on e.id=l.calendar_event_id
                   left join nite_connect.attendance_list_members lm on lm.list_id=l.id and lm.member_id=?
-                 where l.status='ABERTA'
+                 where l.deleted_at is null and l.status='ABERTA'
                  order by l.opened_at desc,l.id desc
                 """, (r, i) -> new PersonalOpenList(uuid(r, "list_id"), uuid(r, "calendar_event_id"),
                 r.getString("meeting_name"), Classification.valueOf(r.getString("classification")),
@@ -282,7 +313,7 @@ public class FrequencyRepository {
 
     public PageResult<ListSnapshot> lists(LocalDate fromDate, LocalDate toDate, String status, int page, int size) {
         var args = new ArrayList<Object>();
-        String where = " where true";
+        String where = " where l.deleted_at is null";
         if (fromDate != null) { where += " and l.opened_at>=?"; args.add(ts(br.edu.unijorge.niteconnect.attendance.domain.FrequencyRules.startOf(fromDate))); }
         if (toDate != null) { where += " and l.opened_at<?"; args.add(ts(br.edu.unijorge.niteconnect.attendance.domain.FrequencyRules.endExclusive(toDate))); }
         if (status != null) { where += " and l.status=?"; args.add(status); }
@@ -331,10 +362,11 @@ public class FrequencyRepository {
 
     public Optional<UUID> handoffReplayList(String handoffHash, UUID actor) {
         return jdbc.query("""
-                select list_id from nite_connect.attendance_list_events
-                 where member_id=? and action in ('PRESENCE_CONFIRMED','PRESENCE_CONFIRMATION_REPLAYED')
-                   and (after_value::jsonb ->> 'handoffHash')=?
-                 order by occurred_at desc,id desc limit 1
+                select e.list_id from nite_connect.attendance_list_events e
+                  join nite_connect.attendance_lists l on l.id=e.list_id and l.deleted_at is null
+                 where e.member_id=? and e.action in ('PRESENCE_CONFIRMED','PRESENCE_CONFIRMATION_REPLAYED')
+                   and (e.after_value::jsonb ->> 'handoffHash')=?
+                 order by e.occurred_at desc,e.id desc limit 1
                 """, (r, i) -> uuid(r, "list_id"), actor, handoffHash).stream().findFirst();
     }
 
@@ -373,7 +405,7 @@ public class FrequencyRepository {
                 select exists(
                     select 1 from nite_connect.attendance_lists l
                     join nite_connect.attendance_list_qr_tokens q on q.list_id=l.id and q.token_hash=l.qr_token_hash
-                    where l.id=? and l.status='ABERTA' and l.qr_token_hash=? and l.qr_version=?
+                    where l.id=? and l.deleted_at is null and l.status='ABERTA' and l.qr_token_hash=? and l.qr_version=?
                       and q.qr_version=? and q.revoked_at is null and q.expires_at>? and l.confirmation_deadline>?
                 )
                 """, Boolean.class, listId, hash, version, version, ts(now), ts(now)));
@@ -404,7 +436,7 @@ public class FrequencyRepository {
                 select a.id,a.event_id,a.member_id,a.version,a.created_at
                   from nite_connect.attendance_lists l
                   join nite_connect.attendance_records a on a.event_id=l.calendar_event_id and a.member_id=?
-                 where l.id=?
+                 where l.id=? and l.deleted_at is null
                 """, (r, i) -> new AttendanceRef(uuid(r, "id"), uuid(r, "event_id"), uuid(r, "member_id"),
                 r.getLong("version"), instant(r, "created_at")), memberId, listId).stream().findFirst();
     }
@@ -426,7 +458,7 @@ public class FrequencyRepository {
                   join nite_connect.attendance_list_members lm on lm.list_id=l.id and lm.member_id=a.member_id
                        and lm.attendance_id=a.id
                   join nite_connect.calendar_events e on e.id=a.event_id
-                 where a.id=?
+                 where a.id=? and l.deleted_at is null
                 """, (r, i) -> new ConfirmationEvidence(uuid(r, "attendance_id"), uuid(r, "member_id"),
                 uuid(r, "event_id"), r.getLong("attendance_version"), instant(r, "created_at"),
                 uuid(r, "list_id"), r.getLong("list_version"), r.getString("list_status"), r.getString("outcome"),
@@ -457,7 +489,7 @@ public class FrequencyRepository {
                        count(*) filter (where lm.status='AUSENTE') as absent
                   from nite_connect.attendance_lists l
                   join nite_connect.attendance_list_members lm on lm.list_id=l.id
-                 where lm.member_id=? and l.opened_at>=? and l.opened_at>=? and l.opened_at<?
+                 where lm.member_id=? and l.deleted_at is null and l.opened_at>=? and l.opened_at>=? and l.opened_at<?
                    and l.status='CONCLUIDA' and l.outcome='REALIZADA_CONTABILIZAVEL'
                    and l.counts_for_frequency=true
                 """, (r, i) -> new AggregateCounts(r.getLong("eligible"), r.getLong("present"),
@@ -477,7 +509,7 @@ public class FrequencyRepository {
                        count(*) filter (where lm.status='AUSENTE') as absent
                   from nite_connect.attendance_lists l
                   join nite_connect.attendance_list_members lm on lm.list_id=l.id
-                 where lm.member_id=? and l.opened_at>=? and l.opened_at>=? and l.opened_at<?
+                 where lm.member_id=? and l.deleted_at is null and l.opened_at>=? and l.opened_at>=? and l.opened_at<?
                    and l.status='CONCLUIDA' and l.outcome='REALIZADA_CONTABILIZAVEL'
                    and l.counts_for_frequency=true
                  group by period_start order by period_start
@@ -496,7 +528,7 @@ public class FrequencyRepository {
                            row_number() over(partition by lm.member_id order by l.opened_at desc,l.id desc) as latest
                       from nite_connect.attendance_lists l
                       join nite_connect.attendance_list_members lm on lm.list_id=l.id
-                     where l.opened_at>=? and l.opened_at>=? and l.opened_at<?
+                     where l.deleted_at is null and l.opened_at>=? and l.opened_at>=? and l.opened_at<?
                 ), latest_roster as (
                     select member_id,display_name,sort_key from roster where latest=1
                 ), named_roster as (
@@ -505,7 +537,7 @@ public class FrequencyRepository {
                     select lm.member_id,lm.status
                       from nite_connect.attendance_lists l
                       join nite_connect.attendance_list_members lm on lm.list_id=l.id
-                     where l.opened_at>=? and l.opened_at>=? and l.opened_at<? and l.status='CONCLUIDA'
+                     where l.deleted_at is null and l.opened_at>=? and l.opened_at>=? and l.opened_at<? and l.status='CONCLUIDA'
                        and l.outcome='REALIZADA_CONTABILIZAVEL' and l.counts_for_frequency=true
                 ), totals as (
                     select member_id,count(*) as eligible,
@@ -552,7 +584,7 @@ public class FrequencyRepository {
                            row_number() over(partition by lm.member_id order by l.opened_at desc,l.id desc) as position
                       from nite_connect.attendance_lists l
                       join nite_connect.attendance_list_members lm on lm.list_id=l.id
-                     where lm.member_id in (%s) and l.opened_at>=? and l.status='CONCLUIDA'
+                     where lm.member_id in (%s) and l.deleted_at is null and l.opened_at>=? and l.status='CONCLUIDA'
                        and l.outcome='REALIZADA_CONTABILIZAVEL' and l.counts_for_frequency=true
                 )
                 select member_id,status,list_id,calendar_event_id,meeting_name,opened_at
@@ -579,13 +611,13 @@ public class FrequencyRepository {
                            l.status as list_status,l.outcome,l.confirmation_deadline,l.counts_for_frequency
                       from nite_connect.attendance_list_members lm
                       join nite_connect.attendance_lists l on l.id=lm.list_id
-                     where lm.member_id=? and l.opened_at>=?
+                     where lm.member_id=? and l.deleted_at is null and l.opened_at>=?
                     union all
                      select null::uuid,a.event_id,e.title,a.created_at,'LEGADO',a.created_at,null::timestamptz,true,false,
                             true,'LEGADO','LEGADO',null::varchar,null::timestamptz,false
                       from nite_connect.attendance_records a
                       join nite_connect.calendar_events e on e.id=a.event_id
-                      left join nite_connect.attendance_lists l on l.calendar_event_id=a.event_id
+                      left join nite_connect.attendance_lists l on l.calendar_event_id=a.event_id and l.deleted_at is null
                      where a.member_id=? and a.created_at<? and l.id is null
                 )
                 """;

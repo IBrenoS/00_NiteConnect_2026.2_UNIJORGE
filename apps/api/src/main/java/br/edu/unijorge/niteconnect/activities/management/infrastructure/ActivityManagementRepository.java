@@ -31,7 +31,7 @@ public class ActivityManagementRepository {
 
     public Result query(Filter filter, UUID memberId, LocalDate today, int page, int size) {
         var params = new MapSqlParameterSource("today", today).addValue("memberId", memberId);
-        var where = new StringBuilder(" where true");
+        var where = new StringBuilder(" where (a.project_id is null or p.deleted_at is null)");
         add(where, params, "a.project_id=:projectId", "projectId", filter.projectId());
         add(where, params, "a.planning_id=:planningId", "planningId", filter.planningId());
         add(where, params, "a.status=:status", "status", filter.status() == null ? null : filter.status().name());

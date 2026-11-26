@@ -138,6 +138,10 @@ public class DocumentLibraryRepository {
         return jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and f.archived_at is null and f.lifecycle_state='ACTIVE'",DocumentLibraryRepository::folder,project)
                 .stream().findFirst().orElseThrow(ApiException::notFound);
     }
+    public Folder archivedProject(UUID project) {
+        return jdbc.query(FOLDER_COLUMNS+" where f.project_id=? and f.kind='PROJECT' and p.deleted_at is not null and f.archived_at is null and f.lifecycle_state='ACTIVE'",
+                DocumentLibraryRepository::folder,project).stream().findFirst().orElseThrow(ApiException::notFound);
+    }
     public Folder ensurePersonal(UUID member) {
         var existing=jdbc.query(FOLDER_COLUMNS+" where f.owner_id=? and f.kind='PERSONAL' and f.archived_at is null and f.lifecycle_state='ACTIVE'",
                 DocumentLibraryRepository::folder,member);
@@ -576,6 +580,14 @@ public class DocumentLibraryRepository {
                     left join nite_connect.document_versions v on v.id=d.current_version_id
                   where d.lifecycle_state='TRASHED' and d.archived_at is null
                     and (? or d.space_owner_id=? or (cast(? as uuid) is not null and d.trash_project_id=cast(? as uuid)))
+                    and not exists(
+                      with recursive ancestors(id,parent_id,trash_batch_id,depth) as (
+                        select f.id,f.parent_id,f.trash_batch_id,0 from nite_connect.document_folders f where f.id=d.folder_id
+                        union all select parent.id,parent.parent_id,parent.trash_batch_id,ancestors.depth+1
+                          from nite_connect.document_folders parent join ancestors on parent.id=ancestors.parent_id
+                          where ancestors.depth<63
+                      ) select 1 from ancestors where trash_batch_id=d.trash_batch_id
+                    )
                   union all
                   select f.id,f.name,'FOLDER',f.space_owner_id,f.resource_owner_id,f.resource_owner_kind,f.created_by,c.name,f.created_at,
                     f.deleted_by,m.name,f.deleted_at,f.parent_id,p.name,
@@ -635,15 +647,18 @@ public class DocumentLibraryRepository {
     }
     public void restoreTrash(UUID id,String type,UUID actor,String explicitName) {
         if("DOCUMENT".equals(type)) {
-            Boolean conflict=jdbc.queryForObject("""
+            Boolean nameConflict=jdbc.queryForObject("""
                     select (cast(? as varchar) is null and exists(select 1 from nite_connect.documents d join nite_connect.documents other
                       on other.folder_id=d.folder_id and lower(btrim(other.title))=lower(btrim(d.title)) and other.id<>d.id
                       and other.archived_at is null and other.lifecycle_state='ACTIVE'
                      where d.id=? and d.lifecycle_state='TRASHED'))
-                    or exists(select 1 from nite_connect.documents d left join nite_connect.document_folders f on f.id=d.folder_id
+                    """,Boolean.class,explicitName,id);
+            if(Boolean.TRUE.equals(nameConflict)) throw ApiException.conflict("Já existe um item com este nome na pasta original");
+            Boolean parentMissing=jdbc.queryForObject("""
+                    select exists(select 1 from nite_connect.documents d left join nite_connect.document_folders f on f.id=d.folder_id
                      where d.id=? and d.folder_id is not null and (f.id is null or f.archived_at is not null or f.lifecycle_state<>'ACTIVE'))
-                    """,Boolean.class,explicitName,id,id);
-            if(Boolean.TRUE.equals(conflict)) throw ApiException.conflict("Pasta original indisponível ou conflito de nome");
+                    """,Boolean.class,id);
+            if(Boolean.TRUE.equals(parentMissing)) throw ApiException.conflict("A pasta original não está disponível");
             int changed=jdbc.update("update nite_connect.documents set title=coalesce(?,title),lifecycle_state='ACTIVE',deleted_at=null,deleted_by=null,trash_batch_id=null,restored_at=clock_timestamp(),restored_by=? where id=? and lifecycle_state='TRASHED'",explicitName,actor,id);
             if(changed!=1) throw ApiException.conflict("O item deixou de estar na Lixeira");
             event(id,actor,"DOCUMENT_RESTORED_FROM_TRASH","Restaurado ao local original");
@@ -781,7 +796,7 @@ public class DocumentLibraryRepository {
                 :jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),after,limit);
     }
     public List<UUID> projectsNeedingFolder(UUID after,int limit) {
-        String sql="select p.id from nite_connect.projects p where not exists(select 1 from nite_connect.document_folders f where f.project_id=p.id and f.archived_at is null and f.lifecycle_state='ACTIVE')"+
+        String sql="select p.id from nite_connect.projects p where p.deleted_at is null and not exists(select 1 from nite_connect.document_folders f where f.project_id=p.id and f.archived_at is null and f.lifecycle_state='ACTIVE')"+
                 (after==null?"":" and p.id>?")+" order by p.id limit ?";
         return after==null?jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),limit)
                 :jdbc.query(sql,(rs,row)->rs.getObject(1,UUID.class),after,limit);

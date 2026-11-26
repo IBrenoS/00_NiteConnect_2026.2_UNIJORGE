@@ -87,6 +87,12 @@ public class FrequencyController {
         return frequency.cancelList(identities.member(jwt), listId, command);
     }
 
+    @DeleteMapping("/api/v1/attendance/lists/{listId}")
+    ResponseEntity<Void> deleteList(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID listId) {
+        frequency.deleteList(identities.member(jwt), listId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/api/v1/attendance/lists/{listId}/participants/{memberId}")
     ParticipantView changeParticipant(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID listId,
                                       @PathVariable UUID memberId, @Valid @RequestBody ChangeParticipant command) {

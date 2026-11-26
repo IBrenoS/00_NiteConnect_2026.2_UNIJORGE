@@ -2,14 +2,13 @@ import { describe, expect, it } from "vitest";
 import { parseLeadershipProjects } from "./contracts";
 
 describe("contratos dos projetos sob liderança", () => {
-  it("mantém apenas projetos com vínculo de liderança atual", () => {
+  it("aceita somente o contrato de lideranças vigentes", () => {
     expect(parseLeadershipProjects({ items: [
-      { projectId: "current", title: "Projeto atual", endedAt: null },
-      { projectId: "past", title: "Projeto anterior", endedAt: "2026-01-01T00:00:00Z" },
+      { projectId: "current", title: "Projeto atual" },
     ] })).toEqual([{ projectId: "current", title: "Projeto atual" }]);
   });
 
   it("rejeita um contrato inconsistente", () => {
-    expect(parseLeadershipProjects({ items: [{ projectId: "current", title: "Projeto atual", endedAt: false }] })).toBeNull();
+    expect(parseLeadershipProjects({ items: [{ projectId: "current", title: 1 }] })).toBeNull();
   });
 });

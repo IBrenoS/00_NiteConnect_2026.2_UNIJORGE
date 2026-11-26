@@ -44,11 +44,6 @@ public class MemberController {
     Member status(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody MemberContracts.StatusChange input) {
         return members.changeStatus(identities.member(jwt), id, input.status(), input.expectedVersion(), input.reason());
     }
-    @GetMapping("/{id}/history")
-    PageResult<MemberAdministration.StatusEvent> history(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
-        return members.history(identities.member(jwt), id, page, size);
-    }
     @PostMapping("/{id}/roles")
     List<String> grant(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody MemberContracts.RoleGrant input) {
         return access.grant(identities.member(jwt), id, input.role(), input.expectedVersion(), input.reason());

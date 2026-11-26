@@ -86,8 +86,8 @@ public class DocumentLibraryService {
         capabilities.requireAdd(actor,folder);
     }
     private boolean elevatedInScope(UUID actor,Folder folder) {
-        if(access.isAdministrator(actor)) return true;
         Scope current=scope(folder);
+        if(access.isAdministrator(actor)) return !"PROJECT".equals(current.kind())||capabilities.folder(actor,folder).canRename();
         if("PERSONAL".equals(current.kind())) return actor.equals(current.subject());
         if("PROJECT".equals(current.kind())) {
             try {projects.requireManage(actor,current.subject());return true;}
@@ -155,6 +155,15 @@ public class DocumentLibraryService {
         if(!scope(selected).equals(new Scope("PROJECT",projectId))) throw ApiException.notFound();
         return listing(actor,selected,search,mimeType,sortBy,direction,cursor,limit);
     }
+    @Transactional(readOnly=true)
+    public Listing archivedProject(UUID actor,UUID projectId,UUID folderId,String search,String mimeType,String sortBy,
+                                   String direction,String cursor,int limit) {
+        access.requireAdministrator(actor);
+        Folder home=folders.archivedProject(projectId);
+        Folder selected=folderId==null?home:folders.folder(folderId);
+        if(!folders.descendant(home.id(),selected.id())) throw ApiException.notFound();
+        return listing(actor,selected,search,mimeType,sortBy,direction,cursor,limit);
+    }
     private Listing listing(UUID actor,Folder folder,String search,String mimeType,String sortBy,String direction,String cursor,int limit) {
         requireRead(actor,folder);
         String normalizedSort=sortBy==null||sortBy.isBlank()?"name":sortBy;
@@ -193,7 +202,8 @@ public class DocumentLibraryService {
     public FileEntry documentDetails(UUID actor,UUID id) {
         Document document=core.require(actor,id);
         FileEntry file=folders.file(id);
-        boolean elevated=access.isAdministrator(actor);
+        boolean elevated=access.isAdministrator(actor)&&(!"PROJECT".equals(document.context())
+                ||capabilities.document(actor,document).canEdit());
         if("PROJECT".equals(document.context())&&!elevated) {
             try {projects.requireRead(actor,document.projectId());}
             catch(ApiException ex) {

@@ -3,7 +3,7 @@ const { getApiJson, getAllMyProjects } = vi.hoisted(() => ({ getApiJson: vi.fn()
 vi.mock("server-only", () => ({}));
 vi.mock("../api/server", () => ({ getApiJson }));
 vi.mock("../activities/data", () => ({ getAllMyProjects }));
-import { getProjectAuthority, getProjectCandidates, getProjectStatusHistory, getProjectParticipationHistory, getProjectLeadershipHistory, getAllProjectCatalog, getCatalogProject, getProjectTeam, getMyProjectRequests, getAllMyProjectIds, getMyProjectInterests } from "./data";
+import { getLeadershipProjects, getProjectAuthority, getProjectCandidates, getAllProjectCatalog, getCatalogProject, getProjectTeam, getMyProjectRequests, getAllMyProjectIds } from "./data";
 beforeEach(() => vi.resetAllMocks());
 const id = "11111111-1111-4111-8111-111111111111";
 it("consulta apresentação exclusivamente no catálogo sanitizado e preserva 404", async () => {
@@ -24,10 +24,10 @@ it("carrega todas páginas da equipe e rejeita resultado parcial", async () => {
   getApiJson.mockResolvedValueOnce({ data: null, issue: "access" });
   await expect(getMyProjectRequests("bearer")).resolves.toEqual({ data: null, issue: "access" });
 });
-it("obtém interesses do próprio integrante sem consultar lista administrativa", async () => {
-  getApiJson.mockResolvedValue({ data: { items: [], page: 0, size: 100, total: 0 }, issue: null });
-  await expect(getMyProjectInterests("bearer")).resolves.toEqual({ data: [], issue: null });
-  expect(getApiJson).toHaveBeenCalledWith("/api/v1/me/project-interest-signals?page=0&size=100", "bearer", expect.any(Function));
+it("consulta somente lideranças vigentes para os consumidores pessoais", async () => {
+  getApiJson.mockResolvedValue({ data: { items: [{ projectId: id, title: "Projeto" }], page: 0, size: 100, total: 1 }, issue: null });
+  await expect(getLeadershipProjects("bearer")).resolves.toEqual({ data: { items: [{ projectId: id, title: "Projeto" }], page: 0, size: 100, total: 1 }, issue: null });
+  expect(getApiJson).toHaveBeenCalledWith("/api/v1/me/projects/leadership?page=0&size=100", "bearer", expect.any(Function));
 });
 it("reutiliza os vínculos pessoais existentes", async () => {
   getAllMyProjects.mockResolvedValue({ data: [{ id }], issue: null });
@@ -54,12 +54,10 @@ it("consulta autoridade atual da API sem depender de papéis da sessão", async 
  getApiJson.mockResolvedValueOnce({ data: null, issue: "access" });
  expect((await getProjectAuthority("bearer")).issue).toBe("access");
 });
-it("carrega candidatos e históricos somente nos contratos contextuais paginados", async () => {
+it("carrega candidatos somente no contrato contextual paginado", async () => {
  getApiJson.mockResolvedValue({ data: { items: [], page: 0, size: 100, total: 0 }, issue: null });
- for (const [load,suffix] of [[getProjectStatusHistory,"history"],[getProjectParticipationHistory,"members/history"],[getProjectLeadershipHistory,"leadership/history"]] as const) {
-  expect((await load("bearer",id)).data).toEqual([]);
-  expect(getApiJson).toHaveBeenLastCalledWith(`/api/v1/projects/${id}/${suffix}?page=0&size=100`,"bearer",expect.any(Function));
- }
+ expect((await getProjectCandidates("bearer",id,"Ana")).data).toEqual([]);
+ expect(getApiJson).toHaveBeenCalledWith(`/api/v1/projects/${id}/member-candidates?query=Ana&page=0&size=100`,"bearer",expect.any(Function));
 });
 
 it("pesquisa candidatos com pelo menos dois caracteres e paginação contextual", async () => {
